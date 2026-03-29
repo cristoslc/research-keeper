@@ -66,6 +66,17 @@ class WebNormalizer:
 
         html = raw if isinstance(raw, str) else raw.decode("utf-8", errors="replace")
 
+        # If input looks like a URL, fetch the HTML first
+        if isinstance(html, str) and re.match(r"https?://\S+$", html.strip()):
+            url = html.strip()
+            fetched = trafilatura.fetch_url(url)
+            if fetched is None:
+                raise NormalizationError(
+                    f"Failed to fetch URL: {url}",
+                    stage="web-normalize",
+                )
+            html = fetched
+
         # Extract meta tags
         parser = _MetaTagParser()
         parser.feed(html)

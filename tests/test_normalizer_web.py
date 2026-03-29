@@ -60,3 +60,25 @@ def test_login_page_raises(normalizer: WebNormalizer):
     html = (FIXTURES / "login_page.html").read_text()
     with pytest.raises(NormalizationError, match="[Ii]nsufficient"):
         normalizer.normalize(html, {"url": "https://example.com/login"})
+
+
+def test_url_input_fetches_html(normalizer: WebNormalizer):
+    """When given a URL, normalizer should fetch HTML first."""
+    fixture_html = (FIXTURES / "article_simple.html").read_text()
+    with patch("research_keeper.adapters.normalizers.web.trafilatura") as mock_traf:
+        mock_traf.fetch_url.return_value = fixture_html
+        mock_traf.extract.return_value = "Agent memory systems are crucial for maintaining context. " * 10
+        content, meta = normalizer.normalize(
+            "https://example.com/article",
+            {"url": "https://example.com/article"},
+        )
+        mock_traf.fetch_url.assert_called_once_with("https://example.com/article")
+        assert content  # Should have extracted content
+
+
+def test_url_fetch_failure_raises(normalizer: WebNormalizer):
+    """When URL fetch fails, raise NormalizationError."""
+    with patch("research_keeper.adapters.normalizers.web.trafilatura") as mock_traf:
+        mock_traf.fetch_url.return_value = None
+        with pytest.raises(NormalizationError, match="[Ff]etch"):
+            normalizer.normalize("https://example.com/broken", {})
