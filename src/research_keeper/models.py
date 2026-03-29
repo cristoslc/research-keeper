@@ -31,6 +31,8 @@ class Source:
     tags: list[str] = field(default_factory=list)
     hash: str | None = None
     kind: Literal["source"] = "source"
+    title: str | None = None
+    summary: str | None = None
 
     def __post_init__(self) -> None:
         if self.hash is None:

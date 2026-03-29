@@ -35,6 +35,7 @@ class FilesystemSourceStore:
             slug=slug, content_path=content_path, content=content,
             freshness=freshness, provenance=provenance,
             tags=metadata.get("tags", []), hash=content_hash,
+            title=metadata.get("title"), summary=metadata.get("summary"),
         )
         (source_dir / "source.md").write_text(content)
         manifest = {
@@ -89,6 +90,8 @@ class FilesystemSourceStore:
             ),
             tags=manifest.get("tags", []),
             hash=manifest["hash"],
+            title=manifest.get("title"),
+            summary=manifest.get("summary"),
         )
 
     def list(self) -> list[Source]:

@@ -90,3 +90,11 @@ def test_slug_collision_appends_suffix(library_root: Path):
     source_b = store.add("# Content B", {"title": "Test", "origin": "inline"})
     assert source_b.slug.startswith("test-")
     assert source_b.slug != "test"
+
+
+def test_get_preserves_title_and_summary(library_root: Path, sample_metadata: dict):
+    store = FilesystemSourceStore(library_root)
+    store.add("# Content", sample_metadata)
+    source = store.get("agent-memory-systems")
+    assert source.title == "Agent Memory Systems"
+    assert source.summary == "A survey of memory architectures for LLM agents."
