@@ -99,6 +99,29 @@ def add(raw: str, root: str, origin: str | None, published: str | None) -> None:
 
 @main.command()
 @click.option("--root", type=click.Path(exists=True), default=".")
+def tags(root: str) -> None:
+    """List all tags with source counts."""
+    root_path = Path(root).resolve()
+
+    from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+
+    tag_store = FilesystemTagStore(root_path)
+    tag_list = tag_store.list()
+
+    if not tag_list:
+        click.echo("No tags yet.")
+        return
+
+    for tag_slug in tag_list:
+        source_slugs = tag_store.sources_for_tag(tag_slug)
+        meta = tag_store.get_meta(tag_slug)
+        has_synthesis = (tag_store.tag_dir(tag_slug) / "synthesis.md").exists()
+        synth_marker = "+" if has_synthesis else "-"
+        click.echo(f"  {tag_slug} ({len(source_slugs)} sources) [{synth_marker}]")
+
+
+@main.command()
+@click.option("--root", type=click.Path(exists=True), default=".")
 def rebuild(root: str) -> None:
     """Rebuild SQLite index from filesystem."""
     root_path = Path(root).resolve()
@@ -125,6 +148,7 @@ def rebuild(root: str) -> None:
 def _build_pipeline(root: Path):
     """Build an IntakePipeline from config at root."""
     from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+    from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
     from research_keeper.adapters.sqlite.index import SqliteIndex
     from research_keeper.adapters.normalizers.notes import NotesNormalizer
     from research_keeper.pipeline import IntakePipeline
@@ -132,9 +156,9 @@ def _build_pipeline(root: Path):
     config = load_config(root / "rk.yaml")
 
     store = FilesystemSourceStore(root)
+    tag_store = FilesystemTagStore(root)
     index = SqliteIndex(root / "rk.db")
 
-    # Build normalizer registry — start with what's available
     normalizers: dict = {"note": NotesNormalizer()}
 
     try:
@@ -155,14 +179,19 @@ def _build_pipeline(root: Path):
     except ImportError:
         pass
 
-    # Build embedder — graceful fallback if not available
     embedder = _build_embedder(config)
+    tagger = _build_tagger(config)
+    synthesizer = _build_synthesizer(config)
 
     return IntakePipeline(
         source_store=store,
         index=index,
         embedder=embedder,
         normalizers=normalizers,
+        tagger=tagger,
+        synthesizer=synthesizer,
+        tag_store=tag_store,
+        config=config,
     )
 
 
@@ -181,3 +210,31 @@ def _build_embedder(config):
             return b""
 
     return StubEmbedder()
+
+
+def _build_tagger(config):
+    """Build tagger from config, with None fallback."""
+    import os
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+    try:
+        from research_keeper.adapters.llm.tagger import LLMTagger
+        return LLMTagger(model=config.models.tagger, api_key=api_key)
+    except ImportError:
+        pass
+    return None
+
+
+def _build_synthesizer(config):
+    """Build synthesizer from config, with None fallback."""
+    import os
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+    try:
+        from research_keeper.adapters.llm.synthesizer import LLMSynthesizer
+        return LLMSynthesizer(config=config, api_key=api_key)
+    except ImportError:
+        pass
+    return None
