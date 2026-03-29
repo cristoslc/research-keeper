@@ -106,6 +106,36 @@ def test_rebuild_loads_embeddings(runner: CliRunner, library_root: Path):
     assert cur.fetchone()[0] == 1
 
 
+def test_end_to_end_init_add_rebuild(runner: CliRunner, tmp_path: Path):
+    """Full integration: init -> add -> rebuild with real pipeline."""
+    target = tmp_path / "e2e-test"
+
+    # Init
+    result = runner.invoke(main, ["init", str(target)])
+    assert result.exit_code == 0
+
+    # Add a note (notes normalizer doesn't need external deps)
+    result = runner.invoke(main, [
+        "add", "--root", str(target),
+        "# Integration Test\n\nThis tests the full pipeline end to end."
+    ])
+    assert result.exit_code == 0
+    assert "integration-test" in result.output.lower() or "added" in result.output.lower()
+
+    # Verify source exists on disk
+    sources_dir = target / "library" / "sources"
+    source_dirs = list(sources_dir.iterdir())
+    assert len(source_dirs) == 1
+    source_dir = source_dirs[0]
+    assert (source_dir / "source.md").exists()
+    assert (source_dir / "manifest.yaml").exists()
+
+    # Rebuild and verify
+    result = runner.invoke(main, ["rebuild", "--root", str(target)])
+    assert result.exit_code == 0
+    assert "1" in result.output  # "1 source(s) indexed"
+
+
 def test_rebuild(runner: CliRunner, library_root: Path):
     # Create a source on disk so rebuild has something to index
     source_dir = library_root / "library" / "sources" / "test-source"
