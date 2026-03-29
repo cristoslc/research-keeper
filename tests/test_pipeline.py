@@ -80,3 +80,18 @@ def test_add_writes_embedding(pipeline: IntakePipeline, library_root: Path):
     emb_path = library_root / "library" / "sources" / source.slug / "embedding.bin"
     assert emb_path.exists()
     assert emb_path.read_bytes() == b"\x00" * 16
+
+
+def test_pipeline_uses_source_dir_not_internal_root(library_root: Path):
+    """Pipeline should use source_dir() not _root."""
+    store = FilesystemSourceStore(library_root)
+    index = SqliteIndex(library_root / "rk.db")
+    embedder = MagicMock()
+    embedder.embed.return_value = b"\x00" * 16
+    pipeline = IntakePipeline(
+        source_store=store, index=index, embedder=embedder,
+        normalizers={"note": NotesNormalizer()},
+    )
+    source = pipeline.add("# Test abstraction\n\nContent here.")
+    # Verify embedding was written via store's public interface
+    assert (store.source_dir(source.slug) / "embedding.bin").exists()

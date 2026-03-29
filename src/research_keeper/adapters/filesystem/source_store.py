@@ -105,6 +105,10 @@ class FilesystemSourceStore:
                     sources.append(source)
         return sources
 
+    def source_dir(self, slug: str) -> Path:
+        """Return the filesystem path to a source's directory."""
+        return self._sources_dir / slug
+
     def exists_hash(self, hash: str) -> bool:
         for source in self.list():
             if source.hash == hash:

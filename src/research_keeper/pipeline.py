@@ -1,8 +1,6 @@
 # src/research_keeper/pipeline.py
 from __future__ import annotations
 
-from pathlib import Path
-
 from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
 from research_keeper.adapters.normalizers.identifier import identify_content_type
 from research_keeper.adapters.sqlite.index import SqliteIndex
@@ -47,13 +45,8 @@ class IntakePipeline:
 
         # Embed
         embedding = self._embedder.embed(content)
-        source_dir = (
-            Path(self._store._root)
-            / "library"
-            / "sources"
-            / source.slug
-        )
-        (source_dir / "embedding.bin").write_bytes(embedding)
+        emb_dir = self._store.source_dir(source.slug)
+        (emb_dir / "embedding.bin").write_bytes(embedding)
 
         # Index
         self._index.upsert_source(source)
