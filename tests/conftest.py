@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import datetime
 from pathlib import Path
 
 import pytest
-
-from research_keeper.models import Freshness, Provenance
 
 
 @pytest.fixture
