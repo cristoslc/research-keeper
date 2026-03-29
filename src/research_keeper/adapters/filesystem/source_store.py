@@ -17,6 +17,8 @@ class FilesystemSourceStore:
         self._root = root
         self._sources_dir = root / "library" / "sources"
         self._ingestion_dir = root / "library" / "ingestion-dates"
+        self._hash_cache: set[str] = set()
+        self._hash_cache_loaded = False
 
     def add(self, content: str, metadata: dict) -> Source:
         content_hash = hashlib.sha256(content.encode()).hexdigest()
@@ -60,6 +62,7 @@ class FilesystemSourceStore:
         symlink = date_dir / slug
         target = Path("..") / ".." / ".." / "sources" / slug
         symlink.symlink_to(target)
+        self._hash_cache.add(content_hash)
         return source
 
     def get(self, slug: str) -> Source | None:
@@ -110,10 +113,24 @@ class FilesystemSourceStore:
         return self._sources_dir / slug
 
     def exists_hash(self, hash: str) -> bool:
-        for source in self.list():
-            if source.hash == hash:
-                return True
-        return False
+        if not self._hash_cache_loaded:
+            self._load_hash_cache()
+        return hash in self._hash_cache
+
+    def _load_hash_cache(self) -> None:
+        """Lazy-load all hashes from manifests on first dedup check."""
+        if not self._sources_dir.exists():
+            self._hash_cache_loaded = True
+            return
+        for source_dir in self._sources_dir.iterdir():
+            if not source_dir.is_dir():
+                continue
+            manifest_path = source_dir / "manifest.yaml"
+            if manifest_path.exists():
+                manifest = yaml.safe_load(manifest_path.read_text())
+                if manifest and "hash" in manifest:
+                    self._hash_cache.add(manifest["hash"])
+        self._hash_cache_loaded = True
 
     def _unique_slug(self, title: str) -> str:
         base = slugify(title)

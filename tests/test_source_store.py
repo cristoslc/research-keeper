@@ -92,6 +92,15 @@ def test_slug_collision_appends_suffix(library_root: Path):
     assert source_b.slug != "test"
 
 
+def test_exists_hash_uses_cache_after_add(library_root: Path):
+    """Hash should be cached on add, not requiring filesystem rescan."""
+    store = FilesystemSourceStore(library_root)
+    source = store.add("# Cached", {"title": "Cached", "origin": "inline"})
+    # The hash should be findable without scanning all manifests
+    assert store.exists_hash(source.hash)
+    assert len(store._hash_cache) == 1
+
+
 def test_get_preserves_title_and_summary(library_root: Path, sample_metadata: dict):
     store = FilesystemSourceStore(library_root)
     store.add("# Content", sample_metadata)
