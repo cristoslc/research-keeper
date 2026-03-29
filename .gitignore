@@ -1,2 +1,9 @@
 .agents/bin/
 .swain-init
+rk.db
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+*.egg-info/
+.venv/
