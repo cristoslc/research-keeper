@@ -113,6 +113,12 @@ def rebuild(root: str) -> None:
     sources = store.list()
     index.rebuild(sources)
 
+    # Reload embedding.bin files into the index
+    for source in sources:
+        emb_path = store.source_dir(source.slug) / "embedding.bin"
+        if emb_path.exists():
+            index.upsert_embedding(source.slug, "unknown", emb_path.read_bytes())
+
     click.echo(f"Rebuilt index: {len(sources)} source(s) indexed")
 
 

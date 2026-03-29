@@ -80,6 +80,32 @@ def test_add_url(mock_build, runner: CliRunner, tmp_path: Path):
     assert result.exit_code == 0
 
 
+def test_rebuild_loads_embeddings(runner: CliRunner, library_root: Path):
+    """Rebuild should load embedding.bin files into the index."""
+    source_dir = library_root / "library" / "sources" / "test-source"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    (source_dir / "source.md").write_text("# Test content about vectors")
+    (source_dir / "embedding.bin").write_bytes(b"\x00" * 16)
+
+    import yaml
+    (source_dir / "manifest.yaml").write_text(yaml.dump({
+        "slug": "test-source", "kind": "source", "hash": "abc123",
+        "freshness": {"ingested": "2026-03-29", "ttl": "30d"},
+        "provenance": {"origin": "test"}, "tags": [],
+    }))
+    (library_root / "rk.yaml").write_text("data_dir: .\n")
+
+    result = runner.invoke(main, ["rebuild", "--root", str(library_root)])
+    assert result.exit_code == 0
+
+    # Verify embedding was loaded into SQLite
+    from research_keeper.adapters.sqlite.index import SqliteIndex
+    index = SqliteIndex(library_root / "rk.db")
+    cur = index._conn.cursor()
+    cur.execute("SELECT count(*) FROM embeddings WHERE node_id = 'test-source'")
+    assert cur.fetchone()[0] == 1
+
+
 def test_rebuild(runner: CliRunner, library_root: Path):
     # Create a source on disk so rebuild has something to index
     source_dir = library_root / "library" / "sources" / "test-source"
