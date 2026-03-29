@@ -82,6 +82,30 @@ def test_add_writes_embedding(pipeline: IntakePipeline, library_root: Path):
     assert emb_path.read_bytes() == b"\x00" * 16
 
 
+@pytest.fixture
+def pipeline_with_broken_embedder(library_root: Path) -> IntakePipeline:
+    store = FilesystemSourceStore(library_root)
+    index = SqliteIndex(library_root / "rk.db")
+    embedder = MagicMock()
+    embedder.embed.side_effect = ConnectionError("Ollama not running")
+    return IntakePipeline(
+        source_store=store, index=index, embedder=embedder,
+        normalizers={"note": NotesNormalizer()},
+    )
+
+
+def test_add_survives_embedder_failure(pipeline_with_broken_embedder: IntakePipeline, library_root: Path):
+    """Source should be filed and indexed even if embedder fails."""
+    source = pipeline_with_broken_embedder.add("# Resilient\n\nContent survives embedder failure.")
+    # Source is on disk
+    assert (library_root / "library" / "sources" / source.slug / "source.md").exists()
+    # Source is in index (searchable via FTS)
+    results = pipeline_with_broken_embedder.search_fts("resilient")
+    assert len(results) == 1
+    # No embedding.bin (embedder failed)
+    assert not (library_root / "library" / "sources" / source.slug / "embedding.bin").exists()
+
+
 def test_pipeline_uses_source_dir_not_internal_root(library_root: Path):
     """Pipeline should use source_dir() not _root."""
     store = FilesystemSourceStore(library_root)

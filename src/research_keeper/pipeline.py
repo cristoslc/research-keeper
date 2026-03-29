@@ -1,6 +1,8 @@
 # src/research_keeper/pipeline.py
 from __future__ import annotations
 
+import logging
+
 from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
 from research_keeper.adapters.normalizers.identifier import identify_content_type
 from research_keeper.adapters.sqlite.index import SqliteIndex
@@ -43,21 +45,29 @@ class IntakePipeline:
         # File (dedup check happens inside store.add)
         source = self._store.add(content, merged)
 
-        # Embed
-        embedding = self._embedder.embed(content)
-        emb_dir = self._store.source_dir(source.slug)
-        (emb_dir / "embedding.bin").write_bytes(embedding)
-
-        # Index
+        # Index (always — source is searchable via FTS regardless of embedding)
         self._index.upsert_source(source)
-        model_name = getattr(self._embedder, "_model", "unknown")
-        if not isinstance(model_name, str):
-            model_name = "unknown"
-        self._index.upsert_embedding(
-            source.slug,
-            model_name,
-            embedding,
-        )
+
+        # Embed — graceful degradation if embedder fails
+        try:
+            embedding = self._embedder.embed(content)
+            emb_dir = self._store.source_dir(source.slug)
+            (emb_dir / "embedding.bin").write_bytes(embedding)
+            model_name = getattr(self._embedder, "_model", "unknown")
+            if not isinstance(model_name, str):
+                model_name = "unknown"
+            self._index.upsert_embedding(
+                source.slug,
+                model_name,
+                embedding,
+            )
+        except Exception:
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Embedding failed for %s — source filed and indexed without embedding",
+                source.slug,
+                exc_info=True,
+            )
 
         return source
 
