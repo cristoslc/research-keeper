@@ -1,0 +1,76 @@
+<!-- Jinja2 structural template — uses {{ variable }} placeholders. Read as a structural reference; no rendering pipeline needed. -->
+<!-- Jinja2 structural template — uses {{ variable }} placeholders. Read as a structural reference; no rendering pipeline needed. -->
+---
+title: "{{ title }}"
+artifact: VISION-{{ number }}
+track: standing
+status: {{ status | default("Proposed") }}
+product-type: {{ product_type }}  # "competitive" or "personal"
+author: {{ author }}
+created: {{ created_date }}
+last-updated: {{ last_updated_date }}
+priority-weight: {{ priority_weight | default("") }}
+depends-on-artifacts:
+{%- for dep in depends_on_artifacts | default([]) %}
+  - {{ dep }}
+{%- endfor %}
+evidence-pool: {{ evidence_pool | default("") }}
+---
+
+# {{ title }}
+
+## Target Audience
+
+{{ target_audience | default("Who this product serves.") }}
+
+## Value Proposition
+
+{{ value_proposition | default("What better state of the world this product enables.") }}
+
+{# --- Competitive product sections --- #}
+{% if product_type == "competitive" %}
+## Competitive Landscape
+
+{{ competitive_landscape | default("Who are the incumbents? What gap does this fill? Why now?") }}
+
+## Moat
+
+{{ moat | default("What structural advantage makes this hard to replicate? (Network effects, proprietary data, switching costs, ecosystem lock-in, etc.)") }}
+
+## Scaling Model
+
+{{ scaling_model | default("How does this grow beyond early adopters? What changes at 10x/100x/1000x?") }}
+{% endif %}
+
+{# --- Personal product sections --- #}
+{% if product_type == "personal" %}
+## Problem Statement
+
+{{ problem_statement | default("What specific friction or gap prompted this?") }}
+
+## Existing Landscape
+
+{{ existing_landscape | default("What was tried, what came close, what fell short?") }}
+
+## Build vs. Buy
+
+{{ build_vs_buy | default("Priority: (1) existing solution, (2) glue-code existing tools, (3) build from scratch. Which tier did we land on, and why?") }}
+
+## Maintenance Budget
+
+{{ maintenance_budget | default("How much ongoing effort is acceptable? This constrains architectural choices downstream.") }}
+{% endif %}
+
+## Success Metrics
+
+{{ success_metrics | default("How we measure whether the vision is being realized.") }}
+
+## Non-Goals
+
+{{ non_goals | default("What this vision explicitly does NOT cover.") }}
+
+## Lifecycle
+
+| Phase | Date | Commit | Notes |
+|-------|------|--------|-------|
+| {{ status | default("Draft") }} | {{ created_date }} | {{ commit_hash }} | Initial creation |

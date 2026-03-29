@@ -1,0 +1,94 @@
+<!-- Jinja2 structural template — uses {{ variable }} placeholders. Read as a structural reference; no rendering pipeline needed. -->
+---
+title: "{{ title }}"
+artifact: SPEC-{{ number }}
+track: implementable
+status: {{ status | default("Proposed") }}
+author: {{ author }}
+created: {{ created_date }}
+last-updated: {{ last_updated_date }}
+priority-weight: ""  # optional: high | medium | low. Omit to inherit from parent Epic or Initiative.
+type: {{ type | default("") }}
+parent-epic: {{ parent_epic | default("") }}
+parent-initiative: {{ parent_initiative | default("") }}
+linked-artifacts:
+{%- for artifact in linked_artifacts | default([]) %}
+  - {{ artifact }}
+{%- endfor %}
+depends-on-artifacts:
+{%- for dep in depends_on_artifacts | default([]) %}
+  - {{ dep }}
+{%- endfor %}
+addresses:
+{%- for pp in addresses | default([]) %}
+  - {{ pp }}
+{%- endfor %}
+evidence-pool: {{ evidence_pool | default("") }}
+source-issue: {{ source_issue | default("") }}
+swain-do: required
+---
+
+# {{ title }}
+
+## Problem Statement
+
+{{ problem_statement | default("What problem this spec addresses — scoped from the parent Epic's goal.") }}
+
+## Desired Outcomes
+
+{{ desired_outcomes | default("How does shipping this spec make our personas better off? Who benefits and what changes for them? Connect to the parent epic/initiative's aspirations, or articulate the aspiration directly for standalone specs.") }}
+
+## External Behavior
+
+{{ external_behavior | default("Inputs, outputs, preconditions, postconditions, constraints, and interfaces.") }}
+
+## Acceptance Criteria
+
+{{ acceptance_criteria | default("Given/When/Then scenarios — concise and verifiable.") }}
+
+{%- if type == "bug" %}
+
+## Reproduction Steps
+
+{{ reproduction_steps | default("Steps to reproduce the defect.") }}
+
+## Severity
+
+{{ severity | default("critical | high | medium | low") }}
+
+## Expected vs. Actual Behavior
+
+**Expected:** {{ expected_behavior | default("What should happen.") }}
+
+**Actual:** {{ actual_behavior | default("What happens instead.") }}
+{%- endif %}
+
+## Verification
+
+<!-- Populated when entering Testing phase. Maps each acceptance criterion
+     to its evidence: test name, manual check, or demo scenario.
+     Leave empty until Testing. -->
+
+| Criterion | Evidence | Result |
+|-----------|----------|--------|
+{%- for criterion in verification | default([]) %}
+| {{ criterion.name }} | {{ criterion.evidence }} | {{ criterion.result }} |
+{%- endfor %}
+
+## Scope & Constraints
+
+{{ scope_constraints | default("Boundaries, non-goals, and token-budget awareness.") }}
+
+{#- When superpowers is detected, omit this section entirely.
+    SPECs become thin contracts — the execution plan is generated
+    by superpowers' writing-plans skill at implementation time.
+    See SKILL.md § Superpowers integration → Thin SPEC format. -#}
+## Implementation Approach
+
+{{ implementation_approach | default("High-level plan that seeds the implementation plan (via swain-do). Structure as TDD cycles: identify which acceptance criteria map to which test-then-implement pairs.") }}
+
+## Lifecycle
+
+| Phase | Date | Commit | Notes |
+|-------|------|--------|-------|
+| {{ status | default("Draft") }} | {{ created_date }} | {{ commit_hash }} | Initial creation |

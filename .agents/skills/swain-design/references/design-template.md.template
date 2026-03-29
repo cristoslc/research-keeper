@@ -1,0 +1,219 @@
+<!-- Jinja2 structural template — uses {{ variable }} placeholders. Read as a structural reference; no rendering pipeline needed.
+
+     DOMAIN field — pick the one that matches what the design captures:
+
+       interaction  (default) — what the user sees and does. Screens, flows, states, wireframes,
+                                happy/sad paths. Answers "what does the user experience?"
+                                Example: "The skill installation flow", "The settings page"
+
+       data         — how data is shaped and moves. Entity models, schemas, storage patterns,
+                      data flows, evolution rules, invariants. Answers "what does the data look like
+                      and what must always be true about it?"
+                      Example: "The artifact metadata schema", "The task tracking data model"
+
+       system       — what callers can depend on. API boundaries, behavioral guarantees
+                      (pre/postconditions, error semantics, SLAs), integration interfaces,
+                      versioning contracts. Answers "what promises does this interface make?"
+                      Example: "The specgraph CLI interface", "The webhook contract"
+
+     When unsure between data and system: if the primary concern is the shape/flow of data
+     itself, use data. If the primary concern is what a consumer can rely on when calling
+     an interface, use system. A data DESIGN may reference an API that exposes the data,
+     but the focus is on the data model, not the API contract.
+-->
+---
+title: "{{ title }}"
+artifact: DESIGN-{{ number }}
+track: standing
+domain: {{ domain | default("interaction") }}
+status: {{ status | default("Proposed") }}
+author: {{ author }}
+created: {{ created_date }}
+last-updated: {{ last_updated_date }}
+superseded-by: {{ superseded_by | default("") }}
+linked-artifacts:
+{%- for artifact in linked_artifacts | default([]) %}
+  - {{ artifact }}
+{%- endfor %}
+artifact-refs:
+{%- for ref in artifact_refs | default([]) %}
+  - artifact: {{ ref.artifact }}
+    rel: {{ ref.rel | default(["linked"]) }}
+{%- if ref.commit is defined %}
+    commit: {{ ref.commit }}
+{%- endif %}
+{%- if ref.verified is defined %}
+    verified: {{ ref.verified }}
+{%- endif %}
+{%- endfor %}
+sourcecode-refs:
+{%- for ref in sourcecode_refs | default([]) %}
+  - path: {{ ref.path }}
+    blob: {{ ref.blob }}
+    commit: {{ ref.commit }}
+{%- if ref.verified is defined %}
+    verified: {{ ref.verified }}
+{%- endif %}
+{%- endfor %}
+depends-on-artifacts:
+{%- for dep in depends_on_artifacts | default([]) %}
+  - {{ dep }}
+{%- endfor %}
+---
+
+# {{ title }}
+
+## Design Intent
+
+**Context:** {{ design_context | default("One sentence anchoring the design to its purpose.") }}
+
+### Goals
+{{ design_goals | default("- [What experience or guarantee we're trying to create]") }}
+
+### Constraints
+{{ design_constraints | default("- [Machine-checkable or reviewable boundaries]") }}
+
+### Non-goals
+{{ design_non_goals | default("- [What we explicitly decided NOT to do]") }}
+
+{#- ============================================================
+    DOMAIN: interaction (default)
+    UI/UX interaction design — screens, flows, states, wireframes
+    ============================================================ -#}
+{%- if domain | default("interaction") == "interaction" %}
+
+## Interaction Surface
+
+{{ interaction_surface | default("What part of the product this design covers. Scope it to a single cohesive workflow or screen area.") }}
+
+## User Flow
+
+{{ user_flow | default("The happy-path sequence: what the user does step-by-step. Use numbered steps and a mermaid flowchart.") }}
+
+<!-- REQUIRED: Flowchart showing the decision spine — user choices and the paths they create.
+     Error/failure handling belongs in "Edge Cases and Error States" below, not here.
+     Rules: snake_case node IDs, quoted labels, optimize for scannability over completeness. -->
+```mermaid
+flowchart TD
+    invoke["User invokes"] --> choose_mode{"Which mode?"}
+    choose_mode -->|"mode A"| do_a["Key action A"]
+    choose_mode -->|"mode B"| do_b["Key action B"]
+    do_a --> done["Session starts"]
+    do_b --> done
+```
+
+## Screen States
+
+{{ screen_states | default("Key states the UI can be in (empty, loading, populated, error, etc.). Reference wireframes in supporting files if applicable.") }}
+
+## Edge Cases and Error States
+
+{{ edge_cases | default("What happens when things go wrong or the user takes an unexpected path.") }}
+
+{#- ============================================================
+    DOMAIN: data
+    Data architecture — entities, flows, schemas, evolution, invariants
+    ============================================================ -#}
+{%- elif domain == "data" %}
+
+## Data Surface
+
+{{ data_surface | default("What part of the system's data this design covers. Scope it to a single bounded data domain or data product.") }}
+
+## Entity Model
+
+{{ entity_model | default("Entities, their relationships, and cardinality. Use a mermaid ER diagram.") }}
+
+<!-- REQUIRED: ER diagram showing entities, relationships, and cardinality.
+     Rules: snake_case entity names, clear relationship labels, cardinality notation. -->
+```mermaid
+erDiagram
+    ENTITY_A ||--o{ ENTITY_B : "has many"
+    ENTITY_B }o--|| ENTITY_C : "belongs to"
+```
+
+## Data Flow
+
+{{ data_flow | default("How data moves through the system — ingestion, transformation, storage, retrieval. Use a mermaid flowchart.") }}
+
+```mermaid
+flowchart LR
+    source["Source"] --> ingest["Ingestion"]
+    ingest --> transform["Transform"]
+    transform --> store["Storage"]
+    store --> query["Query"]
+```
+
+## Schema Definitions
+
+{{ schema_definitions | default("Field-level definitions, types, constraints, nullability. Use tables for clarity.") }}
+
+| Field | Type | Nullable | Constraints | Description |
+|-------|------|----------|-------------|-------------|
+
+## Evolution Rules
+
+{{ evolution_rules | default("Backward/forward compatibility requirements, migration strategy, versioning approach.") }}
+
+## Invariants
+
+{{ invariants | default("What must always be true — business rules, referential integrity, consistency guarantees.") }}
+
+## Edge Cases and Error States
+
+{{ edge_cases | default("What happens with malformed data, missing fields, schema violations, migration failures.") }}
+
+{#- ============================================================
+    DOMAIN: system
+    System contracts — API boundaries, behavioral guarantees, integration interfaces
+    ============================================================ -#}
+{%- elif domain == "system" %}
+
+## Interface Surface
+
+{{ interface_surface | default("What boundary this design covers. Scope it to a single integration boundary or API surface.") }}
+
+## Contract Definition
+
+{{ contract_definition | default("Inputs, outputs, error semantics, idempotency. Define what callers can depend on.") }}
+
+<!-- REQUIRED: Diagram showing request/response flow or multi-party interactions.
+     Use flowchart for simple request/response, sequenceDiagram for multi-party. -->
+```mermaid
+flowchart LR
+    caller["Caller"] --> api["API Surface"]
+    api --> response["Response"]
+    api --> error["Error Response"]
+```
+
+## Behavioral Guarantees
+
+{{ behavioral_guarantees | default("Pre/postconditions, SLAs, retry semantics, ordering guarantees, idempotency properties.") }}
+
+## Integration Patterns
+
+{{ integration_patterns | default("How consumers discover and connect — protocol, auth, versioning, discovery mechanism.") }}
+
+## Evolution Rules
+
+{{ evolution_rules | default("Versioning strategy, deprecation policy, breaking change process, backward compatibility commitments.") }}
+
+## Edge Cases and Error States
+
+{{ edge_cases | default("What happens with invalid inputs, timeouts, partial failures, version mismatches.") }}
+
+{%- endif %}
+
+## Design Decisions
+
+{{ design_decisions | default("Key choices made in this design and why. Link to ADRs if the decision has broader architectural implications.") }}
+
+## Assets
+
+{{ assets | default("Index of supporting files in this folder: wireframes, mockups, flow diagrams, schema files, prototypes.") }}
+
+## Lifecycle
+
+| Phase | Date | Commit | Notes |
+|-------|------|--------|-------|
+| {{ status | default("Draft") }} | {{ created_date }} | {{ commit_hash }} | Initial creation |

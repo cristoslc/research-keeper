@@ -1,0 +1,612 @@
+#!/bin/sh
+# swain-box — Unified sandbox launcher for AI coding agents (SPEC-092)
+# Usage: ./swain-box [--runtime=NAME] [--isolation=MODE] [--prompt=TEXT] [--cleanup=NAME] [path]
+#
+# Two-step interactive launcher:
+#   1. Select agent runtime (claude, copilot, codex, gemini, kiro, opencode)
+#   2. Select isolation mode (microVM via Docker Sandboxes, or container via docker run)
+#
+# Flags:
+#   --runtime=NAME       Skip runtime menu (claude|copilot|codex|gemini|kiro|opencode)
+#   --isolation=MODE     Skip isolation menu (microvm|container)
+#   --prompt=TEXT         Initial prompt for the agent session (default: /swain-session)
+#   --cleanup=NAME       Remove container/sandbox for the named sandbox, then exit
+#   [path]               Project directory (default: $PWD)
+#
+# Requires Docker Desktop 4.58+ (for docker sandbox subcommand).
+
+set -eu
+
+# ============================================================
+# Known issues table
+# Empty = no known issues; non-empty = warning text for microVM mode
+# ============================================================
+_known_issue_microvm() {
+    case "$1" in
+        claude) echo "OAuth/Max broken — requires ANTHROPIC_API_KEY" ;;
+        *)      echo "" ;;
+    esac
+}
+
+# Image tag mapping (docker/sandbox-templates:<tag>)
+_image_tag() {
+    case "$1" in
+        claude) echo "claude-code" ;;
+        *)      echo "$1" ;;
+    esac
+}
+
+# Login command per runtime
+_login_cmd() {
+    case "$1" in
+        claude)  echo "claude /login" ;;
+        codex)   echo "codex login --device-auth" ;;
+        copilot) echo "/login" ;;
+        gemini)  echo "(login prompt appears on first run)" ;;
+        kiro)    echo "kiro-cli login" ;;
+        opencode) echo "/connect" ;;
+        *)       echo "$1 login" ;;
+    esac
+}
+
+# API key env var name per runtime
+_api_key_var() {
+    case "$1" in
+        claude)  echo "ANTHROPIC_API_KEY" ;;
+        codex)   echo "OPENAI_API_KEY" ;;
+        copilot) echo "GITHUB_TOKEN" ;;
+        gemini)  echo "GOOGLE_API_KEY" ;;
+        *)       echo "" ;;
+    esac
+}
+
+# ============================================================
+# Apply auth (uses SELECTED_AUTH and COLLECTED_API_KEY from step 2)
+# Called after sandbox/container is created
+# ============================================================
+_apply_auth() {
+    _target="$1"     # "container:<name>" or "microvm:<name>"
+    _login_command=$(_login_cmd "$SELECTED_RUNTIME")
+
+    if [ "$SELECTED_AUTH" = "subscription" ]; then
+        if ! [ -t 0 ]; then
+            echo "swain-box: NOTE — subscription login requires interactive mode." >&2
+            return 1
+        fi
+        echo "" >&2
+        echo "swain-box: Opening a shell. Run:" >&2
+        echo "  $_login_command" >&2
+        echo "When done, type 'exit' to return here." >&2
+        echo "" >&2
+        case "$_target" in
+            container:*)
+                docker exec -it "${_target#container:}" /bin/bash ;;
+            microvm:*)
+                docker sandbox exec -it "${_target#microvm:}" /bin/bash ;;
+        esac
+        echo "" >&2
+        printf "swain-box: Did login complete successfully? [y/N]: "
+        read -r _login_ok
+        case "$_login_ok" in
+            y|Y)
+                case "$_target" in
+                    container:*)
+                        docker exec "${_target#container:}" touch /home/agent/.swain-box-auth-done 2>/dev/null ;;
+                    microvm:*)
+                        docker sandbox exec "${_target#microvm:}" touch /home/agent/.swain-box-auth-done 2>/dev/null ;;
+                esac
+                echo "swain-box: Login saved. Starting session..." >&2
+                ;;
+            *)
+                echo "swain-box: Login not confirmed. You can retry on next launch." >&2
+                return 1
+                ;;
+        esac
+    elif [ "$SELECTED_AUTH" = "apikey" ]; then
+        _api_var=$(_api_key_var "$SELECTED_RUNTIME")
+        if [ -n "$COLLECTED_API_KEY" ] && [ -n "$_api_var" ]; then
+            case "$_target" in
+                container:*)
+                    docker exec "${_target#container:}" sh -c "echo 'export $_api_var=$COLLECTED_API_KEY' >> /home/agent/.bashrc"
+                    docker exec "${_target#container:}" touch /home/agent/.swain-box-auth-done 2>/dev/null
+                    ;;
+                microvm:*)
+                    docker sandbox exec "${_target#microvm:}" sh -c "echo 'export $_api_var=$COLLECTED_API_KEY' >> ~/.bashrc"
+                    docker sandbox exec "${_target#microvm:}" touch /home/agent/.swain-box-auth-done 2>/dev/null
+                    ;;
+            esac
+            echo "swain-box: API key saved." >&2
+        fi
+    fi
+    return 0
+}
+
+# Check if auth has been completed in a sandbox/container
+_auth_done() {
+    case "$1" in
+        container:*)
+            _cname="${1#container:}"
+            docker exec "$_cname" test -f /home/agent/.swain-box-auth-done 2>/dev/null
+            ;;
+        microvm:*)
+            _sname="${1#microvm:}"
+            docker sandbox exec "$_sname" test -f /home/agent/.swain-box-auth-done 2>/dev/null
+            ;;
+    esac
+}
+
+# ============================================================
+# Sandbox management screen (DESIGN-005)
+# ============================================================
+_manage_sandboxes() {
+    while true; do
+        # Collect sandboxes from both Docker Sandboxes and swain-box containers
+        _sandbox_list=""
+        _sandbox_count=0
+
+        # Docker Sandboxes (microVM)
+        _sb_lines=$(docker sandbox ls 2>/dev/null | tail -n +2) || true
+        if [ -n "$_sb_lines" ]; then
+            echo "$_sb_lines" | while IFS= read -r _line; do
+                _name=$(echo "$_line" | awk '{print $1}')
+                _agent=$(echo "$_line" | awk '{print $2}')
+                _status=$(echo "$_line" | awk '{print $3}')
+                _ws=$(echo "$_line" | awk '{print $4}')
+                _sandbox_count=$((_sandbox_count + 1))
+                echo "$_sandbox_count) $_name|microvm|$_status|$_ws"
+            done
+        fi
+
+        # Docker containers created by swain-box (named <runtime>-<workdir>)
+        _ct_lines=$(docker ps -a --format '{{.Names}}\t{{.Status}}' 2>/dev/null | grep -E "^(claude|copilot|codex|gemini|kiro|opencode)-") || true
+
+        # Build display
+        echo ""
+        echo "swain-box: Active sandboxes:"
+
+        _items=""
+        _count=0
+
+        # Collect microVM sandboxes
+        while IFS= read -r _line; do
+            [ -z "$_line" ] && continue
+            _name=$(echo "$_line" | awk '{print $1}')
+            _status=$(echo "$_line" | awk '{print $3}')
+            _ws=$(echo "$_line" | awk '{$1=$2=$3=""; print}' | sed 's/^  *//')
+            _count=$((_count + 1))
+            _items="${_items}${_count}|${_name}|microvm|${_status}|${_ws}
+"
+            printf "  %d) %-20s  %-10s  %-8s  %s\n" "$_count" "$_name" "microvm" "$_status" "$_ws"
+        done <<EOF
+$(docker sandbox ls 2>/dev/null | tail -n +2)
+EOF
+
+        # Collect containers
+        while IFS='	' read -r _name _status; do
+            [ -z "$_name" ] && continue
+            _short_status=$(echo "$_status" | awk '{print $1}')
+            _count=$((_count + 1))
+            _items="${_items}${_count}|${_name}|container|${_short_status}|
+"
+            printf "  %d) %-20s  %-10s  %-8s\n" "$_count" "$_name" "container" "$_short_status"
+        done <<EOF
+$(docker ps -a --format '{{.Names}}\t{{.Status}}' 2>/dev/null | grep -E "^(claude|copilot|codex|gemini|kiro|opencode)-")
+EOF
+
+        if [ "$_count" = "0" ]; then
+            echo "  (no sandboxes found)"
+            echo ""
+            return
+        fi
+
+        echo ""
+        echo "  Actions: [r]estart  [s]top  [d]elete  [b]ack  [q]uit"
+        printf "Select sandbox [1]: "
+        read -r _sel
+        _sel="${_sel:-1}"
+
+        [ "$_sel" = "q" ] || [ "$_sel" = "Q" ] && { echo "swain-box: bye." >&2; exit 0; }
+        [ "$_sel" = "b" ] || [ "$_sel" = "B" ] && return
+
+        # Find selected sandbox
+        _selected=$(echo "$_items" | sed -n "${_sel}p")
+        if [ -z "$_selected" ]; then
+            echo "Invalid selection." >&2
+            continue
+        fi
+
+        _sel_name=$(echo "$_selected" | cut -d'|' -f2)
+        _sel_type=$(echo "$_selected" | cut -d'|' -f3)
+
+        echo ""
+        echo "  $_sel_name ($_sel_type)"
+        printf "  Action: [r]estart  [s]top  [d]elete  [b]ack  [q]uit: "
+        read -r _action
+
+        case "$_action" in q|Q) echo "swain-box: bye." >&2; exit 0 ;; esac
+
+        case "$_action" in
+            r|R)
+                printf "  restarting $_sel_name... " >&2
+                if [ "$_sel_type" = "microvm" ]; then
+                    docker sandbox run "$_sel_name" 2>&1 | sed 's/^/  /' >&2 && echo "done." >&2 || echo "failed." >&2
+                else
+                    docker start "$_sel_name" 2>&1 | sed 's/^/  /' >&2 && echo "done." >&2 || echo "failed." >&2
+                fi
+                ;;
+            s|S)
+                printf "  stopping $_sel_name... " >&2
+                if [ "$_sel_type" = "microvm" ]; then
+                    docker sandbox stop "$_sel_name" 2>&1 | sed 's/^/  /' >&2 && echo "done." >&2 || echo "failed." >&2
+                else
+                    docker stop "$_sel_name" 2>&1 | sed 's/^/  /' >&2 && echo "done." >&2 || echo "failed." >&2
+                fi
+                ;;
+            d|D)
+                printf "  Delete $_sel_name? This removes all data inside the sandbox. [y/N]: "
+                read -r _confirm
+                case "$_confirm" in
+                    y|Y)
+                        printf "  deleting $_sel_name... " >&2
+                        if [ "$_sel_type" = "microvm" ]; then
+                            docker sandbox rm "$_sel_name" 2>&1 | sed 's/^/  /' >&2 && echo "done." >&2 || echo "failed." >&2
+                        else
+                            docker rm -f "$_sel_name" 2>&1 | sed 's/^/  /' >&2 && echo "done." >&2 || echo "failed." >&2
+                        fi
+                        ;;
+                    *)
+                        echo "  cancelled." >&2
+                        ;;
+                esac
+                ;;
+            b|B) ;;
+            *) echo "Unknown action." >&2 ;;
+        esac
+    done
+}
+
+# ============================================================
+# Argument parsing
+# ============================================================
+TARGET_PATH=""
+EXPLICIT_RUNTIME=""
+EXPLICIT_ISOLATION=""
+PROMPT="/swain-session"
+CLEANUP_NAME=""
+
+for arg in "$@"; do
+    case "$arg" in
+        --runtime=*)    EXPLICIT_RUNTIME="${arg#--runtime=}" ;;
+        --isolation=*)  EXPLICIT_ISOLATION="${arg#--isolation=}" ;;
+        --prompt=*)     PROMPT="${arg#--prompt=}" ;;
+        --cleanup=*)    CLEANUP_NAME="${arg#--cleanup=}" ;;
+        --cleanup)      CLEANUP_NAME="__next__" ;;
+        *)
+            if [ "$CLEANUP_NAME" = "__next__" ]; then
+                CLEANUP_NAME="$arg"
+            else
+                TARGET_PATH="$arg"
+            fi
+            ;;
+    esac
+done
+
+# ============================================================
+# Cleanup subcommand
+# ============================================================
+if [ -n "$CLEANUP_NAME" ] && [ "$CLEANUP_NAME" != "__next__" ]; then
+    docker rm -f "$CLEANUP_NAME" 2>/dev/null && \
+        echo "swain-box: removed container $CLEANUP_NAME" >&2 || true
+    docker sandbox rm "$CLEANUP_NAME" 2>/dev/null && \
+        echo "swain-box: removed sandbox $CLEANUP_NAME" >&2 || true
+    exit 0
+fi
+
+# ============================================================
+# Docker checks
+# ============================================================
+if ! command -v docker >/dev/null 2>&1; then
+    echo "swain-box: 'docker' not found on PATH." >&2
+    echo "Install Docker Desktop: https://www.docker.com/products/docker-desktop/" >&2
+    exit 1
+fi
+
+if ! docker sandbox --help >/dev/null 2>&1; then
+    echo "swain-box: 'docker sandbox' subcommand is not available." >&2
+    echo "Requires Docker Desktop 4.58 or later." >&2
+    exit 1
+fi
+
+# ============================================================
+# Resolve project path
+# ============================================================
+TARGET_PATH="${TARGET_PATH:-$PWD}"
+PROJECT_PATH="$(cd "$TARGET_PATH" && pwd)" || {
+    echo "swain-box: path does not exist: $TARGET_PATH" >&2
+    exit 1
+}
+
+# ============================================================
+# Step 1 — Runtime selection
+# ============================================================
+KNOWN_RUNTIMES="claude copilot codex gemini kiro opencode"
+
+# Detect available runtimes from docker sandbox create --help (instant)
+_create_help=$(docker sandbox create --help 2>&1)
+AVAILABLE_RUNTIMES=""
+AVAILABLE_COUNT=0
+for _rt in $KNOWN_RUNTIMES; do
+    if echo "$_create_help" | grep -qw "$_rt"; then
+        AVAILABLE_RUNTIMES="${AVAILABLE_RUNTIMES:+$AVAILABLE_RUNTIMES }$_rt"
+        AVAILABLE_COUNT=$((AVAILABLE_COUNT + 1))
+    fi
+done
+
+SELECTED_RUNTIME=""
+
+if [ -n "$EXPLICIT_RUNTIME" ]; then
+    # Validate
+    if ! echo "$_create_help" | grep -qw "$EXPLICIT_RUNTIME"; then
+        echo "swain-box: runtime '$EXPLICIT_RUNTIME' is not available." >&2
+        [ "$AVAILABLE_COUNT" -gt 0 ] && echo "  Available: $AVAILABLE_RUNTIMES" >&2
+        exit 1
+    fi
+    SELECTED_RUNTIME="$EXPLICIT_RUNTIME"
+elif [ "$AVAILABLE_COUNT" = "0" ]; then
+    echo "swain-box: no supported agent runtimes found in Docker Sandboxes." >&2
+    echo "  Expected one of: $KNOWN_RUNTIMES" >&2
+    exit 1
+elif [ "$AVAILABLE_COUNT" = "1" ]; then
+    SELECTED_RUNTIME="$AVAILABLE_RUNTIMES"
+    echo "swain-box: using $SELECTED_RUNTIME." >&2
+else
+    if [ -t 0 ]; then
+        _show_runtime_menu() {
+            echo "swain-box: Select a runtime:"
+            _i=1
+            for _rt in $AVAILABLE_RUNTIMES; do
+                echo "  $_i) $_rt"
+                _i=$((_i + 1))
+            done
+            echo ""
+            echo "  s) Manage sandboxes  q) Quit"
+        }
+        _show_runtime_menu
+
+        _attempts=0
+        while [ "$_attempts" -lt 2 ]; do
+            printf "Choice [1]: "
+            read -r _choice
+            _choice="${_choice:-1}"
+
+            # Quit
+            case "$_choice" in q|Q) echo "swain-box: bye." >&2; exit 0 ;; esac
+
+            # Sandbox management
+            if [ "$_choice" = "s" ] || [ "$_choice" = "S" ]; then
+                _manage_sandboxes
+                echo ""
+                _show_runtime_menu
+                _attempts=0
+                continue
+            fi
+
+            case "$_choice" in
+                *[!0-9]*) ;;
+                *)
+                    if [ "$_choice" -ge 1 ] 2>/dev/null && [ "$_choice" -le "$AVAILABLE_COUNT" ] 2>/dev/null; then
+                        _i=1
+                        for _rt in $AVAILABLE_RUNTIMES; do
+                            [ "$_i" = "$_choice" ] && SELECTED_RUNTIME="$_rt" && break
+                            _i=$((_i + 1))
+                        done
+                        break
+                    fi
+                    ;;
+            esac
+            _attempts=$((_attempts + 1))
+            [ "$_attempts" -lt 2 ] && echo "Invalid selection. Try again:" || { echo "swain-box: invalid selection." >&2; exit 1; }
+        done
+        echo "swain-box: using $SELECTED_RUNTIME." >&2
+    else
+        SELECTED_RUNTIME="${AVAILABLE_RUNTIMES%% *}"
+        echo "swain-box: auto-selected $SELECTED_RUNTIME (non-interactive). Use --runtime=<name> to specify." >&2
+    fi
+fi
+
+# ============================================================
+# Step 2 — Auth type selection (ADR-008: subscription default)
+# ============================================================
+SELECTED_AUTH="subscription"  # default
+_api_var=$(_api_key_var "$SELECTED_RUNTIME")
+COLLECTED_API_KEY=""
+
+if [ -t 0 ]; then
+    echo "swain-box: How do you authenticate?"
+    echo "  1) Subscription (login inside sandbox)"
+    if [ -n "$_api_var" ]; then
+        echo "  2) API key ($_api_var)"
+    fi
+    echo ""
+    echo "  b) Back  q) Quit"
+
+    _attempts=0
+    while [ "$_attempts" -lt 2 ]; do
+        printf "Choice [1]: "
+        read -r _choice
+        _choice="${_choice:-1}"
+        case "$_choice" in
+            q|Q) echo "swain-box: bye." >&2; exit 0 ;;
+            b|B) exec "$0" "$@" ;;
+            1) SELECTED_AUTH="subscription"; break ;;
+            2)
+                SELECTED_AUTH="apikey"
+                if [ -n "$_api_var" ]; then
+                    printf "Enter %s: " "$_api_var" >&2
+                    read -r COLLECTED_API_KEY
+                fi
+                break
+                ;;
+            *)
+                _attempts=$((_attempts + 1))
+                [ "$_attempts" -lt 2 ] && echo "Invalid selection. Try again:" || { echo "swain-box: invalid selection." >&2; exit 1; }
+                ;;
+        esac
+    done
+fi
+
+# ============================================================
+# Step 3 — Isolation selection (informed by auth choice)
+# ============================================================
+SELECTED_ISOLATION=""
+
+# Known issues depend on BOTH runtime and auth type
+_issue=""
+if [ "$SELECTED_AUTH" = "subscription" ]; then
+    _issue=$(_known_issue_microvm "$SELECTED_RUNTIME")
+fi
+# API key auth has no known microVM issues (MITM proxy handles api.anthropic.com fine)
+
+if [ -n "$EXPLICIT_ISOLATION" ]; then
+    case "$EXPLICIT_ISOLATION" in
+        microvm|container) SELECTED_ISOLATION="$EXPLICIT_ISOLATION" ;;
+        *) echo "swain-box: invalid --isolation mode: $EXPLICIT_ISOLATION (microvm|container)" >&2; exit 1 ;;
+    esac
+else
+    if [ -n "$_issue" ]; then
+        _default=2
+    else
+        _default=1
+    fi
+
+    if [ -t 0 ]; then
+        echo "swain-box: Select isolation for $SELECTED_RUNTIME ($SELECTED_AUTH):"
+        if [ -n "$_issue" ]; then
+            echo "  1) Docker Sandboxes (microVM) — WARNING: $_issue"
+            echo "  2) Docker Container — subscription login works"
+        else
+            echo "  1) Docker Sandboxes (microVM) — recommended, strongest isolation"
+            echo "  2) Docker Container"
+        fi
+        echo ""
+        echo "  b) Back  q) Quit"
+
+        _attempts=0
+        while [ "$_attempts" -lt 2 ]; do
+            printf "Choice [$_default]: "
+            read -r _choice
+            _choice="${_choice:-$_default}"
+            case "$_choice" in
+                q|Q) echo "swain-box: bye." >&2; exit 0 ;;
+                b|B) exec "$0" "$@" ;;
+                1) SELECTED_ISOLATION="microvm"; break ;;
+                2) SELECTED_ISOLATION="container"; break ;;
+                *)
+                    _attempts=$((_attempts + 1))
+                    [ "$_attempts" -lt 2 ] && echo "Invalid selection. Try again:" || { echo "swain-box: invalid selection." >&2; exit 1; }
+                    ;;
+            esac
+        done
+    else
+        if [ -n "$_issue" ]; then
+            SELECTED_ISOLATION="container"
+        else
+            SELECTED_ISOLATION="microvm"
+        fi
+        echo "swain-box: auto-selected $SELECTED_ISOLATION isolation (non-interactive)." >&2
+    fi
+fi
+
+echo "swain-box: $SELECTED_RUNTIME ($SELECTED_AUTH) in $SELECTED_ISOLATION mode" >&2
+
+# ============================================================
+# Derive names
+# ============================================================
+WORKDIR_NAME="$(basename "$PROJECT_PATH")"
+SANDBOX_NAME="${SELECTED_RUNTIME}-${WORKDIR_NAME}"
+IMAGE_TAG=$(_image_tag "$SELECTED_RUNTIME")
+
+# ============================================================
+# Build agent args with prompt injection
+# ============================================================
+# Build the full exec command (runtime + flags + prompt)
+_build_exec_cmd() {
+    case "$SELECTED_RUNTIME" in
+        claude)
+            echo "claude --dangerously-skip-permissions \"$PROMPT\""
+            ;;
+        *)
+            echo "swain-box: NOTE — run $PROMPT (or your runtime's equivalent) to start" >&2
+            echo "$SELECTED_RUNTIME"
+            ;;
+    esac
+}
+
+# ============================================================
+# Launch
+# ============================================================
+if [ "$SELECTED_ISOLATION" = "microvm" ]; then
+    # --- Docker Sandboxes (microVM) ---
+    # Check if this is a first run (no existing sandbox)
+    if ! docker sandbox ls 2>/dev/null | grep -q "$SANDBOX_NAME"; then
+        # New sandbox: create → auth → run
+        echo "swain-box: creating sandbox..." >&2
+        docker sandbox create "$SELECTED_RUNTIME" "$PROJECT_PATH" 2>&1 | grep -v "^$" >&2
+        SANDBOX_NAME=$(docker sandbox ls 2>/dev/null | grep "$SELECTED_RUNTIME" | awk '{print $1}' | head -1)
+        if [ -z "$SANDBOX_NAME" ]; then
+            echo "swain-box: failed to create sandbox." >&2
+            exit 1
+        fi
+        _apply_auth "microvm:$SANDBOX_NAME" || exec "$0" "$@"
+    elif ! _auth_done "microvm:$SANDBOX_NAME"; then
+        _apply_auth "microvm:$SANDBOX_NAME" || exec "$0" "$@"
+    fi
+    case "$SELECTED_RUNTIME" in
+        claude)
+            exec docker sandbox run "$SANDBOX_NAME" -- --dangerously-skip-permissions "$PROMPT"
+            ;;
+        *)
+            echo "swain-box: NOTE — run $PROMPT (or your runtime's equivalent) to start" >&2
+            exec docker sandbox run "$SANDBOX_NAME"
+            ;;
+    esac
+else
+    # --- Docker Container ---
+    # Strategy: container runs `sleep infinity` as its CMD so it stays alive.
+    # Claude sessions are launched via `docker exec`. This means:
+    #   - Container persists between sessions (credentials, packages survive)
+    #   - Multiple exec sessions can attach concurrently
+    #   - Exiting Claude doesn't kill the container
+
+    # Check if container already exists
+    if docker container inspect "$SANDBOX_NAME" >/dev/null 2>&1; then
+        _state=$(docker container inspect "$SANDBOX_NAME" --format '{{.State.Status}}' 2>/dev/null)
+        if [ "$_state" != "running" ]; then
+            echo "swain-box: starting container $SANDBOX_NAME" >&2
+            docker start "$SANDBOX_NAME" >/dev/null 2>&1
+        fi
+        # Auth check — if never completed, run it now
+        if ! _auth_done "container:$SANDBOX_NAME"; then
+            _apply_auth "container:$SANDBOX_NAME" || exec "$0" "$@"
+        fi
+        echo "swain-box: connecting to $SANDBOX_NAME" >&2
+        # shellcheck disable=SC2086
+        exec docker exec -it "$SANDBOX_NAME" $(_build_exec_cmd)
+    fi
+
+    echo "swain-box: creating container $SANDBOX_NAME" >&2
+
+    # Create with sleep infinity as CMD — container stays alive indefinitely.
+    docker run -d \
+        --name "$SANDBOX_NAME" \
+        -v "$PROJECT_PATH:/home/agent/workspace" \
+        "docker/sandbox-templates:$IMAGE_TAG" \
+        sleep infinity >/dev/null 2>&1
+
+    # --- First-run auth (using choice from step 2) ---
+    _apply_auth "container:$SANDBOX_NAME" || exec "$0" "$@"
+
+    # Launch the agent session
+    # shellcheck disable=SC2086
+    exec docker exec -it "$SANDBOX_NAME" $(_build_exec_cmd)
+fi
