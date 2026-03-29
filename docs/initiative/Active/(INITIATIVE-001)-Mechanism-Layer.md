@@ -60,6 +60,10 @@ Researchers get a tool that turns source accumulation into structured knowledge.
 ## Child Epics
 
 - [EPIC-001](../../epic/Active/(EPIC-001)-Hexagonal-Foundation.md) — Phase 1: Hexagonal Foundation
+- [EPIC-002](../../epic/Active/(EPIC-002)-Auto-Tagging-And-Synthesis.md) — Phase 2: Auto-Tagging & Synthesis
+- [EPIC-003](../../epic/Proposed/(EPIC-003)-Query-System.md) — Phase 3: Query System
+- [EPIC-004](../../epic/Proposed/(EPIC-004)-Investigations-And-MCP.md) — Phase 4: Investigations & MCP Server
+- [EPIC-005](../../epic/Proposed/(EPIC-005)-Multi-Environment.md) — Phase 5: Multi-Environment Access
 
 ## Small Work (Epic-less Specs)
 
