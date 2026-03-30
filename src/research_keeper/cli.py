@@ -77,7 +77,8 @@ def init(path: str) -> None:
 @click.option("--root", type=click.Path(exists=True), default=".")
 @click.option("--origin", default=None, help="Source URL or path")
 @click.option("--published", default=None, help="Publication date (YYYY-MM-DD)")
-def add(raw: str, root: str, origin: str | None, published: str | None) -> None:
+@click.option("--investigation", default=None, help="Link to investigation ID")
+def add(raw: str, root: str, origin: str | None, published: str | None, investigation: str | None) -> None:
     """Add a source to the library."""
     pipeline = _build_pipeline(Path(root).resolve())
 
@@ -91,10 +92,12 @@ def add(raw: str, root: str, origin: str | None, published: str | None) -> None:
     if raw.startswith(("http://", "https://")) and "origin" not in metadata:
         metadata["origin"] = raw
 
-    source = pipeline.add(raw, metadata)
+    source = pipeline.add(raw, metadata, investigation_id=investigation)
     click.echo(f"Added: {source.slug}")
     if source.tags:
         click.echo(f"Tags: {', '.join(source.tags)}")
+    if investigation:
+        click.echo(f"Linked to investigation: {investigation}")
 
 
 @main.command()
@@ -199,10 +202,11 @@ def rebuild(root: str) -> None:
 @click.argument("query")
 @click.option("--root", type=click.Path(exists=True), default=".")
 @click.option("--top-k", type=int, default=None, help="Number of results to retrieve")
-def search(query: str, root: str, top_k: int | None) -> None:
+@click.option("--investigation", default=None, help="Link to investigation ID")
+def search(query: str, root: str, top_k: int | None, investigation: str | None) -> None:
     """Search the library and synthesize an answer."""
     pipeline = _build_search_pipeline(Path(root).resolve())
-    result = pipeline.search(query, top_k=top_k)
+    result = pipeline.search(query, top_k=top_k, investigation_id=investigation)
 
     click.echo(f"\n--- Query: {query} ---\n")
     click.echo(result.synthesis)
@@ -212,6 +216,8 @@ def search(query: str, root: str, top_k: int | None) -> None:
         click.echo(f"Cited sources: {', '.join(result.cited_sources)}")
     if result.cited_tags:
         click.echo(f"Cited tags: {', '.join(result.cited_tags)}")
+    if investigation:
+        click.echo(f"Linked to investigation: {investigation}")
 
 
 def _build_search_pipeline(root: Path):

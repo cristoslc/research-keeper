@@ -31,6 +31,7 @@ class QueryPipeline:
         embedder: object,
         index: SqliteIndex,
         top_k: int = 20,
+        investigation_store: object | None = None,
     ) -> None:
         self._retriever = retriever
         self._synthesizer = synthesizer
@@ -38,8 +39,9 @@ class QueryPipeline:
         self._embedder = embedder
         self._index = index
         self._top_k = top_k
+        self._investigation_store = investigation_store
 
-    def search(self, query_text: str, top_k: int | None = None) -> QueryResult:
+    def search(self, query_text: str, top_k: int | None = None, investigation_id: str | None = None) -> QueryResult:
         top_k = top_k or self._top_k
 
         # Step 1: Embed the query
@@ -132,6 +134,10 @@ class QueryPipeline:
         # Step 8: Create edges from query to cited sources
         for slug in cited_source_slugs + cited_tag_slugs:
             self._index.upsert_edge(query_id, slug, "cites")
+
+        # Link to investigation if specified
+        if investigation_id and self._investigation_store:
+            self._investigation_store.link(investigation_id, query_id, "query")
 
         return QueryResult(
             query_id=query_id,
