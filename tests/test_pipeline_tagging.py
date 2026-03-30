@@ -259,6 +259,88 @@ def test_determine_tier_uses_provided_sources(tagging_root, mock_synthesizer):
         # disk-reading method; tier is determined from sources already loaded.
 
 
+def test_auto_tag_false_skips_tagging(tagging_root):
+    """Gap 8: auto_tag=False should skip tagging entirely."""
+    config = Config()
+    config.intake.auto_tag = False
+
+    store = FilesystemSourceStore(tagging_root)
+    tag_store = FilesystemTagStore(tagging_root)
+    index = SqliteIndex(tagging_root / "rk.db")
+    embedder = MagicMock()
+    embedder.embed.return_value = b"\x00" * 16
+    tagger = MagicMock()
+    tagger.tag.return_value = ["memory"]
+
+    pipeline = IntakePipeline(
+        source_store=store, index=index, embedder=embedder,
+        normalizers={"note": NotesNormalizer()},
+        tagger=tagger, synthesizer=MagicMock(),
+        tag_store=tag_store, config=config,
+    )
+
+    source = pipeline.add("# Content\n\nAbout memory.")
+    tagger.tag.assert_not_called()
+    assert source.tags == []
+
+
+def test_auto_synthesize_false_skips_synthesis(tagging_root):
+    """Gap 8: auto_synthesize=False should skip synthesis but still tag."""
+    config = Config()
+    config.intake.auto_synthesize = False
+
+    store = FilesystemSourceStore(tagging_root)
+    tag_store = FilesystemTagStore(tagging_root)
+    index = SqliteIndex(tagging_root / "rk.db")
+    embedder = MagicMock()
+    embedder.embed.return_value = b"\x00" * 16
+    tagger = MagicMock()
+    tagger.tag.return_value = ["memory"]
+    synth = MagicMock()
+
+    pipeline = IntakePipeline(
+        source_store=store, index=index, embedder=embedder,
+        normalizers={"note": NotesNormalizer()},
+        tagger=tagger, synthesizer=synth,
+        tag_store=tag_store, config=config,
+    )
+
+    source = pipeline.add("# Content\n\nAbout memory.")
+    # Tags should be applied
+    assert "memory" in source.tags
+    assert (tagging_root / "tags" / "memory" / "sources" / source.slug).is_symlink()
+    # But synthesis should NOT be called
+    synth.synthesize.assert_not_called()
+
+
+def test_second_source_synthesis_includes_both(tagging_root):
+    """Gap 9: Second source for same tag should trigger synthesis with both sources."""
+    store = FilesystemSourceStore(tagging_root)
+    tag_store = FilesystemTagStore(tagging_root)
+    index = SqliteIndex(tagging_root / "rk.db")
+    embedder = MagicMock()
+    embedder.embed.return_value = b"\x00" * 16
+    tagger = MagicMock()
+    tagger.tag.return_value = ["memory"]
+    synth = MagicMock()
+    synth.synthesize.return_value = "# Synthesis\n\nCombined findings."
+
+    pipeline = IntakePipeline(
+        source_store=store, index=index, embedder=embedder,
+        normalizers={"note": NotesNormalizer()},
+        tagger=tagger, synthesizer=synth,
+        tag_store=tag_store, config=Config(),
+    )
+
+    pipeline.add("# Source A\n\nAbout memory architectures.")
+    pipeline.add("# Source B\n\nAlso about memory patterns.")
+
+    # Last synthesize call should include 2 sources
+    call_args = synth.synthesize.call_args
+    sources_arg = call_args.args[0] if call_args.args else call_args.kwargs["sources"]
+    assert len(sources_arg) == 2
+
+
 def test_pipeline_without_tagger_skips_tagging(tagging_root):
     """Pipeline with tagger=None should skip tagging entirely."""
     store = FilesystemSourceStore(tagging_root)
