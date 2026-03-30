@@ -572,6 +572,9 @@ def _build_search_pipeline(root: Path, completer=None):
 
 def _build_pipeline(root: Path, completer=None):
     """Build an IntakePipeline from config at root."""
+    from research_keeper.adapters.filesystem.investigation_store import (
+        FilesystemInvestigationStore,
+    )
     from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
     from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
     from research_keeper.adapters.sqlite.index import SqliteIndex
@@ -582,6 +585,7 @@ def _build_pipeline(root: Path, completer=None):
 
     store = FilesystemSourceStore(root)
     tag_store = FilesystemTagStore(root)
+    inv_store = FilesystemInvestigationStore(root)
     index = SqliteIndex(root / "rk.db")
 
     normalizers: dict = {"note": NotesNormalizer()}
@@ -617,6 +621,7 @@ def _build_pipeline(root: Path, completer=None):
         synthesizer=synthesizer,
         tag_store=tag_store,
         config=config,
+        investigation_store=inv_store,
     )
 
 
