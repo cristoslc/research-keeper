@@ -131,7 +131,7 @@ class IntakePipeline:
             if not sources:
                 return
 
-            tier = self._determine_tier(tag_slug)
+            tier = self._determine_tier(tag_slug, sources)
             synthesis = self._synthesizer.synthesize(sources, tier=tier)
 
             model = (
@@ -163,19 +163,18 @@ class IntakePipeline:
                 tag_slug, exc_info=True,
             )
 
-    def _determine_tier(self, tag_slug: str) -> str:
+    def _determine_tier(self, tag_slug: str, sources: list[Source]) -> str:
         """Determine synthesis tier based on tag activity.
 
         If any source was ingested within the last N days (from config), use frontier.
-        Otherwise use standard.
+        Otherwise use standard. Uses the provided sources list to avoid re-reading
+        from disk.
         """
         demotion_days = self._config.freshness.synthesis_demotion_days
         cutoff = datetime.date.today() - datetime.timedelta(days=demotion_days)
 
-        source_slugs = self._tag_store.sources_for_tag(tag_slug)
-        for slug in source_slugs:
-            source = self._store.get(slug)
-            if source and source.freshness.ingested >= cutoff:
+        for source in sources:
+            if source.freshness.ingested >= cutoff:
                 return "frontier"
 
         return "standard"
