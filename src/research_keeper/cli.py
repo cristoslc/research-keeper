@@ -195,7 +195,38 @@ def rebuild(root: str) -> None:
 
             query_count += 1
 
-    click.echo(f"Rebuilt index: {len(sources)} source(s), {tag_count} tag(s), {query_count} query(s) indexed")
+    # Rebuild investigation nodes from investigations/ directory
+    from research_keeper.adapters.filesystem.investigation_store import (
+        FilesystemInvestigationStore,
+    )
+    inv_store = FilesystemInvestigationStore(root_path)
+    inv_count = 0
+    for inv in inv_store.list():
+        if inv.synthesis:
+            index.upsert_tag_node(inv.inv_id, inv.synthesis, model="investigation", tier="frontier")
+            cur = index._conn.cursor()
+            cur.execute("UPDATE nodes SET kind = ? WHERE id = ?", ("investigation", inv.inv_id))
+            index._conn.commit()
+
+        # Rebuild edges
+        for source_slug in inv.linked_sources:
+            index.upsert_edge(inv.inv_id, source_slug, "investigates")
+        for query_id in inv.linked_queries:
+            index.upsert_edge(inv.inv_id, query_id, "investigates")
+        for tag_slug in inv.linked_tags:
+            index.upsert_edge(inv.inv_id, tag_slug, "investigates")
+
+        # Reload embedding
+        emb_path = root_path / "investigations" / inv.inv_id / "embedding.bin"
+        if emb_path.exists():
+            index.upsert_embedding(inv.inv_id, "unknown", emb_path.read_bytes())
+
+        inv_count += 1
+
+    click.echo(
+        f"Rebuilt index: {len(sources)} source(s), {tag_count} tag(s), "
+        f"{query_count} query(s), {inv_count} investigation(s) indexed"
+    )
 
 
 @main.command()
