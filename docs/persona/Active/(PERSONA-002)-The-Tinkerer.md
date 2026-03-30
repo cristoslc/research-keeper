@@ -34,7 +34,7 @@ Developer who discovered rk through a blog post, GitHub trending, or word of mou
 - Config files that assume you know the right model names for your provider
 - Silent failures — added a source but nothing happened, no feedback about why
 - Documentation that assumes familiarity with the project's internal terminology
-- Having to understand hexagonal architecture to use a CLI tool
+- Having to understand the tool's internal architecture to use it
 
 ## Behavioral Patterns
 
