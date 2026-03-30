@@ -335,6 +335,37 @@ def publish(root: str, message: str) -> None:
 
 @main.command()
 @click.option("--root", type=click.Path(exists=True), default=".")
+@click.option("--fix", is_flag=True, help="Auto-fix safe issues")
+def doctor(root: str, fix: bool) -> None:
+    """Check library health and detect issues."""
+    from research_keeper.doctor import Severity, run_doctor
+
+    root_path = Path(root).resolve()
+    results = run_doctor(root_path, fix=fix)
+
+    if not results:
+        click.echo("All checks passed. Library is healthy.")
+        return
+
+    error_count = sum(1 for r in results if r.severity == Severity.ERROR)
+    warning_count = sum(1 for r in results if r.severity == Severity.WARNING)
+    info_count = sum(1 for r in results if r.severity == Severity.INFO)
+
+    for result in results:
+        icon = {"error": "ERROR", "warning": "WARN", "info": "INFO"}[result.severity.value]
+        click.echo(f"  [{icon}] {result.check}: {result.message}")
+
+    click.echo(f"\nSummary: {error_count} error(s), {warning_count} warning(s), {info_count} info(s)")
+
+    if fix:
+        click.echo("(Auto-fix applied where safe)")
+
+    if error_count > 0:
+        raise SystemExit(1)
+
+
+@main.command()
+@click.option("--root", type=click.Path(exists=True), default=".")
 def serve(root: str) -> None:
     """Start MCP server for agent access."""
     from research_keeper.mcp_server import run_server
