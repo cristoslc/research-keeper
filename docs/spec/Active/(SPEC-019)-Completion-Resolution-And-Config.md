@@ -1,5 +1,5 @@
 ---
-title: "Conversational Completion — CLI as Completer Interface"
+title: "Sidecar Generation in rk add"
 artifact: SPEC-019
 track: implementable
 status: Active
@@ -8,11 +8,13 @@ created: 2026-03-30
 last-updated: 2026-03-30
 priority-weight: high
 type: feature
-parent-epic: EPIC-006
+parent-epic: EPIC-007
 parent-initiative: ""
 linked-artifacts:
+  - ADR-001
+  - ADR-002
+  - DESIGN-001
   - PERSONA-004
-  - PERSONA-002
 depends-on-artifacts: []
 addresses: []
 evidence-pool: ""
@@ -20,82 +22,45 @@ source-issue: ""
 swain-do: required
 ---
 
-# Conversational Completion — CLI as Completer Interface
+# Sidecar Generation in rk add
 
 ## Problem Statement
 
-rk's primary caller is an agent. The agent IS the LLM. But rk has no way to ask the agent for help — when intelligence is needed (tagging, synthesis), rk either silently skips or requires an injected Python object. The CLI should be the conversation channel: rk outputs structured prompts, the agent completes them, rk processes the responses.
-
-## Desired Outcomes
-
-When an agent runs `rk add`, rk files the source, then outputs prompts for the agent to complete. The agent responds. rk processes the responses and finishes the operation. Multiturn conversation is the native completer interface — no SDK, no API, no injection. Just the agent reading rk's output and responding.
+`rk add` currently tries to tag and synthesize in-process via a Completer port. Per ADR-001, intelligence requests should be sidecar files on disk. `rk add` needs to file sources and generate Jinja2 tag sidecars — nothing more. The agent fills them later.
 
 ## External Behavior
 
-### The conversation
+### `rk add` accepts a list
 
-```
-$ rk add "https://example.com/article"
-Added: agent-memory-paper (filed, pending tagging)
-
-[rk:tag] Content (first 2000 chars):
-# Agent Memory...
-
-Existing tags: memory, agents, persistence
-
-Respond with a comma-separated list of 3-7 tags for this content.
-
-> memory, llm-architecture, persistence
-
-Tagged: memory, llm-architecture, persistence
-
-[rk:synthesize] Tag "memory" has 3 sources. Synthesize by theme, cite by slug.
-
-Source: agent-memory-paper
-# Agent Memory...
-
-Source: prior-memory-survey
-# Survey of Memory Systems...
-
-Source: working-memory-limits
-# Working Memory Constraints...
-
-> # Memory Architectures
-> Three approaches dominate: working memory for current context...
-
-Synthesis updated: memory
-
-Done: agent-memory-paper
-  Tags: memory, llm-architecture, persistence
-  Syntheses updated: memory, llm-architecture, persistence
+```bash
+rk add url-a url-b "# inline note" /path/to/paper.pdf
 ```
 
-### Prompt format
+### For each source:
+1. Create `.pending/intake.lock` in source dir
+2. Normalize and file (source.md + manifest.yaml)
+3. Embed if embedder available (embedding.bin)
+4. Replace `.pending/intake.lock` with `.pending/tag.j2`
+5. Index source in SQLite
 
-Each prompt rk emits follows a structured pattern:
+### Output:
 
 ```
-[rk:<task>] <brief description>
+Added 3 sources:
+  agent-memory        library/sources/agent-memory/.pending/tag.j2 (medium)
+  rag-overview        library/sources/rag-overview/.pending/tag.j2 (medium)
+  vector-search       library/sources/vector-search/.pending/tag.j2 (medium)
 
-<context for the LLM>
-
-<instruction for what to respond with>
+3 tag sidecars pending (parallelizable). Run: rk resolve
 ```
 
-- `[rk:tag]` — tagging request. Expects comma-separated tag list.
-- `[rk:synthesize]` — synthesis request. Expects markdown synthesis text.
-- `[rk:query]` — query synthesis. Expects markdown answer citing sources.
+### What to remove:
+- `PromptTagger` and `PromptSynthesizer` from pipeline (tagging/synthesis no longer happen in `rk add`)
+- `Completer` port (replaced by sidecar model)
+- `_build_tagger`, `_build_synthesizer` from cli.py
+- All tagger/synthesizer calls from IntakePipeline
 
-The `[rk:<task>]` prefix lets the agent parse what kind of response is expected. The task name maps to the `completion.tasks` config for model routing (the agent decides which model to use based on the task).
-
-### Non-interactive mode
-
-When rk detects it's not in an interactive context (piped input, `--no-prompt` flag, or no TTY), it skips prompts and files without intelligence — same as today's behavior. The conversational flow only activates when an agent (or human) is on the other end.
-
-### Model routing hints
-
-The `completion.tasks` config from rk.yaml tells the agent what model weight each task expects:
-
+### Completion config stays:
 ```yaml
 completion:
   models:
@@ -105,42 +70,22 @@ completion:
   tasks:
     tag: medium
     synthesize: heavy
-    query: heavy
 ```
 
-rk doesn't enforce this — it's a hint. The agent reads the config (or rk emits it in the prompt prefix) and decides what model to use. An agent might complete `[rk:tag]` itself (it's light work) but dispatch `[rk:synthesize]` to a subagent with a heavier model.
-
-### MCP integration
-
-When rk is called via MCP, the same pattern applies but structured as tool results:
-- Tool `rk_add` returns the source filing result plus pending prompts
-- The MCP client completes the prompts and calls `rk_complete` with the responses
-- Or: the MCP tool description indicates that `rk_add` is a multi-turn tool that may request completions
-
-### Backward compatibility
-
-- `--no-prompt` flag: file without intelligence, no prompts emitted (Pipeline persona)
-- When stdin is not a TTY and no agent is detected: same as `--no-prompt`
-- All existing tests continue to pass (they don't interact with stdin)
+rk reads this to set `model_hint` in generated sidecars. The agent reads the hint to decide what model to use.
 
 ## Acceptance Criteria
 
-- Given an agent running `rk add`, when the source is filed, then rk emits a `[rk:tag]` prompt on stdout
-- Given the agent responds with tags, then rk processes them (creates tag dirs, symlinks, updates manifest)
-- Given tags are processed, then rk emits `[rk:synthesize]` prompts for each affected tag
-- Given the agent responds with synthesis text, then rk writes synthesis.md and updates the tag
-- Given `--no-prompt` flag, then rk files without emitting any prompts
-- Given piped input (no TTY), then rk files without emitting prompts
-- Given `rk search`, then rk emits a `[rk:query]` prompt with retrieved sources as context
-- Given `completion.tasks.tag: medium` in config, then the `[rk:tag]` prompt includes the model hint
-- Given all prompts completed, then the final output summarizes what was done
-
-## Scope & Constraints
-
-v1 of conversational completion. Covers `rk add` and `rk search`. Investigation synthesis can follow the same pattern in a later spec. The prompt format should be simple enough for any agent to parse but structured enough to be unambiguous.
+- Given `rk add url-a url-b url-c`, then all 3 sources are filed before any sidecars are generated
+- Given a filed source, then `.pending/tag.j2` exists as a valid Jinja2 template
+- Given the tag.j2 template, then it contains source content, existing tags, and output structure
+- Given `completion.tasks.tag: medium`, then tag.j2 metadata comment includes `model_hint: medium`
+- Given `--no-prompt` flag, then sources are filed with no sidecars generated
+- Given an intake error on source 2 of 3, then source 1 has its sidecar and source 3 is attempted
+- Given no embedder available, then sources filed with "(embeddings skipped)" message, sidecars still generated
 
 ## Lifecycle
 
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
-| Active | 2026-03-30 | -- | Rewritten — CLI multiturn as native completer |
+| Active | 2026-03-30 | -- | Rewritten for sidecar model per ADR-001 |

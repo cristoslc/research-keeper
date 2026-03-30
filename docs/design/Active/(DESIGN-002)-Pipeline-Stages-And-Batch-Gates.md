@@ -39,7 +39,7 @@ depends-on-artifacts: []
 ### Constraints
 
 - Stage advancement is determined by tree scan, not manifests or counters (per ADR-003)
-- Both `.lock` and `.j2` files block stage advancement (per DESIGN-001)
+- h Both `.lock` and `.j2` files block stage advancement (per DESIGN-001)
 - `rk resolve` takes a lockfile — only one resolve at a time
 - `rk add` accepts a list of sources — all are filed before any tagging starts
 
