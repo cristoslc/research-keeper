@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 TOOL_DEFINITIONS = [
     {
         "name": "rk_add",
-        "description": "Add a source to the research library. Accepts raw content (text, URL, or file path) and optional metadata.",
+        "description": "Add a source to the research library. Accepts raw content (text, URL, or file path) and optional metadata. Tagging uses model_tier='standard'.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -23,7 +23,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "rk_search",
-        "description": "Search the library and synthesize an answer from relevant sources using freshness-weighted semantic search.",
+        "description": "Search the library and synthesize an answer from relevant sources using freshness-weighted semantic search. Synthesis uses model_tier='frontier'.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -47,7 +47,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "rk_investigate",
-        "description": "Create, list, or close research investigations. Investigations are persistent research threads with rolling synthesis.",
+        "description": "Create, list, or close research investigations. Investigations are persistent research threads with rolling synthesis. Closing uses model_tier='frontier'.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -85,8 +85,14 @@ TOOL_DEFINITIONS = [
 ]
 
 
-def handle_tool_call(tool_name: str, arguments: dict) -> str:
-    """Dispatch a tool call to the appropriate handler."""
+def handle_tool_call(tool_name: str, arguments: dict, completer=None) -> str:
+    """Dispatch a tool call to the appropriate handler.
+
+    Args:
+        tool_name: Name of the MCP tool to invoke.
+        arguments: Tool-specific arguments.
+        completer: Optional Completer instance for LLM delegation.
+    """
     handlers = {
         "rk_add": _handle_add,
         "rk_search": _handle_search,
@@ -100,14 +106,14 @@ def handle_tool_call(tool_name: str, arguments: dict) -> str:
     if handler is None:
         raise ValueError(f"Unknown tool: {tool_name}")
 
-    return handler(arguments)
+    return handler(arguments, completer=completer)
 
 
-def _handle_add(args: dict) -> str:
+def _handle_add(args: dict, completer=None) -> str:
     from research_keeper.cli import _build_pipeline
 
     root = Path(args.get("root", ".")).resolve()
-    pipeline = _build_pipeline(root)
+    pipeline = _build_pipeline(root, completer=completer)
 
     metadata: dict = {}
     if args.get("origin"):
@@ -121,11 +127,11 @@ def _handle_add(args: dict) -> str:
     return json.dumps({"slug": source.slug, "tags": source.tags})
 
 
-def _handle_search(args: dict) -> str:
+def _handle_search(args: dict, completer=None) -> str:
     from research_keeper.cli import _build_search_pipeline
 
     root = Path(args.get("root", ".")).resolve()
-    pipeline = _build_search_pipeline(root)
+    pipeline = _build_search_pipeline(root, completer=completer)
 
     result = pipeline.search(
         args["query"],
@@ -140,7 +146,7 @@ def _handle_search(args: dict) -> str:
     })
 
 
-def _handle_tags(args: dict) -> str:
+def _handle_tags(args: dict, completer=None) -> str:
     from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
 
     root = Path(args.get("root", ".")).resolve()
@@ -153,11 +159,11 @@ def _handle_tags(args: dict) -> str:
     return json.dumps({"tags": tags})
 
 
-def _handle_investigate(args: dict) -> str:
+def _handle_investigate(args: dict, completer=None) -> str:
     from research_keeper.cli import _build_investigation_pipeline
 
     root = Path(args.get("root", ".")).resolve()
-    pipeline = _build_investigation_pipeline(root)
+    pipeline = _build_investigation_pipeline(root, completer=completer)
 
     action = args.get("action", "create")
 
@@ -187,7 +193,7 @@ def _handle_investigate(args: dict) -> str:
     return json.dumps({"inv_id": inv_id})
 
 
-def _handle_rebuild(args: dict) -> str:
+def _handle_rebuild(args: dict, completer=None) -> str:
     from click.testing import CliRunner
     from research_keeper.cli import main
 
@@ -197,7 +203,7 @@ def _handle_rebuild(args: dict) -> str:
     return result.output
 
 
-def _handle_status(args: dict) -> str:
+def _handle_status(args: dict, completer=None) -> str:
     root = Path(args.get("root", ".")).resolve()
 
     source_count = 0

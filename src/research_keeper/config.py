@@ -34,6 +34,12 @@ class AuthConfig:
     token_configured: bool = False
 
 @dataclass
+class EmbeddingsConfig:
+    provider: str = "ollama"  # "ollama" or "none"
+    model: str = "nomic-embed-text"
+    ollama_url: str = "http://localhost:11434"
+
+@dataclass
 class Config:
     data_dir: str = "."
     models: ModelsConfig = field(default_factory=ModelsConfig)
@@ -41,6 +47,7 @@ class Config:
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     intake: IntakeConfig = field(default_factory=IntakeConfig)
     auth: AuthConfig = field(default_factory=AuthConfig)
+    embeddings: EmbeddingsConfig = field(default_factory=EmbeddingsConfig)
 
     def resolve_root(self, config_parent: Path) -> Path:
         return (config_parent / self.data_dir).resolve()
@@ -63,6 +70,7 @@ def load_config(path: Path) -> Config:
         ("retrieval", config.retrieval),
         ("intake", config.intake),
         ("auth", config.auth),
+        ("embeddings", config.embeddings),
     ]:
         if section_name in raw and isinstance(raw[section_name], dict):
             _merge_dataclass(section_cls, raw[section_name])

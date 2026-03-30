@@ -12,10 +12,9 @@ dependencies = [
 web = ["trafilatura>=2.0"]
 media = ["yt-dlp"]
 documents = ["pymupdf>=1.24"]
-embeddings = ["httpx>=0.27"]
-llm = ["anthropic>=0.39"]
+ollama = ["httpx>=0.27"]
 mcp = ["mcp>=1.0"]
-all = ["research-keeper[web,media,documents,embeddings,llm,mcp]"]
+all = ["research-keeper[web,media,documents,ollama,mcp]"]
 dev = ["pytest>=8.0", "pytest-tmp-files>=0.0.2"]
 
 [project.scripts]

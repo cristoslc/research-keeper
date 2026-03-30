@@ -8,5 +8,6 @@ from research_keeper.ports.tag_store import TagStore
 from research_keeper.ports.retriever import Retriever
 from research_keeper.ports.query_store import QueryStore
 from research_keeper.ports.investigation_store import InvestigationStore
+from research_keeper.ports.completer import Completer
 
-__all__ = ["SourceStore", "Normalizer", "NormalizationError", "Embedder", "Index", "Tagger", "Synthesizer", "TagStore", "Retriever", "QueryStore", "InvestigationStore"]
+__all__ = ["SourceStore", "Normalizer", "NormalizationError", "Embedder", "Index", "Tagger", "Synthesizer", "TagStore", "Retriever", "QueryStore", "InvestigationStore", "Completer"]

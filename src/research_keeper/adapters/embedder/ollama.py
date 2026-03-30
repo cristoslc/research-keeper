@@ -23,7 +23,7 @@ class OllamaEmbedder:
     def embed(self, content: str) -> bytes:
         if httpx is None:
             raise RuntimeError(
-                "httpx not installed. Install with: uv add research-keeper[embeddings]"
+                "httpx not installed. Install with: uv add research-keeper[ollama]"
             )
 
         response = httpx.post(

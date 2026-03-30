@@ -56,6 +56,11 @@ def init(path: str) -> None:
             "auto_tag": True,
             "auto_synthesize": True,
         },
+        "embeddings": {
+            "provider": "ollama",
+            "model": "nomic-embed-text",
+            "ollama_url": "http://localhost:11434",
+        },
     }
     (root / "rk.yaml").write_text(
         yaml.dump(config, default_flow_style=False, sort_keys=False)
@@ -449,7 +454,7 @@ def clear(root: str) -> None:
     click.echo("Credentials cleared.")
 
 
-def _build_investigation_pipeline(root: Path):
+def _build_investigation_pipeline(root: Path, completer=None):
     """Build an InvestigationPipeline from config at root."""
     from research_keeper.adapters.filesystem.investigation_store import (
         FilesystemInvestigationStore,
@@ -458,7 +463,7 @@ def _build_investigation_pipeline(root: Path):
 
     config = load_config(root / "rk.yaml")
     inv_store = FilesystemInvestigationStore(root)
-    synthesizer = _build_synthesizer(config)
+    synthesizer = _build_synthesizer(config, completer=completer)
     embedder = _build_embedder(config)
 
     return InvestigationPipeline(
@@ -468,7 +473,7 @@ def _build_investigation_pipeline(root: Path):
     )
 
 
-def _build_search_pipeline(root: Path):
+def _build_search_pipeline(root: Path, completer=None):
     """Build a QueryPipeline from config at root."""
     from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
     from research_keeper.adapters.retriever.semantic import SemanticRetriever
@@ -483,7 +488,7 @@ def _build_search_pipeline(root: Path):
     half_life = parse_ttl_days(config.freshness.default_ttl)
     retriever = SemanticRetriever(index=index, half_life_days=half_life)
     embedder = _build_embedder(config)
-    synthesizer = _build_synthesizer(config)
+    synthesizer = _build_synthesizer(config, completer=completer)
 
     return QueryPipeline(
         retriever=retriever,
@@ -495,7 +500,7 @@ def _build_search_pipeline(root: Path):
     )
 
 
-def _build_pipeline(root: Path):
+def _build_pipeline(root: Path, completer=None):
     """Build an IntakePipeline from config at root."""
     from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
     from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
@@ -530,8 +535,8 @@ def _build_pipeline(root: Path):
         pass
 
     embedder = _build_embedder(config)
-    tagger = _build_tagger(config)
-    synthesizer = _build_synthesizer(config)
+    tagger = _build_tagger(config, completer=completer)
+    synthesizer = _build_synthesizer(config, completer=completer)
 
     return IntakePipeline(
         source_store=store,
@@ -547,14 +552,27 @@ def _build_pipeline(root: Path):
 
 def _build_embedder(config):
     """Build embedder from config, with stub fallback."""
+    provider = getattr(getattr(config, "embeddings", None), "provider", "ollama")
+
+    if provider == "none":
+        class StubEmbedder:
+            _model = "stub"
+            def embed(self, content: str) -> bytes:
+                return b""
+        return StubEmbedder()
+
+    # Default: ollama
     try:
         from research_keeper.adapters.embedder.ollama import OllamaEmbedder
-        return OllamaEmbedder(model=config.models.embedder)
+        emb_cfg = getattr(config, "embeddings", None)
+        model = emb_cfg.model if emb_cfg else config.models.embedder
+        base_url = emb_cfg.ollama_url if emb_cfg else "http://localhost:11434"
+        return OllamaEmbedder(model=model, base_url=base_url)
     except ImportError:
         pass
 
     # Stub embedder that returns empty bytes
-    class StubEmbedder:
+    class StubEmbedder:  # noqa: F811
         _model = "stub"
         def embed(self, content: str) -> bytes:
             return b""
@@ -562,29 +580,17 @@ def _build_embedder(config):
     return StubEmbedder()
 
 
-def _build_tagger(config):
-    """Build tagger from config, with None fallback."""
-    import os
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
+def _build_tagger(config, completer=None):
+    """Build tagger from completer, with None fallback."""
+    if completer is None:
         return None
-    try:
-        from research_keeper.adapters.llm.tagger import LLMTagger
-        return LLMTagger(model=config.models.tagger, api_key=api_key)
-    except ImportError:
-        pass
-    return None
+    from research_keeper.adapters.tagger import PromptTagger
+    return PromptTagger(completer=completer)
 
 
-def _build_synthesizer(config):
-    """Build synthesizer from config, with None fallback."""
-    import os
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
+def _build_synthesizer(config, completer=None):
+    """Build synthesizer from completer, with None fallback."""
+    if completer is None:
         return None
-    try:
-        from research_keeper.adapters.llm.synthesizer import LLMSynthesizer
-        return LLMSynthesizer(config=config, api_key=api_key)
-    except ImportError:
-        pass
-    return None
+    from research_keeper.adapters.synthesizer import PromptSynthesizer
+    return PromptSynthesizer(completer=completer)
