@@ -6,7 +6,7 @@ Research-keeper makes your agent your librarian. Add a source — article, paper
 
 ## Beliefs
 
-**Collecting should be the organizing.** You shouldn't have to do both.
+**Adding a source updates your understanding.** Filing is a side effect. Synthesis is the point — every source you add rewrites what you know about its topics.
 
 **Your knowledge should be yours.** Readable, portable, not locked in a proprietary format or service.
 
