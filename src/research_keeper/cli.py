@@ -170,6 +170,52 @@ def rebuild(root: str) -> None:
     click.echo(f"Rebuilt index: {len(sources)} source(s), {tag_count} tag(s) indexed")
 
 
+@main.command()
+@click.argument("query")
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option("--top-k", type=int, default=None, help="Number of results to retrieve")
+def search(query: str, root: str, top_k: int | None) -> None:
+    """Search the library and synthesize an answer."""
+    pipeline = _build_search_pipeline(Path(root).resolve())
+    result = pipeline.search(query, top_k=top_k)
+
+    click.echo(f"\n--- Query: {query} ---\n")
+    click.echo(result.synthesis)
+    click.echo(f"\n--- Saved as: {result.query_id} ---")
+
+    if result.cited_sources:
+        click.echo(f"Cited sources: {', '.join(result.cited_sources)}")
+    if result.cited_tags:
+        click.echo(f"Cited tags: {', '.join(result.cited_tags)}")
+
+
+def _build_search_pipeline(root: Path):
+    """Build a QueryPipeline from config at root."""
+    from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
+    from research_keeper.adapters.retriever.semantic import SemanticRetriever
+    from research_keeper.adapters.sqlite.index import SqliteIndex
+    from research_keeper.query_pipeline import QueryPipeline
+    from research_keeper.retrieval import parse_ttl_days
+
+    config = load_config(root / "rk.yaml")
+
+    index = SqliteIndex(root / "rk.db")
+    query_store = FilesystemQueryStore(root)
+    half_life = parse_ttl_days(config.freshness.default_ttl)
+    retriever = SemanticRetriever(index=index, half_life_days=half_life)
+    embedder = _build_embedder(config)
+    synthesizer = _build_synthesizer(config)
+
+    return QueryPipeline(
+        retriever=retriever,
+        synthesizer=synthesizer,
+        query_store=query_store,
+        embedder=embedder,
+        index=index,
+        top_k=config.retrieval.top_k,
+    )
+
+
 def _build_pipeline(root: Path):
     """Build an IntakePipeline from config at root."""
     from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
