@@ -34,8 +34,10 @@ Research material scatters across bookmarks, notes, downloads, and tabs. Existin
 
 - **Zotero/Mendeley** — citation managers, not knowledge systems. No synthesis.
 - **Obsidian/Notion** — manual note-linking. Requires disciplined tagging. No auto-synthesis. Not agent-native.
-- **Raindrop/Pocket** — bookmarking only. No content normalization or analysis.
+- **Raindrop.io** — best-in-class bookmarking (replaced Pocket, which shut down July 2025). AI assistant on Pro can answer questions from saved articles, but no content normalization, no multi-format intake, no synthesis across sources.
+- **Readwise Reader** — read-it-later with AI summarization (Ghostreader). Strong reading experience, but focused on individual articles, not cross-source synthesis or agent-native workflows.
 - **DEVONthink** — closest in ambition (AI-powered filing, search, connections) but Mac-only, opaque, and not composable with agentic workflows.
+- **Buildin** — AI-powered second brain with Zettelkasten support. Understands notes, generates content. But cloud-hosted, not git-backed, no agent-native interface.
 - **swain-search troves** — themed collections with synthesis, but monolithic per-trove. No cross-cutting tag views.
 
 ## Build vs. Buy
