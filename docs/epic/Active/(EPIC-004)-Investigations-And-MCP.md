@@ -2,10 +2,10 @@
 title: "Investigations & MCP Server"
 artifact: EPIC-004
 track: container
-status: Proposed
+status: Active
 author: cristos
 created: 2026-03-29
-last-updated: 2026-03-29
+last-updated: 2026-03-30
 parent-vision: VISION-001
 parent-initiative: INITIATIVE-001
 priority-weight: medium
@@ -46,7 +46,11 @@ Researchers can open an investigation ("CRDT architectures for collaboration"), 
 
 ## Child Specs
 
-To be decomposed when this epic is activated.
+| ID | Title | Status |
+|----|-------|--------|
+| SPEC-013 | InvestigationStore Filesystem Adapter | Active |
+| SPEC-014 | Investigation Pipeline & CLI | Active |
+| SPEC-015 | MCP Server | Active |
 
 ## Key Dependencies
 
@@ -57,3 +61,4 @@ To be decomposed when this epic is activated.
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
 | Proposed | 2026-03-29 | -- | Phase 4 of mechanism layer |
+| Active | 2026-03-30 | -- | Activated with SPECs 013-015 |

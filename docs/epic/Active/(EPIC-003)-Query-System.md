@@ -2,10 +2,10 @@
 title: "Query System"
 artifact: EPIC-003
 track: container
-status: Proposed
+status: Active
 author: cristos
 created: 2026-03-29
-last-updated: 2026-03-29
+last-updated: 2026-03-30
 parent-vision: VISION-001
 parent-initiative: INITIATIVE-001
 priority-weight: medium
@@ -47,7 +47,11 @@ Users can ask questions and get synthesized answers that cite specific sources. 
 
 ## Child Specs
 
-To be decomposed when this epic is activated.
+| ID | Title | Status |
+|----|-------|--------|
+| SPEC-010 | Freshness Decay & Retriever Port | Active |
+| SPEC-011 | QueryStore Filesystem Adapter | Active |
+| SPEC-012 | Query Pipeline & CLI | Active |
 
 ## Key Dependencies
 
@@ -58,3 +62,4 @@ To be decomposed when this epic is activated.
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
 | Proposed | 2026-03-29 | -- | Phase 3 of mechanism layer |
+| Active | 2026-03-30 | -- | Activated with SPECs 010-012 |

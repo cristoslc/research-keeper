@@ -2,10 +2,10 @@
 title: "Multi-Environment Access"
 artifact: EPIC-005
 track: container
-status: Proposed
+status: Active
 author: cristos
 created: 2026-03-29
-last-updated: 2026-03-29
+last-updated: 2026-03-30
 parent-vision: VISION-001
 parent-initiative: INITIATIVE-001
 priority-weight: low
@@ -46,7 +46,11 @@ Boswell (the operator's personal instance) works seamlessly across local machine
 
 ## Child Specs
 
-To be decomposed when this epic is activated.
+| ID | Title | Status |
+|----|-------|--------|
+| SPEC-016 | Remote Data Directory | Active |
+| SPEC-017 | Doctor & Collision Detection | Active |
+| SPEC-018 | Auth Management | Active |
 
 ## Key Dependencies
 
@@ -57,3 +61,4 @@ To be decomposed when this epic is activated.
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
 | Proposed | 2026-03-29 | -- | Phase 5 of mechanism layer |
+| Active | 2026-03-30 | -- | Activated with SPECs 016-018 |
