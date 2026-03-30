@@ -827,3 +827,48 @@ class TestConfigFlags:
         # Adding the same content again should raise ValueError
         with pytest.raises(ValueError, match="Duplicate content"):
             pipeline.add(content, {"title": "Duplicate"})
+
+
+class TestSelfBootstrap:
+    """Stores should create their directories without rk init."""
+
+    def test_add_without_init(self, tmp_path: Path):
+        """rk add works if rk.yaml exists but rk init was never run."""
+        # Only create rk.yaml — no directory structure
+        (tmp_path / "rk.yaml").write_text("data_dir: .\n")
+
+        # Constructing stores should create dirs automatically
+        store = FilesystemSourceStore(tmp_path)
+        tag_store = FilesystemTagStore(tmp_path)
+        query_store = FilesystemQueryStore(tmp_path)
+        inv_store = FilesystemInvestigationStore(tmp_path)
+        index = SqliteIndex(tmp_path / "rk.db")
+
+        assert (tmp_path / "library" / "sources").is_dir()
+        assert (tmp_path / "library" / "ingestion-dates").is_dir()
+        assert (tmp_path / "tags").is_dir()
+        assert (tmp_path / "queries").is_dir()
+        assert (tmp_path / "investigations").is_dir()
+
+        # Full pipeline should work
+        embedder = DeterministicEmbedder()
+        tagger = MockTagger()
+        synth = MockSynthesizer()
+
+        from research_keeper.pipeline import IntakePipeline
+        from research_keeper.config import Config
+
+        pipeline = IntakePipeline(
+            source_store=store,
+            index=index,
+            embedder=embedder,
+            normalizers={"note": NotesNormalizer()},
+            tagger=tagger,
+            synthesizer=synth,
+            tag_store=tag_store,
+            config=Config(),
+        )
+
+        source = pipeline.add("# Bootstrap Test\n\nThis works without rk init.")
+        assert source.slug
+        assert (tmp_path / "library" / "sources" / source.slug / "source.md").exists()

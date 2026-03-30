@@ -15,6 +15,7 @@ class FilesystemQueryStore:
     def __init__(self, root: Path) -> None:
         self._root = root
         self._queries_dir = root / "queries"
+        self._queries_dir.mkdir(parents=True, exist_ok=True)
 
     def create(
         self,

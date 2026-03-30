@@ -13,6 +13,7 @@ class FilesystemTagStore:
     def __init__(self, root: Path) -> None:
         self._root = root
         self._tags_dir = root / "tags"
+        self._tags_dir.mkdir(parents=True, exist_ok=True)
 
     def ensure(self, slug: str) -> None:
         tag_dir = self._tags_dir / slug

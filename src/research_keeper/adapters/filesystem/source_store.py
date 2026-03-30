@@ -17,6 +17,8 @@ class FilesystemSourceStore:
         self._root = root
         self._sources_dir = root / "library" / "sources"
         self._ingestion_dir = root / "library" / "ingestion-dates"
+        self._sources_dir.mkdir(parents=True, exist_ok=True)
+        self._ingestion_dir.mkdir(parents=True, exist_ok=True)
         self._hash_cache: set[str] = set()
         self._hash_cache_loaded = False
 

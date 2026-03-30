@@ -15,6 +15,7 @@ class FilesystemInvestigationStore:
     def __init__(self, root: Path) -> None:
         self._root = root
         self._inv_dir = root / "investigations"
+        self._inv_dir.mkdir(parents=True, exist_ok=True)
 
     def create(self, topic: str, brief: str) -> str:
         today = datetime.date.today()
