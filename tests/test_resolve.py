@@ -1,0 +1,308 @@
+# tests/test_resolve.py
+"""Tests for SPEC-027: rk resolve -- Pipeline State Machine."""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+import yaml
+
+from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+from research_keeper.adapters.normalizers.notes import NotesNormalizer
+from research_keeper.adapters.sqlite.index import SqliteIndex
+from research_keeper.config import Config, load_config
+from research_keeper.pipeline import IntakePipeline
+from research_keeper.sidecar import SidecarGenerator
+
+
+@pytest.fixture
+def resolve_root(tmp_path: Path) -> Path:
+    """Fully initialized library root."""
+    (tmp_path / "library" / "sources").mkdir(parents=True)
+    (tmp_path / "library" / "ingestion-dates").mkdir(parents=True)
+    (tmp_path / "tags").mkdir()
+    (tmp_path / "queries").mkdir()
+    (tmp_path / "investigations").mkdir()
+    config = {
+        "data_dir": ".",
+        "completion": {
+            "models": {
+                "heavy": "anthropic/claude-opus-4",
+                "medium": "anthropic/claude-sonnet-4",
+            },
+            "tasks": {
+                "tagging": "medium",
+                "synthesis": "heavy",
+            },
+        },
+    }
+    (tmp_path / "rk.yaml").write_text(yaml.dump(config))
+    return tmp_path
+
+
+@pytest.fixture
+def pipeline_and_root(resolve_root: Path):
+    """Create a pipeline and return (pipeline, root)."""
+    store = FilesystemSourceStore(resolve_root)
+    tag_store = FilesystemTagStore(resolve_root)
+    index = SqliteIndex(resolve_root / "rk.db")
+    embedder = MagicMock()
+    embedder.embed.return_value = b"\x00" * 16
+    embedder._model = "test"
+    config = load_config(resolve_root / "rk.yaml")
+    sidecar = SidecarGenerator(resolve_root, config.completion)
+
+    pipeline = IntakePipeline(
+        source_store=store,
+        index=index,
+        embedder=embedder,
+        normalizers={"note": NotesNormalizer()},
+        tag_store=tag_store,
+        config=config,
+        sidecar_generator=sidecar,
+    )
+    return pipeline, resolve_root
+
+
+class TestResolveLocking:
+    def test_acquire_lock(self, resolve_root: Path):
+        from research_keeper.resolve import run_resolve
+
+        output = run_resolve(resolve_root)
+        # Lock should be released after resolve
+        assert not (resolve_root / ".rk-resolve.lock").exists()
+
+    def test_concurrent_resolve_blocked(self, resolve_root: Path):
+        from research_keeper.resolve import ResolveLock
+
+        lock = ResolveLock(resolve_root)
+        lock.acquire()
+        try:
+            # Second lock should fail
+            lock2 = ResolveLock(resolve_root)
+            with pytest.raises(RuntimeError, match="[Rr]esolve in progress"):
+                lock2.acquire()
+        finally:
+            lock.release()
+
+    def test_stale_lock_detection(self, resolve_root: Path):
+        """Lock with dead PID should be overridable."""
+        lock_path = resolve_root / ".rk-resolve.lock"
+        # Write a lock with a PID that doesn't exist
+        lock_path.write_text("pid: 99999999\nstarted: 2026-03-30T00:00:00Z\n")
+
+        from research_keeper.resolve import ResolveLock
+        lock = ResolveLock(resolve_root)
+        # Should succeed because PID is dead
+        lock.acquire()
+        lock.release()
+
+
+class TestResolveNoWork:
+    def test_nothing_pending(self, resolve_root: Path):
+        from research_keeper.resolve import run_resolve
+
+        output = run_resolve(resolve_root)
+        assert "Done" in output or "nothing pending" in output.lower()
+
+
+class TestResolveTagStage:
+    def test_reports_pending_tags(self, pipeline_and_root):
+        """When tag sidecars exist but aren't filled, report them."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+        pipeline.add("# Memory\n\nContent about memory.", {"title": "Memory"})
+        pipeline.add("# Agents\n\nContent about agents.", {"title": "Agents"})
+
+        output = run_resolve(root)
+        assert "tag" in output.lower()
+        assert "pending" in output.lower()
+        # Should NOT generate synthesis sidecars
+        synth_files = list(root.glob("tags/*/.pending/synthesize.j2"))
+        assert len(synth_files) == 0
+
+    def test_processes_completed_tags(self, pipeline_and_root):
+        """When tag.yaml exists, resolve should create tags and symlinks."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+        source = pipeline.add("# Memory\n\nContent about memory.", {"title": "Memory"})
+
+        # Simulate agent filling the tag sidecar
+        pending_dir = root / "library" / "sources" / source.slug / ".pending"
+        (pending_dir / "tag.yaml").write_text("tags:\n  - memory\n  - agents\n")
+
+        output = run_resolve(root)
+        assert "resolved" in output.lower() or "Resolved" in output
+
+        # Tags should be created
+        tag_store = FilesystemTagStore(root)
+        assert "memory" in tag_store.list()
+        assert "agents" in tag_store.list()
+
+        # Symlinks should exist
+        assert (root / "tags" / "memory" / "sources" / source.slug).is_symlink()
+        assert (root / "tags" / "agents" / "sources" / source.slug).is_symlink()
+
+        # Manifest should be updated with tags
+        manifest = yaml.safe_load(
+            (root / "library" / "sources" / source.slug / "manifest.yaml").read_text()
+        )
+        assert "memory" in manifest["tags"]
+        assert "agents" in manifest["tags"]
+
+    def test_batch_gate_blocks_synthesis(self, pipeline_and_root):
+        """If some tag sidecars are pending, synthesis should NOT be generated."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+        src_a = pipeline.add("# Memory\n\nContent A.", {"title": "Memory"})
+        src_b = pipeline.add("# Agents\n\nContent B.", {"title": "Agents"})
+
+        # Fill only one tag sidecar
+        pending_a = root / "library" / "sources" / src_a.slug / ".pending"
+        (pending_a / "tag.yaml").write_text("tags:\n  - memory\n")
+
+        output = run_resolve(root)
+        # Should process src_a's tags but report src_b as pending
+        assert "pending" in output.lower()
+
+        # Should NOT have generated synthesis sidecars
+        synth_files = list(root.glob("tags/*/.pending/synthesize.j2"))
+        assert len(synth_files) == 0
+
+    def test_all_tags_resolved_generates_synthesis(self, pipeline_and_root):
+        """When all tag sidecars are resolved, synthesis sidecars should be generated."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+        src_a = pipeline.add("# Memory\n\nContent A.", {"title": "Memory"})
+        src_b = pipeline.add("# Agents\n\nContent B.", {"title": "Agents"})
+
+        # Fill both tag sidecars
+        for src in [src_a, src_b]:
+            pending = root / "library" / "sources" / src.slug / ".pending"
+            (pending / "tag.yaml").write_text("tags:\n  - memory\n")
+
+        output = run_resolve(root)
+
+        # Should have generated synthesis sidecar for "memory"
+        synth_j2 = root / "tags" / "memory" / ".pending" / "synthesize.j2"
+        assert synth_j2.exists(), f"Expected synthesis sidecar at {synth_j2}"
+        assert "synthesis" in output.lower() or "synthesize" in output.lower()
+
+
+class TestResolveSynthesisStage:
+    def test_processes_completed_synthesis(self, pipeline_and_root):
+        """When synthesize.md exists, resolve should write synthesis.md to tag dir."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+        src = pipeline.add("# Memory\n\nContent.", {"title": "Memory"})
+
+        # Fill tag sidecar
+        pending = root / "library" / "sources" / src.slug / ".pending"
+        (pending / "tag.yaml").write_text("tags:\n  - memory\n")
+
+        # First resolve: processes tags, generates synthesis sidecars
+        run_resolve(root)
+
+        # Simulate agent filling synthesis sidecar
+        synth_pending = root / "tags" / "memory" / ".pending"
+        (synth_pending / "synthesize.md").write_text(
+            "# Memory Synthesis\n\nKey findings about memory."
+        )
+
+        # Second resolve: processes synthesis
+        output = run_resolve(root)
+        assert "Done" in output or "resolved" in output.lower()
+
+        # synthesis.md should be in the tag dir
+        assert (root / "tags" / "memory" / "synthesis.md").exists()
+        content = (root / "tags" / "memory" / "synthesis.md").read_text()
+        assert "Key findings" in content
+
+
+class TestResolveIntakeLocks:
+    def test_intake_lock_blocks_resolve(self, pipeline_and_root):
+        """If intake.lock files exist, resolve should report intake in progress."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+
+        # Create an intake lock manually
+        lock_dir = root / "library" / "sources" / "in-progress" / ".pending"
+        lock_dir.mkdir(parents=True)
+        (lock_dir / "intake.lock").write_text(f"task: intake\npid: {os.getpid()}\n")
+
+        output = run_resolve(root)
+        assert "intake" in output.lower()
+
+
+class TestResolveCLI:
+    def test_resolve_cli_command(self, resolve_root: Path):
+        """rk resolve should be accessible as a CLI command."""
+        from click.testing import CliRunner
+        from research_keeper.cli import main
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["resolve", "--root", str(resolve_root)])
+        assert result.exit_code == 0
+
+    def test_resolve_full_cycle_cli(self, resolve_root: Path):
+        """Full cycle: add via CLI -> simulate agent -> resolve via CLI."""
+        from click.testing import CliRunner
+        from research_keeper.cli import main
+
+        runner = CliRunner()
+
+        # Add a source
+        result = runner.invoke(main, [
+            "add", "--root", str(resolve_root),
+            "# Memory Research\\n\\nContent about agent memory.",
+        ])
+        assert result.exit_code == 0
+
+        # Find the source slug
+        sources_dir = resolve_root / "library" / "sources"
+        source_dirs = [d for d in sources_dir.iterdir() if d.is_dir()]
+        assert len(source_dirs) == 1
+        slug = source_dirs[0].name
+
+        # Simulate agent filling tag sidecar
+        pending = sources_dir / slug / ".pending"
+        (pending / "tag.yaml").write_text("tags:\n  - memory\n  - agents\n")
+
+        # Resolve
+        result = runner.invoke(main, ["resolve", "--root", str(resolve_root)])
+        assert result.exit_code == 0
+        assert "resolved" in result.output.lower() or "Resolved" in result.output
+
+
+class TestResolveEdgesAndIndex:
+    def test_resolve_creates_index_edges(self, pipeline_and_root):
+        """rk resolve should create source->tag edges in the SQLite index."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+        src = pipeline.add("# Memory\n\nContent.", {"title": "Memory"})
+
+        # Fill tag sidecar
+        pending = root / "library" / "sources" / src.slug / ".pending"
+        (pending / "tag.yaml").write_text("tags:\n  - memory\n")
+
+        # Fill all tags so we can resolve
+        run_resolve(root)
+
+        # Check SQLite edges
+        index = SqliteIndex(root / "rk.db")
+        cur = index._conn.cursor()
+        cur.execute("SELECT * FROM edges WHERE relationship = 'tagged'")
+        rows = cur.fetchall()
+        assert len(rows) >= 1
+        edge_pairs = {(row["source_id"], row["target_id"]) for row in rows}
+        assert (src.slug, "memory") in edge_pairs
