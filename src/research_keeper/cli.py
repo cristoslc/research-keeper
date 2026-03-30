@@ -167,7 +167,32 @@ def rebuild(root: str) -> None:
         if emb_path.exists():
             index.upsert_embedding(tag_slug, "unknown", emb_path.read_bytes())
 
-    click.echo(f"Rebuilt index: {len(sources)} source(s), {tag_count} tag(s) indexed")
+    # Rebuild query nodes from queries/ directory
+    from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
+    query_store = FilesystemQueryStore(root_path)
+    query_count = 0
+    for query_id in query_store.list():
+        node = query_store.get(query_id)
+        if node:
+            index.upsert_tag_node(query_id, node.synthesis, model="query", tier="frontier")
+            cur = index._conn.cursor()
+            cur.execute("UPDATE nodes SET kind = ? WHERE id = ?", ("query-synthesis", query_id))
+            index._conn.commit()
+
+            # Rebuild query edges
+            for source_slug in node.cited_sources:
+                index.upsert_edge(query_id, source_slug, "cites")
+            for tag_slug in node.cited_tags:
+                index.upsert_edge(query_id, tag_slug, "cites")
+
+            # Reload query embedding if present
+            emb_path = root_path / "queries" / query_id / "embedding.bin"
+            if emb_path.exists():
+                index.upsert_embedding(query_id, "unknown", emb_path.read_bytes())
+
+            query_count += 1
+
+    click.echo(f"Rebuilt index: {len(sources)} source(s), {tag_count} tag(s), {query_count} query(s) indexed")
 
 
 @main.command()
