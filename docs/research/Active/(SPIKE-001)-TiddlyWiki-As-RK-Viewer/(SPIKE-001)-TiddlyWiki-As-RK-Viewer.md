@@ -9,6 +9,7 @@ last-updated: 2026-03-30
 question: "Can TiddlyWiki's Node.js edition render rk-structured data as a browsable, tag-filterable knowledge base with acceptable UX?"
 gate: Pre-MVP
 trove: git-repo-gui-frontends@1640143
+parent-epic: EPIC-007
 risks-addressed:
   - "No existing tool matches rk's full knowledge model"
   - "Tag intersection browsing may require a custom build"

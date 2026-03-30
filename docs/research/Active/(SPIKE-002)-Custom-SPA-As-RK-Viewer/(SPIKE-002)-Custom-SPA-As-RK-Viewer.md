@@ -9,6 +9,7 @@ last-updated: 2026-03-30
 question: "Can a lightweight SPA (Sigma.js + UpSet.js + faceted sidebar) provide a richer tag intersection browsing experience than TiddlyWiki for rk data?"
 gate: Pre-MVP
 trove: git-repo-gui-frontends@1640143
+parent-epic: EPIC-007
 risks-addressed:
   - "Tag intersection visualization may require custom tooling"
   - "No off-the-shelf faceted browser works with markdown files on disk"
