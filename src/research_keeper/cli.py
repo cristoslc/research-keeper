@@ -98,6 +98,9 @@ def init(path: str) -> None:
 @click.option("--investigation", default=None, help="Link to investigation ID")
 def add(raw: str, root: str, origin: str | None, published: str | None, investigation: str | None) -> None:
     """Add a source to the library."""
+    # Interpret common escape sequences from CLI input
+    raw = raw.replace("\\n", "\n").replace("\\t", "\t")
+
     pipeline = _build_pipeline(Path(root).resolve())
 
     metadata: dict = {}
