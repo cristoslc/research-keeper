@@ -1,6 +1,7 @@
 # src/research_keeper/cli.py
 from __future__ import annotations
 
+import traceback
 from pathlib import Path
 
 import click
@@ -8,11 +9,16 @@ import yaml
 
 from research_keeper.config import Config, load_config
 
+# Stored by the --verbose flag callback for use in commands
+_verbose = False
+
 
 @click.group()
-def main() -> None:
+@click.option("--verbose", is_flag=True, default=False, help="Show full tracebacks on error")
+def main(verbose: bool) -> None:
     """rk — research keeper CLI."""
-    pass
+    global _verbose
+    _verbose = verbose
 
 
 @main.command()
@@ -98,56 +104,88 @@ def init(path: str) -> None:
 @click.option("--investigation", default=None, help="Link to investigation ID")
 def add(raw: str, root: str, origin: str | None, published: str | None, investigation: str | None) -> None:
     """Add a source to the library."""
-    # Interpret common escape sequences from CLI input
-    raw = raw.replace("\\n", "\n").replace("\\t", "\t")
+    try:
+        # Interpret common escape sequences from CLI input
+        raw = raw.replace("\\n", "\n").replace("\\t", "\t")
 
-    pipeline = _build_pipeline(Path(root).resolve())
+        root_path = Path(root).resolve()
+        pipeline = _build_pipeline(root_path)
 
-    metadata: dict = {}
-    if origin:
-        metadata["origin"] = origin
-    if published:
-        metadata["published"] = published
+        metadata: dict = {}
+        if origin:
+            metadata["origin"] = origin
+        if published:
+            metadata["published"] = published
 
-    # If raw looks like a URL, set it as origin
-    if raw.startswith(("http://", "https://")) and "origin" not in metadata:
-        metadata["origin"] = raw
+        # If raw looks like a URL, set it as origin
+        if raw.startswith(("http://", "https://")) and "origin" not in metadata:
+            metadata["origin"] = raw
 
-    source = pipeline.add(raw, metadata, investigation_id=investigation)
-    click.echo(f"Added: {source.slug}")
-    if source.tags:
-        click.echo(f"Tags: {', '.join(source.tags)}")
-    if investigation:
-        click.echo(f"Linked to investigation: {investigation}")
+        source = pipeline.add(raw, metadata, investigation_id=investigation)
+
+        # Build feedback about what was skipped
+        notes: list[str] = []
+        if pipeline._tagger is None and pipeline._synthesizer is None:
+            notes.append("tagging and synthesis skipped -- no LLM available")
+        elif pipeline._tagger is None:
+            notes.append("tagging skipped -- no LLM available")
+        elif pipeline._synthesizer is None:
+            notes.append("synthesis skipped -- no LLM available")
+
+        # Check if embedder is a stub or embedding failed at runtime
+        embedder_model = getattr(pipeline._embedder, "_model", None)
+        if embedder_model == "stub":
+            notes.append("embeddings skipped -- Ollama not available")
+        elif pipeline.embedding_failed:
+            notes.append("embeddings skipped -- Ollama not available")
+
+        note_str = f" ({'; '.join(notes)})" if notes else ""
+        click.echo(f"Added: {source.slug}{note_str}")
+        if source.tags:
+            click.echo(f"Tags: {', '.join(source.tags)}")
+        if investigation:
+            click.echo(f"Linked to investigation: {investigation}")
+    except Exception as exc:
+        _handle_error(exc)
 
 
 @main.command()
 @click.option("--root", type=click.Path(exists=True), default=".")
 def tags(root: str) -> None:
     """List all tags with source counts."""
-    root_path = Path(root).resolve()
+    try:
+        root_path = Path(root).resolve()
 
-    from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+        from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
 
-    tag_store = FilesystemTagStore(root_path)
-    tag_list = tag_store.list()
+        tag_store = FilesystemTagStore(root_path)
+        tag_list = tag_store.list()
 
-    if not tag_list:
-        click.echo("No tags yet.")
-        return
+        if not tag_list:
+            click.echo("No tags yet.")
+            return
 
-    for tag_slug in tag_list:
-        source_slugs = tag_store.sources_for_tag(tag_slug)
-        meta = tag_store.get_meta(tag_slug)
-        has_synthesis = (tag_store.tag_dir(tag_slug) / "synthesis.md").exists()
-        synth_marker = "+" if has_synthesis else "-"
-        click.echo(f"  {tag_slug} ({len(source_slugs)} sources) [{synth_marker}]")
+        for tag_slug in tag_list:
+            source_slugs = tag_store.sources_for_tag(tag_slug)
+            meta = tag_store.get_meta(tag_slug)
+            has_synthesis = (tag_store.tag_dir(tag_slug) / "synthesis.md").exists()
+            synth_marker = "+" if has_synthesis else "-"
+            click.echo(f"  {tag_slug} ({len(source_slugs)} sources) [{synth_marker}]")
+    except Exception as exc:
+        _handle_error(exc)
 
 
 @main.command()
 @click.option("--root", type=click.Path(exists=True), default=".")
 def rebuild(root: str) -> None:
     """Rebuild SQLite index from filesystem."""
+    try:
+        _rebuild_impl(root)
+    except Exception as exc:
+        _handle_error(exc)
+
+
+def _rebuild_impl(root: str) -> None:
     root_path = Path(root).resolve()
     config = load_config(root_path / "rk.yaml")
 
@@ -257,19 +295,22 @@ def rebuild(root: str) -> None:
 @click.option("--investigation", default=None, help="Link to investigation ID")
 def search(query: str, root: str, top_k: int | None, investigation: str | None) -> None:
     """Search the library and synthesize an answer."""
-    pipeline = _build_search_pipeline(Path(root).resolve())
-    result = pipeline.search(query, top_k=top_k, investigation_id=investigation)
+    try:
+        pipeline = _build_search_pipeline(Path(root).resolve())
+        result = pipeline.search(query, top_k=top_k, investigation_id=investigation)
 
-    click.echo(f"\n--- Query: {query} ---\n")
-    click.echo(result.synthesis)
-    click.echo(f"\n--- Saved as: {result.query_id} ---")
+        click.echo(f"\n--- Query: {query} ---\n")
+        click.echo(result.synthesis)
+        click.echo(f"\n--- Saved as: {result.query_id} ---")
 
-    if result.cited_sources:
-        click.echo(f"Cited sources: {', '.join(result.cited_sources)}")
-    if result.cited_tags:
-        click.echo(f"Cited tags: {', '.join(result.cited_tags)}")
-    if investigation:
-        click.echo(f"Linked to investigation: {investigation}")
+        if result.cited_sources:
+            click.echo(f"Cited sources: {', '.join(result.cited_sources)}")
+        if result.cited_tags:
+            click.echo(f"Cited tags: {', '.join(result.cited_tags)}")
+        if investigation:
+            click.echo(f"Linked to investigation: {investigation}")
+    except Exception as exc:
+        _handle_error(exc)
 
 
 @main.command()
@@ -277,36 +318,41 @@ def search(query: str, root: str, top_k: int | None, investigation: str | None) 
 @click.option("--root", type=click.Path(exists=True), default=".")
 @click.option("--close", "close_id", default=None, help="Close investigation by ID")
 @click.option("--list", "list_all", is_flag=True, help="List all investigations")
-def investigate(topic: str | None, root: str, close_id: str | None, list_all: bool) -> None:
+@click.option("--brief", default=None, help="Brief description for the investigation")
+def investigate(topic: str | None, root: str, close_id: str | None, list_all: bool, brief: str | None) -> None:
     """Create or manage investigations."""
-    root_path = Path(root).resolve()
-    pipeline = _build_investigation_pipeline(root_path)
+    try:
+        root_path = Path(root).resolve()
+        pipeline = _build_investigation_pipeline(root_path)
 
-    if list_all:
-        invs = pipeline._inv_store.list()
-        if not invs:
-            click.echo("No investigations.")
+        if list_all:
+            invs = pipeline._inv_store.list()
+            if not invs:
+                click.echo("No investigations.")
+                return
+            for inv in invs:
+                src_count = len(inv.linked_sources)
+                qry_count = len(inv.linked_queries)
+                click.echo(
+                    f"  {inv.inv_id} [{inv.status}] -- {inv.topic} "
+                    f"({src_count} sources, {qry_count} queries)"
+                )
             return
-        for inv in invs:
-            src_count = len(inv.linked_sources)
-            qry_count = len(inv.linked_queries)
-            click.echo(
-                f"  {inv.inv_id} [{inv.status}] — {inv.topic} "
-                f"({src_count} sources, {qry_count} queries)"
-            )
-        return
 
-    if close_id:
-        pipeline.close(close_id)
-        click.echo(f"Closed investigation: {close_id}")
-        return
+        if close_id:
+            pipeline.close(close_id)
+            click.echo(f"Closed investigation: {close_id}")
+            return
 
-    if not topic:
-        click.echo("Provide a topic or use --list / --close")
-        return
+        if not topic:
+            click.echo("Provide a topic or use --list / --close")
+            return
 
-    inv_id = pipeline.create(topic, brief=topic)
-    click.echo(f"Created investigation: {inv_id}")
+        brief_text = brief if brief else f"Investigation into: {topic}"
+        inv_id = pipeline.create(topic, brief=brief_text)
+        click.echo(f"Created investigation: {inv_id}")
+    except Exception as exc:
+        _handle_error(exc)
 
 
 @main.command()
@@ -468,6 +514,14 @@ def clear(root: str) -> None:
     mgr = AuthManager(root_path / "rk.yaml")
     mgr.clear()
     click.echo("Credentials cleared.")
+
+
+def _handle_error(exc: Exception) -> None:
+    """Show a clean error message, or full traceback with --verbose."""
+    if _verbose:
+        click.echo(traceback.format_exc(), err=True)
+    click.echo(f"Error: {exc}", err=True)
+    raise SystemExit(1)
 
 
 def _build_investigation_pipeline(root: Path, completer=None):

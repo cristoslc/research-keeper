@@ -41,9 +41,11 @@ class IntakePipeline:
         self._config = config or Config()
         self._investigation_store = investigation_store
         self._remote = remote_resolver
+        self.embedding_failed = False  # set to True if embedding fails during add()
 
     def add(self, raw: str, metadata: dict | None = None, investigation_id: str | None = None) -> Source:
         metadata = metadata or {}
+        self.embedding_failed = False
 
         # Bookend: sync before
         if self._remote and self._remote.is_remote:
@@ -93,6 +95,7 @@ class IntakePipeline:
                 model_name = "unknown"
             self._index.upsert_embedding(source.slug, model_name, embedding)
         except Exception:
+            self.embedding_failed = True
             logger.warning(
                 "Embedding failed for %s — source filed and indexed without embedding",
                 source.slug, exc_info=True,
