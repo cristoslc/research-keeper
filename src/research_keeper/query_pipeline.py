@@ -105,10 +105,15 @@ class QueryPipeline:
                 )
             )
 
-        # Step 4: Synthesize with query as steering
-        synthesis = self._synthesizer.synthesize(
-            sources_for_synth, steering=query_text
-        )
+        # Step 4: Synthesize with query as steering (skip if no synthesizer)
+        if self._synthesizer is not None:
+            synthesis = self._synthesizer.synthesize(
+                sources_for_synth, steering=query_text
+            )
+        else:
+            # FTS-only mode: list matched sources without synthesis
+            source_list = "\n".join(f"- {s.slug}: {s.content[:200]}..." for s in sources_for_synth)
+            synthesis = f"(synthesis unavailable — showing search results only)\n\n{source_list}"
 
         # Step 5: Persist query node
         query_id = self._query_store.create(
