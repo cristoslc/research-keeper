@@ -220,6 +220,62 @@ def search(query: str, root: str, top_k: int | None, investigation: str | None) 
         click.echo(f"Linked to investigation: {investigation}")
 
 
+@main.command()
+@click.argument("topic", required=False)
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option("--close", "close_id", default=None, help="Close investigation by ID")
+@click.option("--list", "list_all", is_flag=True, help="List all investigations")
+def investigate(topic: str | None, root: str, close_id: str | None, list_all: bool) -> None:
+    """Create or manage investigations."""
+    root_path = Path(root).resolve()
+    pipeline = _build_investigation_pipeline(root_path)
+
+    if list_all:
+        invs = pipeline._inv_store.list()
+        if not invs:
+            click.echo("No investigations.")
+            return
+        for inv in invs:
+            src_count = len(inv.linked_sources)
+            qry_count = len(inv.linked_queries)
+            click.echo(
+                f"  {inv.inv_id} [{inv.status}] — {inv.topic} "
+                f"({src_count} sources, {qry_count} queries)"
+            )
+        return
+
+    if close_id:
+        pipeline.close(close_id)
+        click.echo(f"Closed investigation: {close_id}")
+        return
+
+    if not topic:
+        click.echo("Provide a topic or use --list / --close")
+        return
+
+    inv_id = pipeline.create(topic, brief=topic)
+    click.echo(f"Created investigation: {inv_id}")
+
+
+def _build_investigation_pipeline(root: Path):
+    """Build an InvestigationPipeline from config at root."""
+    from research_keeper.adapters.filesystem.investigation_store import (
+        FilesystemInvestigationStore,
+    )
+    from research_keeper.investigation_pipeline import InvestigationPipeline
+
+    config = load_config(root / "rk.yaml")
+    inv_store = FilesystemInvestigationStore(root)
+    synthesizer = _build_synthesizer(config)
+    embedder = _build_embedder(config)
+
+    return InvestigationPipeline(
+        investigation_store=inv_store,
+        synthesizer=synthesizer,
+        embedder=embedder,
+    )
+
+
 def _build_search_pipeline(root: Path):
     """Build a QueryPipeline from config at root."""
     from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
