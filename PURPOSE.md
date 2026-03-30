@@ -6,7 +6,7 @@ Research-keeper makes your agent your librarian. Add a source — article, paper
 
 ## Beliefs
 
-**Intelligence belongs to the caller.** rk describes what it needs. The agent provides the thinking. Zero billing, no lock-in.
+**Intelligence belongs to the caller.** rk describes what it needs. The agent — or a configured provider — provides the thinking. No vendor lock-in, no additional billing relationship. rk works with whatever intelligence is already available.
 
 **Files are the data model.** Every source gets a markdown file and a YAML sidecar. Tags, queries, and investigations are symlink views. `cp -rL` exports anything. The database is derived and rebuildable.
 
