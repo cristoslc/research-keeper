@@ -105,41 +105,17 @@ class TestNoAnthropicRemnants:
             "Found 'anthropic' in pyproject.toml"
         )
 
-    def test_tagger_uses_task_not_model_tier(self):
-        from research_keeper.adapters.tagger import PromptTagger
+    def test_no_completer_port(self):
+        """Completer port should be removed per ADR-001."""
+        src_dir = Path(__file__).parent.parent / "src" / "research_keeper" / "ports"
+        assert not (src_dir / "completer.py").exists(), "completer.py should be removed"
 
-        class SpyCompleter:
-            def __init__(self):
-                self.last_kwargs = {}
+    def test_no_tagger_adapter(self):
+        """PromptTagger adapter should be removed per ADR-001."""
+        src_dir = Path(__file__).parent.parent / "src" / "research_keeper" / "adapters"
+        assert not (src_dir / "tagger.py").exists(), "tagger.py should be removed"
 
-            def complete(self, prompt: str, task: str = "default") -> str:
-                self.last_kwargs = {"task": task}
-                return "test-tag"
-
-        spy = SpyCompleter()
-        tagger = PromptTagger(completer=spy)
-        tagger.tag("test content", [])
-        assert spy.last_kwargs.get("task") == "tagging"
-
-    def test_synthesizer_uses_task_not_model_tier(self):
-        import datetime
-        from research_keeper.adapters.synthesizer import PromptSynthesizer
-        from research_keeper.models import Freshness, Provenance, Source
-
-        class SpyCompleter:
-            def __init__(self):
-                self.last_kwargs = {}
-
-            def complete(self, prompt: str, task: str = "default") -> str:
-                self.last_kwargs = {"task": task}
-                return "synthesis"
-
-        spy = SpyCompleter()
-        synth = PromptSynthesizer(completer=spy)
-        source = Source(
-            slug="t", content_path="", content="text",
-            freshness=Freshness(ingested=datetime.date.today()),
-            provenance=Provenance(origin="test"),
-        )
-        synth.synthesize([source], tier="frontier")
-        assert spy.last_kwargs.get("task") == "synthesis"
+    def test_no_synthesizer_adapter(self):
+        """PromptSynthesizer adapter should be removed per ADR-001."""
+        src_dir = Path(__file__).parent.parent / "src" / "research_keeper" / "adapters"
+        assert not (src_dir / "synthesizer.py").exists(), "synthesizer.py should be removed"

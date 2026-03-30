@@ -16,7 +16,7 @@ _verbose = False
 @click.group()
 @click.option("--verbose", is_flag=True, default=False, help="Show full tracebacks on error")
 def main(verbose: bool) -> None:
-    """rk — research keeper CLI."""
+    """rk -- research keeper CLI."""
     global _verbose
     _verbose = verbose
 
@@ -97,54 +97,118 @@ def init(path: str) -> None:
 
 
 @main.command()
-@click.argument("raw")
+@click.argument("sources", nargs=-1, required=True)
 @click.option("--root", type=click.Path(exists=True), default=".")
 @click.option("--origin", default=None, help="Source URL or path")
 @click.option("--published", default=None, help="Publication date (YYYY-MM-DD)")
 @click.option("--investigation", default=None, help="Link to investigation ID")
-def add(raw: str, root: str, origin: str | None, published: str | None, investigation: str | None) -> None:
-    """Add a source to the library."""
+@click.option("--no-prompt", is_flag=True, default=False, help="Skip sidecar generation")
+def add(
+    sources: tuple[str, ...],
+    root: str,
+    origin: str | None,
+    published: str | None,
+    investigation: str | None,
+    no_prompt: bool,
+) -> None:
+    """Add one or more sources to the library."""
     try:
-        # Interpret common escape sequences from CLI input
-        raw = raw.replace("\\n", "\n").replace("\\t", "\t")
-
         root_path = Path(root).resolve()
         pipeline = _build_pipeline(root_path)
 
-        metadata: dict = {}
-        if origin:
-            metadata["origin"] = origin
-        if published:
-            metadata["published"] = published
+        added: list[tuple[str, Path | None]] = []
+        errors: list[tuple[str, Exception]] = []
 
-        # If raw looks like a URL, set it as origin
-        if raw.startswith(("http://", "https://")) and "origin" not in metadata:
-            metadata["origin"] = raw
+        for raw in sources:
+            try:
+                # Interpret common escape sequences from CLI input
+                raw_decoded = raw.replace("\\n", "\n").replace("\\t", "\t")
 
-        source = pipeline.add(raw, metadata, investigation_id=investigation)
+                metadata: dict = {}
+                if origin:
+                    metadata["origin"] = origin
+                if published:
+                    metadata["published"] = published
 
-        # Build feedback about what was skipped
+                # If raw looks like a URL, set it as origin
+                if raw_decoded.startswith(("http://", "https://")) and "origin" not in metadata:
+                    metadata["origin"] = raw_decoded
+
+                source = pipeline.add(
+                    raw_decoded, metadata,
+                    investigation_id=investigation,
+                    no_prompt=no_prompt,
+                )
+
+                # Find the sidecar path if it was generated
+                sidecar_path = None
+                pending_dir = pipeline._store.source_dir(source.slug) / ".pending"
+                tag_j2 = pending_dir / "tag.j2"
+                if tag_j2.exists():
+                    sidecar_path = tag_j2
+
+                added.append((source.slug, sidecar_path))
+
+            except Exception as exc:
+                errors.append((raw[:50], exc))
+
+        # Output summary
+        if added:
+            click.echo(f"Added {len(added)} source(s):")
+            for slug, sidecar in added:
+                if sidecar:
+                    model_hint = pipeline._config.completion.tasks.get("tagging", "medium")
+                    rel = sidecar.relative_to(root_path) if sidecar.is_relative_to(root_path) else sidecar
+                    click.echo(f"  {slug:<20s} {rel} ({model_hint})")
+                else:
+                    click.echo(f"  {slug}")
+
+            sidecar_count = sum(1 for _, s in added if s is not None)
+            if sidecar_count > 0:
+                click.echo(
+                    f"\n{sidecar_count} tag sidecar(s) pending (parallelizable). Run: rk resolve"
+                )
+
+        # Report notes
         notes: list[str] = []
-        if pipeline._tagger is None and pipeline._synthesizer is None:
-            notes.append("tagging and synthesis skipped -- no LLM available")
-        elif pipeline._tagger is None:
-            notes.append("tagging skipped -- no LLM available")
-        elif pipeline._synthesizer is None:
-            notes.append("synthesis skipped -- no LLM available")
-
-        # Check if embedder is a stub or embedding failed at runtime
         embedder_model = getattr(pipeline._embedder, "_model", None)
         if embedder_model == "stub":
             notes.append("embeddings skipped -- Ollama not available")
         elif pipeline.embedding_failed:
             notes.append("embeddings skipped -- Ollama not available")
+        if no_prompt:
+            notes.append("sidecar generation skipped (--no-prompt)")
+        elif pipeline._sidecar is None:
+            notes.append("sidecar generation skipped -- no sidecar generator")
 
-        note_str = f" ({'; '.join(notes)})" if notes else ""
-        click.echo(f"Added: {source.slug}{note_str}")
-        if source.tags:
-            click.echo(f"Tags: {', '.join(source.tags)}")
+        if notes:
+            click.echo(f"({'; '.join(notes)})")
+
+        for raw_prefix, exc in errors:
+            click.echo(f"  Error adding '{raw_prefix}': {exc}", err=True)
+
         if investigation:
             click.echo(f"Linked to investigation: {investigation}")
+
+        if errors and not added:
+            raise SystemExit(1)
+
+    except SystemExit:
+        raise
+    except Exception as exc:
+        _handle_error(exc)
+
+
+@main.command()
+@click.option("--root", type=click.Path(exists=True), default=".")
+def resolve(root: str) -> None:
+    """Process completed sidecars and advance the pipeline."""
+    try:
+        from research_keeper.resolve import run_resolve
+
+        root_path = Path(root).resolve()
+        output = run_resolve(root_path)
+        click.echo(output)
     except Exception as exc:
         _handle_error(exc)
 
@@ -366,7 +430,7 @@ def sync(root: str) -> None:
 
     resolver = RemoteResolver(config.data_dir)
     if not resolver.is_remote:
-        click.echo("No remote configured — local data directory, nothing to sync.")
+        click.echo("No remote configured -- local data directory, nothing to sync.")
         return
 
     try:
@@ -389,7 +453,7 @@ def publish(root: str, message: str) -> None:
 
     resolver = RemoteResolver(config.data_dir)
     if not resolver.is_remote:
-        click.echo("No remote configured — local data directory, nothing to publish.")
+        click.echo("No remote configured -- local data directory, nothing to publish.")
         return
 
     try:
@@ -524,7 +588,7 @@ def _handle_error(exc: Exception) -> None:
     raise SystemExit(1)
 
 
-def _build_investigation_pipeline(root: Path, completer=None):
+def _build_investigation_pipeline(root: Path):
     """Build an InvestigationPipeline from config at root."""
     from research_keeper.adapters.filesystem.investigation_store import (
         FilesystemInvestigationStore,
@@ -533,17 +597,16 @@ def _build_investigation_pipeline(root: Path, completer=None):
 
     config = load_config(root / "rk.yaml")
     inv_store = FilesystemInvestigationStore(root)
-    synthesizer = _build_synthesizer(config, completer=completer)
     embedder = _build_embedder(config)
 
     return InvestigationPipeline(
         investigation_store=inv_store,
-        synthesizer=synthesizer,
+        synthesizer=None,
         embedder=embedder,
     )
 
 
-def _build_search_pipeline(root: Path, completer=None):
+def _build_search_pipeline(root: Path):
     """Build a QueryPipeline from config at root."""
     from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
     from research_keeper.adapters.retriever.semantic import SemanticRetriever
@@ -558,11 +621,10 @@ def _build_search_pipeline(root: Path, completer=None):
     half_life = parse_ttl_days(config.freshness.default_ttl)
     retriever = SemanticRetriever(index=index, half_life_days=half_life)
     embedder = _build_embedder(config)
-    synthesizer = _build_synthesizer(config, completer=completer)
 
     return QueryPipeline(
         retriever=retriever,
-        synthesizer=synthesizer,
+        synthesizer=None,
         query_store=query_store,
         embedder=embedder,
         index=index,
@@ -570,7 +632,7 @@ def _build_search_pipeline(root: Path, completer=None):
     )
 
 
-def _build_pipeline(root: Path, completer=None):
+def _build_pipeline(root: Path):
     """Build an IntakePipeline from config at root."""
     from research_keeper.adapters.filesystem.investigation_store import (
         FilesystemInvestigationStore,
@@ -580,6 +642,7 @@ def _build_pipeline(root: Path, completer=None):
     from research_keeper.adapters.sqlite.index import SqliteIndex
     from research_keeper.adapters.normalizers.notes import NotesNormalizer
     from research_keeper.pipeline import IntakePipeline
+    from research_keeper.sidecar import SidecarGenerator
 
     config = load_config(root / "rk.yaml")
 
@@ -609,19 +672,17 @@ def _build_pipeline(root: Path, completer=None):
         pass
 
     embedder = _build_embedder(config)
-    tagger = _build_tagger(config, completer=completer)
-    synthesizer = _build_synthesizer(config, completer=completer)
+    sidecar = SidecarGenerator(root, config.completion)
 
     return IntakePipeline(
         source_store=store,
         index=index,
         embedder=embedder,
         normalizers=normalizers,
-        tagger=tagger,
-        synthesizer=synthesizer,
         tag_store=tag_store,
         config=config,
         investigation_store=inv_store,
+        sidecar_generator=sidecar,
     )
 
 
@@ -653,19 +714,3 @@ def _build_embedder(config):
             return b""
 
     return StubEmbedder()
-
-
-def _build_tagger(config, completer=None):
-    """Build tagger from completer, with None fallback."""
-    if completer is None:
-        return None
-    from research_keeper.adapters.tagger import PromptTagger
-    return PromptTagger(completer=completer)
-
-
-def _build_synthesizer(config, completer=None):
-    """Build synthesizer from completer, with None fallback."""
-    if completer is None:
-        return None
-    from research_keeper.adapters.synthesizer import PromptSynthesizer
-    return PromptSynthesizer(completer=completer)

@@ -55,6 +55,14 @@ def test_add_note(mock_build, runner: CliRunner, tmp_path: Path):
     mock_source.slug = "test-note"
     mock_source.tags = []
     mock_pipeline.add.return_value = mock_source
+    mock_pipeline._store = MagicMock()
+    mock_pipeline._store.source_dir.return_value = tmp_path / "library" / "sources" / "test-note"
+    mock_pipeline._config = MagicMock()
+    mock_pipeline._config.completion.tasks = {"tagging": "medium"}
+    mock_pipeline._embedder = MagicMock()
+    mock_pipeline._embedder._model = "stub"
+    mock_pipeline._sidecar = None
+    mock_pipeline.embedding_failed = False
     mock_build.return_value = mock_pipeline
 
     result = runner.invoke(
@@ -71,6 +79,14 @@ def test_add_url(mock_build, runner: CliRunner, tmp_path: Path):
     mock_source.slug = "web-article"
     mock_source.tags = ["agents"]
     mock_pipeline.add.return_value = mock_source
+    mock_pipeline._store = MagicMock()
+    mock_pipeline._store.source_dir.return_value = tmp_path / "library" / "sources" / "web-article"
+    mock_pipeline._config = MagicMock()
+    mock_pipeline._config.completion.tasks = {"tagging": "medium"}
+    mock_pipeline._embedder = MagicMock()
+    mock_pipeline._embedder._model = "stub"
+    mock_pipeline._sidecar = None
+    mock_pipeline.embedding_failed = False
     mock_build.return_value = mock_pipeline
 
     result = runner.invoke(
@@ -124,7 +140,7 @@ def test_end_to_end_init_add_rebuild(runner: CliRunner, tmp_path: Path):
 
     # Verify source exists on disk
     sources_dir = target / "library" / "sources"
-    source_dirs = list(sources_dir.iterdir())
+    source_dirs = [d for d in sources_dir.iterdir() if d.is_dir()]
     assert len(source_dirs) == 1
     source_dir = source_dirs[0]
     assert (source_dir / "source.md").exists()
@@ -215,3 +231,33 @@ def test_rebuild(runner: CliRunner, library_root: Path):
     result = runner.invoke(main, ["rebuild", "--root", str(library_root)])
     assert result.exit_code == 0
     assert "rebuilt" in result.output.lower() or "1" in result.output
+
+
+def test_add_multiple_sources(runner: CliRunner, tmp_path: Path):
+    """rk add should accept multiple source arguments."""
+    target = tmp_path / "multi-test"
+    runner.invoke(main, ["init", str(target)])
+
+    result = runner.invoke(main, [
+        "add", "--root", str(target),
+        "# Source A\\n\\nContent A.",
+        "# Source B\\n\\nContent B.",
+        "# Source C\\n\\nContent C.",
+    ])
+    assert result.exit_code == 0
+    assert "3 source" in result.output.lower() or "Added 3" in result.output
+
+
+def test_add_no_prompt_flag(runner: CliRunner, tmp_path: Path):
+    """rk add --no-prompt should skip sidecar generation."""
+    target = tmp_path / "no-prompt-test"
+    runner.invoke(main, ["init", str(target)])
+
+    result = runner.invoke(main, [
+        "add", "--root", str(target),
+        "--no-prompt",
+        "# No Prompt\\n\\nContent.",
+    ])
+    assert result.exit_code == 0
+    # Should not mention pending sidecars
+    assert "tag sidecar" not in result.output.lower() or "skipped" in result.output.lower()

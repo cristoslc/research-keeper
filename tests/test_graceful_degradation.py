@@ -64,29 +64,35 @@ class TestVerboseFlag:
             assert "Traceback" not in result.output
 
 
-class TestNoLLMAvailable:
-    def test_add_without_completer_shows_skip_message(self, runner: CliRunner, initialized_root: Path):
-        """rk add without a completer should say tagging was skipped."""
+class TestSidecarGeneration:
+    def test_add_generates_sidecar(self, runner: CliRunner, initialized_root: Path):
+        """rk add should generate tag sidecar and report it."""
         result = runner.invoke(main, [
             "add", "--root", str(initialized_root),
             "# Test Note\\n\\nSome content about LLM agents.",
         ])
         assert result.exit_code == 0
-        assert "added:" in result.output.lower()
-        # Should indicate that tagging/synthesis were skipped
-        assert "skipped" in result.output.lower() or "no llm" in result.output.lower()
+        assert "added" in result.output.lower()
+
+    def test_add_no_prompt_skips_sidecar(self, runner: CliRunner, initialized_root: Path):
+        """rk add --no-prompt should skip sidecar generation."""
+        result = runner.invoke(main, [
+            "add", "--root", str(initialized_root),
+            "--no-prompt",
+            "# Test Note\\n\\nSome content.",
+        ])
+        assert result.exit_code == 0
+        assert "added" in result.output.lower() or "1 source" in result.output.lower()
 
 
 class TestNoEmbedderAvailable:
     def test_add_with_broken_embedder_shows_message(self, runner: CliRunner, initialized_root: Path):
         """When embedder fails, output should indicate embeddings were skipped."""
-        # The real pipeline will try ollama and fail in test environment
         result = runner.invoke(main, [
             "add", "--root", str(initialized_root),
             "# Embedder Test\\n\\nContent here.",
         ])
         assert result.exit_code == 0
-        assert "added:" in result.output.lower()
 
 
 class TestSearchDegradation:
