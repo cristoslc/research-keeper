@@ -38,3 +38,24 @@ class Source:
         if self.hash is None:
             computed = hashlib.sha256(self.content.encode()).hexdigest()
             object.__setattr__(self, "hash", computed)
+
+
+@dataclass(frozen=True)
+class ScoredNode:
+    slug: str
+    content: str
+    score: float
+    similarity: float
+    freshness_weight: float
+    kind: str = "source"
+
+
+@dataclass(frozen=True)
+class QueryNode:
+    query_id: str
+    query_text: str
+    synthesis: str
+    cited_sources: list[str] = field(default_factory=list)
+    cited_tags: list[str] = field(default_factory=list)
+    created: datetime.date = field(default_factory=datetime.date.today)
+    kind: Literal["query-synthesis"] = "query-synthesis"
