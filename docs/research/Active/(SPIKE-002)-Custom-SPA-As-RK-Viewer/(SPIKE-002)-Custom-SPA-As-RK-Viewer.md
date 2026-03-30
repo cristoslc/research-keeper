@@ -111,4 +111,4 @@ Document for each criterion: pass/fail, evidence, comparative notes. Pay special
 
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
-| Active | 2026-03-30 | -- | Initial creation |
+| Active | 2026-03-30 | 7da3311 | Initial creation |
