@@ -6,10 +6,10 @@ Research-keeper makes your agent your librarian. Add a source — article, paper
 
 ## Beliefs
 
-**Intelligence belongs to the caller.** rk describes what it needs. The agent — or a configured provider — provides the thinking. No vendor lock-in, no additional billing relationship. rk works with whatever intelligence is already available.
+**Collecting should be the organizing.** You shouldn't have to do both.
 
-**Files are the data model.** Every source gets a markdown file and a YAML sidecar. Tags, queries, and investigations are symlink views. `cp -rL` exports anything. The database is derived and rebuildable.
+**Your knowledge should be yours.** Readable, portable, not locked in a proprietary format or service.
 
-**Every layer degrades gracefully.** No embedder? File without vectors. No LLM? File without tags. Nothing blocks intake.
+**Intelligence should be ambient.** rk uses whatever thinking is available — your agent, a configured service, or nothing at all. It never demands a specific provider.
 
-**Git is the transport.** The knowledge base is a repo. Cloud agents clone it. Local agents work in place. Simple and durable.
+**Intake never stops.** If one capability is down, the rest still work. A source filed without tags is better than a source not filed.
