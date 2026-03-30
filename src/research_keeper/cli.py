@@ -257,6 +257,21 @@ def investigate(topic: str | None, root: str, close_id: str | None, list_all: bo
     click.echo(f"Created investigation: {inv_id}")
 
 
+@main.command()
+@click.option("--root", type=click.Path(exists=True), default=".")
+def serve(root: str) -> None:
+    """Start MCP server for agent access."""
+    from research_keeper.mcp_server import run_server
+
+    root_path = Path(root).resolve()
+    if not (root_path / "rk.yaml").exists():
+        click.echo("Error: not a research-keeper instance (no rk.yaml found)")
+        raise SystemExit(1)
+
+    click.echo(f"Starting MCP server for {root_path}...", err=True)
+    run_server(root_path)
+
+
 def _build_investigation_pipeline(root: Path):
     """Build an InvestigationPipeline from config at root."""
     from research_keeper.adapters.filesystem.investigation_store import (
