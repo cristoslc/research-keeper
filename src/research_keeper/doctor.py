@@ -181,6 +181,147 @@ def check_divergent_syntheses(root: Path) -> list[DiagnosticResult]:
     return results
 
 
+def check_stale_sidecars(root: Path, threshold_seconds: int = 3600) -> list[DiagnosticResult]:
+    """Detect .pending/ directories with sidecars older than threshold."""
+    import time
+
+    results = []
+    now = time.time()
+
+    # Check source tag sidecars
+    sources_dir = root / "library" / "sources"
+    if sources_dir.exists():
+        for src_dir in sources_dir.iterdir():
+            if not src_dir.is_dir():
+                continue
+            for sidecar in (src_dir / ".pending").glob("*.j2") if (src_dir / ".pending").exists() else []:
+                age = now - sidecar.stat().st_mtime
+                if age > threshold_seconds:
+                    results.append(DiagnosticResult(
+                        severity=Severity.WARNING,
+                        check="stale_sidecars",
+                        message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar.relative_to(root)}",
+                    ))
+
+    # Check synthesis sidecars
+    tags_dir = root / "tags"
+    if tags_dir.exists():
+        for tag_dir in tags_dir.iterdir():
+            if not tag_dir.is_dir():
+                continue
+            for sidecar in (tag_dir / ".pending").glob("*.j2") if (tag_dir / ".pending").exists() else []:
+                age = now - sidecar.stat().st_mtime
+                if age > threshold_seconds:
+                    results.append(DiagnosticResult(
+                        severity=Severity.WARNING,
+                        check="stale_sidecars",
+                        message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar.relative_to(root)}",
+                    ))
+
+    return results
+
+
+def check_orphaned_locks(root: Path) -> list[DiagnosticResult]:
+    """Detect orphaned lock files (PID dead)."""
+    import os
+
+    results = []
+
+    # Check resolve lock
+    resolve_lock = root / ".rk-resolve.lock"
+    if resolve_lock.exists():
+        try:
+            content = resolve_lock.read_text()
+            for line in content.strip().split("\n"):
+                if line.startswith("pid:"):
+                    pid = int(line.split(":")[1].strip())
+                    try:
+                        os.kill(pid, 0)
+                    except ProcessLookupError:
+                        results.append(DiagnosticResult(
+                            severity=Severity.WARNING,
+                            check="orphaned_locks",
+                            message=f"Orphaned resolve lock (PID {pid} dead): .rk-resolve.lock",
+                        ))
+                    except PermissionError:
+                        pass  # Process exists, we just can't signal it
+        except Exception:
+            results.append(DiagnosticResult(
+                severity=Severity.WARNING,
+                check="orphaned_locks",
+                message="Unparseable resolve lock: .rk-resolve.lock",
+            ))
+
+    # Check intake locks
+    sources_dir = root / "library" / "sources"
+    if sources_dir.exists():
+        for src_dir in sources_dir.iterdir():
+            if not src_dir.is_dir():
+                continue
+            lock_file = src_dir / ".pending" / "intake.lock"
+            if lock_file.exists():
+                try:
+                    content = lock_file.read_text()
+                    for line in content.strip().split("\n"):
+                        if line.startswith("pid:"):
+                            pid = int(line.split(":")[1].strip())
+                            try:
+                                os.kill(pid, 0)
+                            except ProcessLookupError:
+                                results.append(DiagnosticResult(
+                                    severity=Severity.WARNING,
+                                    check="orphaned_locks",
+                                    message=f"Orphaned intake lock (PID {pid} dead): {lock_file.relative_to(root)}",
+                                ))
+                            except PermissionError:
+                                pass
+                except Exception:
+                    pass
+
+    return results
+
+
+def check_unresolved_sidecars(root: Path) -> list[DiagnosticResult]:
+    """Report unresolved sidecars (informational)."""
+    results = []
+
+    # Check tag sidecars
+    sources_dir = root / "library" / "sources"
+    if sources_dir.exists():
+        for src_dir in sources_dir.iterdir():
+            if not src_dir.is_dir():
+                continue
+            pending = src_dir / ".pending"
+            if pending.exists():
+                tag_j2 = pending / "tag.j2"
+                tag_yaml = pending / "tag.yaml"
+                if tag_j2.exists() and not tag_yaml.exists():
+                    results.append(DiagnosticResult(
+                        severity=Severity.INFO,
+                        check="unresolved_sidecars",
+                        message=f"Unresolved tag sidecar: {tag_j2.relative_to(root)}",
+                    ))
+
+    # Check synthesis sidecars
+    tags_dir = root / "tags"
+    if tags_dir.exists():
+        for tag_dir in tags_dir.iterdir():
+            if not tag_dir.is_dir():
+                continue
+            pending = tag_dir / ".pending"
+            if pending.exists():
+                synth_j2 = pending / "synthesize.j2"
+                synth_md = pending / "synthesize.md"
+                if synth_j2.exists() and not synth_md.exists():
+                    results.append(DiagnosticResult(
+                        severity=Severity.INFO,
+                        check="unresolved_sidecars",
+                        message=f"Unresolved synthesis sidecar: {synth_j2.relative_to(root)}",
+                    ))
+
+    return results
+
+
 def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     """Run all health checks."""
     results: list[DiagnosticResult] = []
@@ -189,4 +330,7 @@ def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     results.extend(check_missing_embeddings(root, fix=fix))
     results.extend(check_stale_nodes(root))
     results.extend(check_divergent_syntheses(root))
+    results.extend(check_stale_sidecars(root))
+    results.extend(check_orphaned_locks(root))
+    results.extend(check_unresolved_sidecars(root))
     return results
