@@ -19,7 +19,7 @@ evidence-pool: ""
 Three personas drive research-keeper's design:
 
 - **The Researcher** (PERSONA-001) — power user running multiple agent environments, configures model routing, maintains persistent investigations across sessions
-- **The Tinkerer** (PERSONA-002) — developer trying rk for the first time, expects `rk init && rk add` to work in under 2 minutes with sensible defaults
+- **The Tinkerer** (PERSONA-002) — developer trying rk for the first time, expects it to just work with sensible defaults
 - **The Pipeline** (PERSONA-003) — automation (webhook, cron, CI) that files sources reliably without an interactive LLM, with intelligence backfilled later
 
 ## Value Proposition
@@ -40,26 +40,26 @@ Research material scatters across bookmarks, notes, downloads, and tabs. Existin
 
 ## Build vs. Buy
 
-Tier 3 — build from scratch. No existing tool combines: (a) multi-format normalization, (b) auto-tagging via the calling agent's LLM, (c) per-tag synthesis with model routing, (d) git-backed data with multi-environment access, (e) hexagonal architecture for CLI/MCP/library interfaces, (f) agent-agnostic design (no vendor lock-in, no API billing).
+Tier 3 — build from scratch. No existing tool combines: (a) multi-format normalization, (b) auto-tagging via the calling agent's LLM, (c) per-tag synthesis with configurable model routing, (d) git-backed data with multi-environment access, (e) agent-agnostic design with no vendor lock-in.
 
 ## Maintenance Budget
 
-Low. rk is designed to be autonomous after setup — intake triggers tagging and synthesis automatically through the agent that invoked it. Maintenance is limited to model config updates in rk.yaml, occasional `rk doctor` reconciliation for multi-environment collisions, and evolving synthesis prompts. Upgrades via `uv tool install --upgrade`.
+Low. Autonomous after setup — adding a source triggers tagging and synthesis automatically. Maintenance is limited to occasional config tweaks, collision reconciliation for multi-environment use, and evolving synthesis prompts.
 
 ## Success Metrics
 
-- `rk init && rk add <url>` works for The Tinkerer in under 2 minutes with sensible defaults
-- Auto-tagging produces useful tags without manual intervention in >80% of cases (for The Researcher)
+- The Tinkerer adds their first source and gets useful results on the first try — no configuration required
+- Auto-tagging produces useful tags without manual intervention in >80% of cases
 - Tag syntheses stay current within the same session a source is added
-- `rk rebuild` reconstructs the full SQLite index from filesystem in under 60 seconds for 500 sources
-- The Pipeline can file 100 sources via automation, then `rk backfill` tags and synthesizes them all in one agent session
-- Sources, tags, queries, and investigations are accessible from CLI, MCP, and cloud agents without data duplication
+- The Researcher's knowledge base is accessible from any environment — local, cloud, MCP — without data duplication
+- The Pipeline files sources reliably without an LLM; intelligence gets backfilled when one is available
+- The full index can be rebuilt from the filesystem alone — no external service required
 
 ## Non-Goals
 
-- Calling LLM APIs directly (the agent provides the LLM)
+- Calling LLM APIs directly — the agent or configured provider handles intelligence
 - Real-time collaboration or multi-user access
-- Web UI (CLI and MCP are the primary interfaces; agents are the primary users)
+- Web UI — agents and the command line are the primary interfaces
 - Replacing citation management tools (no bibliography generation)
 - Vendor lock-in to any LLM provider
 
