@@ -59,3 +59,17 @@ class QueryNode:
     cited_tags: list[str] = field(default_factory=list)
     created: datetime.date = field(default_factory=datetime.date.today)
     kind: Literal["query-synthesis"] = "query-synthesis"
+
+
+@dataclass(frozen=True)
+class Investigation:
+    inv_id: str
+    topic: str
+    brief: str
+    status: Literal["open", "paused", "closed"] = "open"
+    synthesis: str | None = None
+    linked_sources: list[str] = field(default_factory=list)
+    linked_queries: list[str] = field(default_factory=list)
+    linked_tags: list[str] = field(default_factory=list)
+    created: datetime.date = field(default_factory=datetime.date.today)
+    kind: Literal["investigation"] = "investigation"

@@ -7,5 +7,6 @@ from research_keeper.ports.synthesizer import Synthesizer
 from research_keeper.ports.tag_store import TagStore
 from research_keeper.ports.retriever import Retriever
 from research_keeper.ports.query_store import QueryStore
+from research_keeper.ports.investigation_store import InvestigationStore
 
-__all__ = ["SourceStore", "Normalizer", "NormalizationError", "Embedder", "Index", "Tagger", "Synthesizer", "TagStore", "Retriever", "QueryStore"]
+__all__ = ["SourceStore", "Normalizer", "NormalizationError", "Embedder", "Index", "Tagger", "Synthesizer", "TagStore", "Retriever", "QueryStore", "InvestigationStore"]
