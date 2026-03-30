@@ -15,8 +15,8 @@ class FakeCompleter:
         self.response = response
         self.calls: list[dict] = []
 
-    def complete(self, prompt: str, model_tier: str = "standard") -> str:
-        self.calls.append({"prompt": prompt, "model_tier": model_tier})
+    def complete(self, prompt: str, task: str = "default") -> str:
+        self.calls.append({"prompt": prompt, "task": task})
         return self.response
 
 
@@ -63,7 +63,7 @@ def test_duplicates_removed():
 
 def test_completer_failure_raises():
     class FailingCompleter:
-        def complete(self, prompt: str, model_tier: str = "standard") -> str:
+        def complete(self, prompt: str, task: str = "default") -> str:
             raise Exception("API error")
 
     tagger = PromptTagger(completer=FailingCompleter())
@@ -80,13 +80,13 @@ def test_empty_response_returns_empty_list():
     assert tags == []
 
 
-def test_model_tier_is_standard():
+def test_task_is_tagging():
     completer = FakeCompleter("memory, agents")
     tagger = PromptTagger(completer=completer)
 
     tagger.tag("Content.", [])
 
-    assert completer.calls[0]["model_tier"] == "standard"
+    assert completer.calls[0]["task"] == "tagging"
 
 
 # --- Robust LLM response parsing ---

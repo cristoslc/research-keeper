@@ -30,7 +30,7 @@ class PromptTagger:
 
     def tag(self, content: str, existing_tags: list[str]) -> list[str]:
         prompt = self._build_prompt(content, existing_tags)
-        response = self._completer.complete(prompt, model_tier="standard")
+        response = self._completer.complete(prompt, task="tagging")
         return self._parse_response(response)
 
     def _build_prompt(self, content: str, existing_tags: list[str]) -> str:

@@ -26,8 +26,8 @@ class FakeCompleter:
         self.response = response
         self.calls: list[dict] = []
 
-    def complete(self, prompt: str, model_tier: str = "standard") -> str:
-        self.calls.append({"prompt": prompt, "model_tier": model_tier})
+    def complete(self, prompt: str, task: str = "default") -> str:
+        self.calls.append({"prompt": prompt, "task": task})
         return self.response
 
 
@@ -44,22 +44,22 @@ def test_basic_synthesis():
     assert "Memory Architectures" in result
 
 
-def test_frontier_tier_passed_to_completer():
+def test_frontier_tier_passes_synthesis_task():
     completer = FakeCompleter()
     synth = PromptSynthesizer(completer=completer)
 
     synth.synthesize([_make_source("a", "Content")], tier="frontier")
 
-    assert completer.calls[0]["model_tier"] == "frontier"
+    assert completer.calls[0]["task"] == "synthesis"
 
 
-def test_standard_tier_passed_to_completer():
+def test_standard_tier_passes_tagging_task():
     completer = FakeCompleter()
     synth = PromptSynthesizer(completer=completer)
 
     synth.synthesize([_make_source("a", "Content")], tier="standard")
 
-    assert completer.calls[0]["model_tier"] == "standard"
+    assert completer.calls[0]["task"] == "tagging"
 
 
 def test_steering_prompt_included():
@@ -92,7 +92,7 @@ def test_source_slugs_in_prompt():
 
 def test_completer_failure_raises():
     class FailingCompleter:
-        def complete(self, prompt: str, model_tier: str = "standard") -> str:
+        def complete(self, prompt: str, task: str = "default") -> str:
             raise Exception("API error")
 
     synth = PromptSynthesizer(completer=FailingCompleter())

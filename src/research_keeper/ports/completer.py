@@ -5,10 +5,10 @@ from typing import Protocol
 
 
 class Completer(Protocol):
-    def complete(self, prompt: str, model_tier: str = "standard") -> str:
+    def complete(self, prompt: str, task: str = "default") -> str:
         """Send a prompt to an LLM and return the response.
 
-        model_tier is a hint: "frontier" for complex synthesis, "standard" for tagging/routine.
-        The implementation decides which actual model to use.
+        task identifies what rk is doing (e.g. "tagging", "synthesis", "query").
+        The implementation resolves the task to an appropriate model via config.
         """
         ...

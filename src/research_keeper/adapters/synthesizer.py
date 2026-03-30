@@ -34,7 +34,8 @@ class PromptSynthesizer:
         tier: Literal["frontier", "standard"] = "frontier",
     ) -> str:
         prompt = self._build_prompt(sources, steering)
-        return self._completer.complete(prompt, model_tier=tier)
+        task = "synthesis" if tier == "frontier" else "tagging"
+        return self._completer.complete(prompt, task=task)
 
     def _build_prompt(self, sources: list[Source], steering: str | None) -> str:
         steering_section = ""

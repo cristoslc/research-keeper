@@ -61,6 +61,19 @@ def init(path: str) -> None:
             "model": "nomic-embed-text",
             "ollama_url": "http://localhost:11434",
         },
+        "completion": {
+            "models": {
+                "heavy": "anthropic/claude-opus-4",
+                "medium": "anthropic/claude-sonnet-4",
+                "light": "anthropic/claude-haiku-4",
+            },
+            "tasks": {
+                "tagging": "medium",
+                "synthesis": "heavy",
+                "query": "heavy",
+                "tag-validation": "light",
+            },
+        },
     }
     (root / "rk.yaml").write_text(
         yaml.dump(config, default_flow_style=False, sort_keys=False)

@@ -40,6 +40,25 @@ class EmbeddingsConfig:
     ollama_url: str = "http://localhost:11434"
 
 @dataclass
+class CompletionConfig:
+    models: dict[str, str] = field(default_factory=lambda: {
+        "heavy": "anthropic/claude-opus-4",
+        "medium": "anthropic/claude-sonnet-4",
+        "light": "anthropic/claude-haiku-4",
+    })
+    tasks: dict[str, str] = field(default_factory=lambda: {
+        "tagging": "medium",
+        "synthesis": "heavy",
+        "query": "heavy",
+        "tag-validation": "light",
+    })
+
+    def resolve_model(self, task: str) -> str:
+        """Resolve a task name to a model ID."""
+        task_value = self.tasks.get(task, "medium")
+        return self.models.get(task_value, task_value)
+
+@dataclass
 class Config:
     data_dir: str = "."
     models: ModelsConfig = field(default_factory=ModelsConfig)
@@ -48,6 +67,7 @@ class Config:
     intake: IntakeConfig = field(default_factory=IntakeConfig)
     auth: AuthConfig = field(default_factory=AuthConfig)
     embeddings: EmbeddingsConfig = field(default_factory=EmbeddingsConfig)
+    completion: CompletionConfig = field(default_factory=CompletionConfig)
 
     def resolve_root(self, config_parent: Path) -> Path:
         return (config_parent / self.data_dir).resolve()
@@ -71,6 +91,7 @@ def load_config(path: Path) -> Config:
         ("intake", config.intake),
         ("auth", config.auth),
         ("embeddings", config.embeddings),
+        ("completion", config.completion),
     ]:
         if section_name in raw and isinstance(raw[section_name], dict):
             _merge_dataclass(section_cls, raw[section_name])
