@@ -379,6 +379,76 @@ def serve(root: str) -> None:
     run_server(root_path)
 
 
+@main.group()
+def auth() -> None:
+    """Manage credentials for remote data access."""
+    pass
+
+
+@auth.command()
+@click.option("--root", type=click.Path(exists=True), default=".")
+def status(root: str) -> None:
+    """Show current credential configuration."""
+    from research_keeper.auth import AuthManager
+
+    root_path = Path(root).resolve()
+    mgr = AuthManager(root_path / "rk.yaml")
+    click.echo(mgr.status())
+
+
+@auth.command("setup-ssh")
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option("--key", default="~/.ssh/id_ed25519", help="Path to SSH key")
+def setup_ssh(root: str, key: str) -> None:
+    """Configure SSH key for git operations."""
+    from research_keeper.auth import AuthManager
+
+    root_path = Path(root).resolve()
+    mgr = AuthManager(root_path / "rk.yaml")
+    mgr.setup_ssh(key)
+    click.echo(f"SSH authentication configured with key: {key}")
+
+
+@auth.command("setup-token")
+@click.argument("token")
+@click.option("--root", type=click.Path(exists=True), default=".")
+def setup_token(token: str, root: str) -> None:
+    """Configure token-based access."""
+    from research_keeper.auth import AuthManager
+
+    root_path = Path(root).resolve()
+    mgr = AuthManager(root_path / "rk.yaml")
+    mgr.setup_token(token)
+    click.echo("Token authentication configured.")
+
+
+@auth.command("test")
+@click.option("--root", type=click.Path(exists=True), default=".")
+def test_access(root: str) -> None:
+    """Test credential access to remote."""
+    from research_keeper.auth import AuthManager
+
+    root_path = Path(root).resolve()
+    mgr = AuthManager(root_path / "rk.yaml")
+    if mgr.test_access():
+        click.echo("Access verified.")
+    else:
+        click.echo("Access failed. Check credentials.", err=True)
+        raise SystemExit(1)
+
+
+@auth.command()
+@click.option("--root", type=click.Path(exists=True), default=".")
+def clear(root: str) -> None:
+    """Remove stored credentials."""
+    from research_keeper.auth import AuthManager
+
+    root_path = Path(root).resolve()
+    mgr = AuthManager(root_path / "rk.yaml")
+    mgr.clear()
+    click.echo("Credentials cleared.")
+
+
 def _build_investigation_pipeline(root: Path):
     """Build an InvestigationPipeline from config at root."""
     from research_keeper.adapters.filesystem.investigation_store import (
