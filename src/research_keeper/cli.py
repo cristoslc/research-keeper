@@ -290,6 +290,51 @@ def investigate(topic: str | None, root: str, close_id: str | None, list_all: bo
 
 @main.command()
 @click.option("--root", type=click.Path(exists=True), default=".")
+def sync(root: str) -> None:
+    """Sync data from remote (git pull)."""
+    root_path = Path(root).resolve()
+    config = load_config(root_path / "rk.yaml")
+
+    from research_keeper.remote import RemoteResolver
+
+    resolver = RemoteResolver(config.data_dir)
+    if not resolver.is_remote:
+        click.echo("No remote configured — local data directory, nothing to sync.")
+        return
+
+    try:
+        resolver.sync()
+        click.echo("Synced successfully.")
+    except RuntimeError as e:
+        click.echo(f"Sync failed: {e}", err=True)
+        raise SystemExit(1)
+
+
+@main.command()
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option("--message", "-m", default="rk: update data", help="Commit message")
+def publish(root: str, message: str) -> None:
+    """Publish data to remote (git commit + push)."""
+    root_path = Path(root).resolve()
+    config = load_config(root_path / "rk.yaml")
+
+    from research_keeper.remote import RemoteResolver
+
+    resolver = RemoteResolver(config.data_dir)
+    if not resolver.is_remote:
+        click.echo("No remote configured — local data directory, nothing to publish.")
+        return
+
+    try:
+        resolver.publish(message)
+        click.echo("Published successfully.")
+    except RuntimeError as e:
+        click.echo(f"Publish failed: {e}", err=True)
+        raise SystemExit(1)
+
+
+@main.command()
+@click.option("--root", type=click.Path(exists=True), default=".")
 def serve(root: str) -> None:
     """Start MCP server for agent access."""
     from research_keeper.mcp_server import run_server
