@@ -2,7 +2,7 @@
 
 Every new discovery could change everything you know.
 
-Research-keeper makes your agent your librarian. Add a source — article, paper, video, note — and the agent you're already working with tags it, synthesizes it with what you know, and moves on. Your knowledge base grows as a side effect of doing research.
+Research-keeper makes your agent your librarian. Add a source — article, paper, video, note — and the agent you're already working with tags it, synthesizes it with what you know, and moves on. Your holistic understanding evolves as a side effect of doing research.
 
 ## Beliefs
 
