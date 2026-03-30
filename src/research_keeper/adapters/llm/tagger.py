@@ -30,15 +30,15 @@ class LLMTagger:
     """Tag sources using Claude API."""
 
     def __init__(self, model: str = "claude-sonnet-4-6", api_key: str | None = None) -> None:
-        self._model = model
-        self._api_key = api_key
-
-    def tag(self, content: str, existing_tags: list[str]) -> list[str]:
         if anthropic is None:
             raise RuntimeError(
                 "anthropic not installed. Install with: uv add research-keeper[llm]"
             )
+        self._model = model
+        self._api_key = api_key
+        self._client = anthropic.Anthropic(api_key=api_key)
 
+    def tag(self, content: str, existing_tags: list[str]) -> list[str]:
         existing_section = ""
         if existing_tags:
             tags_str = ", ".join(existing_tags)
@@ -49,8 +49,7 @@ class LLMTagger:
             content=content[:4000],  # Truncate to avoid token limits
         )
 
-        client = anthropic.Anthropic(api_key=self._api_key)
-        response = client.messages.create(
+        response = self._client.messages.create(
             model=self._model,
             max_tokens=200,
             messages=[{"role": "user", "content": prompt}],
@@ -60,8 +59,28 @@ class LLMTagger:
         if not raw_text:
             return []
 
-        # Parse comma-separated tags, slugify each, deduplicate
-        raw_tags = [t.strip() for t in raw_text.split(",") if t.strip()]
+        # Preprocess: strip preamble lines (e.g., "Here are the tags:")
+        lines = raw_text.split("\n")
+        cleaned_lines = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            # Skip preamble lines that end with ":"
+            if line.endswith(":") and not re.match(r"^[\d.\-*]+", line):
+                continue
+            # Strip numbered list markers (e.g., "1. ", "2) ")
+            line = re.sub(r"^\d+[.)]\s*", "", line)
+            # Strip markdown bullet markers (e.g., "- ", "* ")
+            line = re.sub(r"^[-*]\s+", "", line)
+            # Strip quotes and backticks
+            line = line.strip("`\"'")
+            if line:
+                cleaned_lines.append(line)
+
+        # Rejoin and split on commas/newlines
+        rejoined = ", ".join(cleaned_lines)
+        raw_tags = [t.strip() for t in rejoined.split(",") if t.strip()]
         slugified = [slugify(t) for t in raw_tags]
         # Filter out empty slugs and "untitled"
         valid = [t for t in slugified if t and t != "untitled"]

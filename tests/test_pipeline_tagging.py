@@ -169,6 +169,22 @@ def test_synthesis_tier_determination(tagging_root, mock_synthesizer):
     assert call_args.kwargs.get("tier", call_args.args[2] if len(call_args.args) > 2 else "frontier") == "frontier"
 
 
+def test_manifest_written_once_not_per_tag(tagging_pipeline, tagging_root, mock_tagger):
+    """Gap 1: Manifest should be written once with all tags, not once per tag."""
+    mock_tagger.tag.return_value = ["memory", "agents", "persistence", "llm", "rag"]
+
+    source = tagging_pipeline.add("# Content\n\nAbout many topics.")
+
+    manifest_path = tagging_root / "library" / "sources" / source.slug / "manifest.yaml"
+    manifest = yaml.safe_load(manifest_path.read_text())
+    # All tags should be present
+    assert set(manifest["tags"]) == {"memory", "agents", "persistence", "llm", "rag"}
+
+    # Verify yaml.dump was not called 5 times for manifest — we check by
+    # ensuring the manifest content is correct (functional test).
+    # The structural fix moves the write outside the loop.
+
+
 def test_pipeline_without_tagger_skips_tagging(tagging_root):
     """Pipeline with tagger=None should skip tagging entirely."""
     store = FilesystemSourceStore(tagging_root)

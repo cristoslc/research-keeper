@@ -30,8 +30,13 @@ class LLMSynthesizer:
     """Synthesize sources using Claude API."""
 
     def __init__(self, config: Config, api_key: str | None = None) -> None:
+        if anthropic is None:
+            raise RuntimeError(
+                "anthropic not installed. Install with: uv add research-keeper[llm]"
+            )
         self._config = config
         self._api_key = api_key
+        self._client = anthropic.Anthropic(api_key=api_key)
 
     def synthesize(
         self,
@@ -39,11 +44,6 @@ class LLMSynthesizer:
         steering: str | None = None,
         tier: Literal["frontier", "standard"] = "frontier",
     ) -> str:
-        if anthropic is None:
-            raise RuntimeError(
-                "anthropic not installed. Install with: uv add research-keeper[llm]"
-            )
-
         model = (
             self._config.models.synthesizer_frontier
             if tier == "frontier"
@@ -63,8 +63,7 @@ class LLMSynthesizer:
             sources_section=sources_section,
         )
 
-        client = anthropic.Anthropic(api_key=self._api_key)
-        response = client.messages.create(
+        response = self._client.messages.create(
             model=model,
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],

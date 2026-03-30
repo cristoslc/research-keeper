@@ -102,14 +102,14 @@ class IntakePipeline:
             self._tag_store.ensure(tag_slug)
             self._tag_store.link_source(tag_slug, source.slug)
 
-            # Update manifest with tags
-            manifest_path = self._store.source_dir(source.slug) / "manifest.yaml"
-            if manifest_path.exists():
-                manifest = yaml.safe_load(manifest_path.read_text())
-                manifest["tags"] = tags
-                manifest_path.write_text(
-                    yaml.dump(manifest, default_flow_style=False, sort_keys=False)
-                )
+        # Update manifest with tags once (not per-tag)
+        manifest_path = self._store.source_dir(source.slug) / "manifest.yaml"
+        if manifest_path.exists():
+            manifest = yaml.safe_load(manifest_path.read_text())
+            manifest["tags"] = tags
+            manifest_path.write_text(
+                yaml.dump(manifest, default_flow_style=False, sort_keys=False)
+            )
 
         # Cascade synthesis for each affected tag
         if self._synthesizer is not None and self._config.intake.auto_synthesize:
