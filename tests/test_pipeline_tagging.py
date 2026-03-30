@@ -185,6 +185,44 @@ def test_manifest_written_once_not_per_tag(tagging_pipeline, tagging_root, mock_
     # The structural fix moves the write outside the loop.
 
 
+def test_tag_synthesis_node_in_index(tagging_pipeline, tagging_root):
+    """Gap 4: Tag synthesis should be upserted as a node in the SQLite index."""
+    tagging_pipeline.add("# Content\n\nAbout memory.")
+    index = SqliteIndex(tagging_root / "rk.db")
+    cur = index._conn.cursor()
+    cur.execute("SELECT * FROM nodes WHERE kind = 'tag-synthesis'")
+    rows = cur.fetchall()
+    assert len(rows) >= 1
+    node_ids = {row["id"] for row in rows}
+    assert "memory" in node_ids or "agents" in node_ids
+
+
+def test_tagged_edges_in_index(tagging_pipeline, tagging_root):
+    """Gap 5: Pipeline should write source->tag edges to SQLite."""
+    source = tagging_pipeline.add("# Content\n\nAbout memory.")
+    index = SqliteIndex(tagging_root / "rk.db")
+    cur = index._conn.cursor()
+    cur.execute("SELECT * FROM edges WHERE relationship = 'tagged'")
+    rows = cur.fetchall()
+    assert len(rows) >= 1
+    # Should have edges from source to tags
+    edge_pairs = {(row["source_id"], row["target_id"]) for row in rows}
+    assert (source.slug, "memory") in edge_pairs or (source.slug, "agents") in edge_pairs
+
+
+def test_tag_synthesis_embedding_in_index(tagging_pipeline, tagging_root):
+    """Gap 6: Tag synthesis embedding should be stored in SQLite."""
+    tagging_pipeline.add("# Content\n\nAbout memory.")
+    index = SqliteIndex(tagging_root / "rk.db")
+    cur = index._conn.cursor()
+    # Check for embeddings for at least one tag node
+    cur.execute(
+        "SELECT * FROM embeddings WHERE node_id IN ('memory', 'agents')"
+    )
+    rows = cur.fetchall()
+    assert len(rows) >= 1
+
+
 def test_pipeline_without_tagger_skips_tagging(tagging_root):
     """Pipeline with tagger=None should skip tagging entirely."""
     store = FilesystemSourceStore(tagging_root)

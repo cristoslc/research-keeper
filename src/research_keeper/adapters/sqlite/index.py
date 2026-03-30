@@ -145,6 +145,54 @@ class SqliteIndex:
         )
         self._conn.commit()
 
+    def upsert_tag_node(
+        self, tag_slug: str, synthesis_content: str, model: str, tier: str
+    ) -> None:
+        """Insert or update a tag-synthesis node in the index."""
+        cur = self._conn.cursor()
+        cur.execute("DELETE FROM node_search WHERE id = ?", (tag_slug,))
+        cur.execute("DELETE FROM nodes WHERE id = ?", (tag_slug,))
+
+        cur.execute(
+            """INSERT INTO nodes
+            (id, kind, content_path, content, published, ingested, last_refreshed,
+             ttl, hash, model, model_tier, tags, origin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                tag_slug,
+                "tag-synthesis",
+                f"tags/{tag_slug}/synthesis.md",
+                synthesis_content,
+                None,
+                str(datetime.date.today()),
+                str(datetime.date.today()),
+                None,
+                None,
+                model,
+                tier,
+                "[]",
+                "synthesis",
+            ),
+        )
+
+        cur.execute(
+            "INSERT INTO node_search (id, content) VALUES (?, ?)",
+            (tag_slug, synthesis_content),
+        )
+        self._conn.commit()
+
+    def upsert_edge(
+        self, source_id: str, target_id: str, relationship: str
+    ) -> None:
+        """Insert or replace an edge between two nodes."""
+        cur = self._conn.cursor()
+        cur.execute(
+            """INSERT OR REPLACE INTO edges (source_id, target_id, relationship)
+            VALUES (?, ?, ?)""",
+            (source_id, target_id, relationship),
+        )
+        self._conn.commit()
+
     def _row_to_source(self, row: sqlite3.Row) -> Source:
         published = None
         if row["published"]:

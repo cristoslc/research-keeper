@@ -101,6 +101,8 @@ class IntakePipeline:
         for tag_slug in tags:
             self._tag_store.ensure(tag_slug)
             self._tag_store.link_source(tag_slug, source.slug)
+            # Gap 5: Write source->tag edges to SQLite
+            self._index.upsert_edge(source.slug, tag_slug, "tagged")
 
         # Update manifest with tags once (not per-tag)
         manifest_path = self._store.source_dir(source.slug) / "manifest.yaml"
@@ -139,11 +141,19 @@ class IntakePipeline:
             )
             self._tag_store.write_synthesis(tag_slug, synthesis, model=model, tier=tier)
 
+            # Gap 4: Upsert tag-synthesis node into SQLite index
+            self._index.upsert_tag_node(tag_slug, synthesis, model=model, tier=tier)
+
             # Embed the synthesis
             try:
                 embedding = self._embedder.embed(synthesis)
                 tag_dir = self._tag_store.tag_dir(tag_slug)
                 (tag_dir / "embedding.bin").write_bytes(embedding)
+                # Gap 6: Store tag synthesis embedding in SQLite index
+                model_name = getattr(self._embedder, "_model", "unknown")
+                if not isinstance(model_name, str):
+                    model_name = "unknown"
+                self._index.upsert_embedding(tag_slug, model_name, embedding)
             except Exception:
                 logger.warning("Tag synthesis embedding failed for %s", tag_slug)
 
