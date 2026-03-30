@@ -29,6 +29,7 @@ class IntakePipeline:
         tag_store: object | None = None,
         config: Config | None = None,
         investigation_store: object | None = None,
+        remote_resolver: object | None = None,
     ) -> None:
         self._store = source_store
         self._index = index
@@ -39,9 +40,14 @@ class IntakePipeline:
         self._tag_store = tag_store
         self._config = config or Config()
         self._investigation_store = investigation_store
+        self._remote = remote_resolver
 
     def add(self, raw: str, metadata: dict | None = None, investigation_id: str | None = None) -> Source:
         metadata = metadata or {}
+
+        # Bookend: sync before
+        if self._remote and self._remote.is_remote:
+            self._remote.sync()
 
         # Identify content type
         content_type = identify_content_type(raw, metadata)
@@ -99,6 +105,10 @@ class IntakePipeline:
         # Link to investigation if specified
         if investigation_id and self._investigation_store:
             self._investigation_store.link(investigation_id, source.slug, "source")
+
+        # Bookend: publish after
+        if self._remote and self._remote.is_remote:
+            self._remote.publish(f"rk: add {source.slug}")
 
         return source
 

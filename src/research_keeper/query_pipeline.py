@@ -32,6 +32,7 @@ class QueryPipeline:
         index: SqliteIndex,
         top_k: int = 20,
         investigation_store: object | None = None,
+        remote_resolver: object | None = None,
     ) -> None:
         self._retriever = retriever
         self._synthesizer = synthesizer
@@ -40,9 +41,14 @@ class QueryPipeline:
         self._index = index
         self._top_k = top_k
         self._investigation_store = investigation_store
+        self._remote = remote_resolver
 
     def search(self, query_text: str, top_k: int | None = None, investigation_id: str | None = None) -> QueryResult:
         top_k = top_k or self._top_k
+
+        # Bookend: sync before
+        if self._remote and self._remote.is_remote:
+            self._remote.sync()
 
         # Step 1: Embed the query
         try:
@@ -139,10 +145,16 @@ class QueryPipeline:
         if investigation_id and self._investigation_store:
             self._investigation_store.link(investigation_id, query_id, "query")
 
-        return QueryResult(
+        result = QueryResult(
             query_id=query_id,
             query_text=query_text,
             synthesis=synthesis,
             cited_sources=cited_source_slugs,
             cited_tags=cited_tag_slugs,
         )
+
+        # Bookend: publish after
+        if self._remote and self._remote.is_remote:
+            self._remote.publish(f"rk: search {query_text[:50]}")
+
+        return result
