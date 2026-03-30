@@ -27,12 +27,20 @@ class IntakeConfig:
     auto_synthesize: bool = True
 
 @dataclass
+class AuthConfig:
+    method: str | None = None
+    key_path: str | None = None
+    ssh_command: str | None = None
+    token_configured: bool = False
+
+@dataclass
 class Config:
     data_dir: str = "."
     models: ModelsConfig = field(default_factory=ModelsConfig)
     freshness: FreshnessConfig = field(default_factory=FreshnessConfig)
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     intake: IntakeConfig = field(default_factory=IntakeConfig)
+    auth: AuthConfig = field(default_factory=AuthConfig)
 
     def resolve_root(self, config_parent: Path) -> Path:
         return (config_parent / self.data_dir).resolve()
@@ -54,6 +62,7 @@ def load_config(path: Path) -> Config:
         ("freshness", config.freshness),
         ("retrieval", config.retrieval),
         ("intake", config.intake),
+        ("auth", config.auth),
     ]:
         if section_name in raw and isinstance(raw[section_name], dict):
             _merge_dataclass(section_cls, raw[section_name])
