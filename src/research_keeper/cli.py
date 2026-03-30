@@ -128,9 +128,11 @@ def rebuild(root: str) -> None:
     config = load_config(root_path / "rk.yaml")
 
     from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+    from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
     from research_keeper.adapters.sqlite.index import SqliteIndex
 
     store = FilesystemSourceStore(root_path)
+    tag_store = FilesystemTagStore(root_path)
     index = SqliteIndex(root_path / "rk.db")
 
     sources = store.list()
@@ -142,7 +144,30 @@ def rebuild(root: str) -> None:
         if emb_path.exists():
             index.upsert_embedding(source.slug, "unknown", emb_path.read_bytes())
 
-    click.echo(f"Rebuilt index: {len(sources)} source(s) indexed")
+    # Rebuild tag index entries from tags/ directory
+    tag_count = 0
+    for tag_slug in tag_store.list():
+        tag_dir = tag_store.tag_dir(tag_slug)
+        synthesis_path = tag_dir / "synthesis.md"
+        meta = tag_store.get_meta(tag_slug) or {}
+
+        if synthesis_path.exists():
+            synthesis_content = synthesis_path.read_text()
+            model = meta.get("model", "unknown")
+            tier = meta.get("tier", "standard")
+            index.upsert_tag_node(tag_slug, synthesis_content, model=model, tier=tier)
+            tag_count += 1
+
+        # Rebuild source->tag edges from symlinks
+        for source_slug in tag_store.sources_for_tag(tag_slug):
+            index.upsert_edge(source_slug, tag_slug, "tagged")
+
+        # Reload tag embedding if present
+        emb_path = tag_dir / "embedding.bin"
+        if emb_path.exists():
+            index.upsert_embedding(tag_slug, "unknown", emb_path.read_bytes())
+
+    click.echo(f"Rebuilt index: {len(sources)} source(s), {tag_count} tag(s) indexed")
 
 
 def _build_pipeline(root: Path):

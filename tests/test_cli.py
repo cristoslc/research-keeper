@@ -136,6 +136,63 @@ def test_end_to_end_init_add_rebuild(runner: CliRunner, tmp_path: Path):
     assert "1" in result.output  # "1 source(s) indexed"
 
 
+def test_rebuild_includes_tags(runner: CliRunner, library_root: Path):
+    """Gap 10: Rebuild should reconstruct tag nodes, edges, and embeddings."""
+    import yaml
+
+    # Create a source on disk
+    source_dir = library_root / "library" / "sources" / "memory-paper"
+    source_dir.mkdir(parents=True)
+    (source_dir / "source.md").write_text("# Memory Paper\n\nContent about memory.")
+    (source_dir / "manifest.yaml").write_text(yaml.dump({
+        "slug": "memory-paper", "kind": "source", "hash": "abc123",
+        "freshness": {"ingested": "2026-03-29", "ttl": "30d"},
+        "provenance": {"origin": "test"}, "tags": ["memory"],
+    }))
+
+    # Create a tag directory with synthesis and embedding
+    tag_dir = library_root / "tags" / "memory"
+    tag_dir.mkdir(parents=True)
+    (tag_dir / "sources").mkdir()
+    # Symlink source
+    symlink = tag_dir / "sources" / "memory-paper"
+    target = Path("..") / ".." / ".." / "library" / "sources" / "memory-paper"
+    symlink.symlink_to(target)
+    (tag_dir / "synthesis.md").write_text("# Memory Synthesis\n\nKey findings.")
+    (tag_dir / "meta.yaml").write_text(yaml.dump({
+        "slug": "memory", "kind": "tag-synthesis",
+        "model": "claude-opus-4-6", "tier": "frontier",
+    }))
+    (tag_dir / "embedding.bin").write_bytes(b"\x00" * 16)
+
+    (library_root / "rk.yaml").write_text("data_dir: .\n")
+
+    result = runner.invoke(main, ["rebuild", "--root", str(library_root)])
+    assert result.exit_code == 0
+
+    # Verify tag node in SQLite
+    from research_keeper.adapters.sqlite.index import SqliteIndex
+    index = SqliteIndex(library_root / "rk.db")
+    cur = index._conn.cursor()
+
+    cur.execute("SELECT * FROM nodes WHERE kind = 'tag-synthesis'")
+    rows = cur.fetchall()
+    assert len(rows) == 1
+    assert rows[0]["id"] == "memory"
+
+    # Verify tagged edge
+    cur.execute("SELECT * FROM edges WHERE relationship = 'tagged'")
+    rows = cur.fetchall()
+    assert len(rows) == 1
+    assert rows[0]["source_id"] == "memory-paper"
+    assert rows[0]["target_id"] == "memory"
+
+    # Verify tag embedding
+    cur.execute("SELECT * FROM embeddings WHERE node_id = 'memory'")
+    rows = cur.fetchall()
+    assert len(rows) == 1
+
+
 def test_rebuild(runner: CliRunner, library_root: Path):
     # Create a source on disk so rebuild has something to index
     source_dir = library_root / "library" / "sources" / "test-source"
