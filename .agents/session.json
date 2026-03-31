@@ -1,7 +1,7 @@
 {
   "bookmark": {
-    "note": "Pushed SPEC-031 + new SPECs to trunk",
-    "timestamp": "2026-03-31T13:07:07Z"
+    "note": "Committed FTS revert, pending query fix, DESIGN-004 update",
+    "timestamp": "2026-03-31T13:39:01Z"
   },
   "lastBranch": "worktree-session-20260330-231747-5382"
 }
