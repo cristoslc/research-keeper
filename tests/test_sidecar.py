@@ -307,6 +307,79 @@ class TestParseTagResponse:
         assert tags == []
 
 
+class TestGenerateQuerySidecar:
+    def test_creates_j2_file(self, sidecar_root: Path, completion_config: CompletionConfig):
+        from research_keeper.sidecar import SidecarGenerator
+        gen = SidecarGenerator(sidecar_root, completion_config)
+        (sidecar_root / "queries").mkdir()
+        scored_sources = [
+            {"slug": "alpha-paper", "content": "# Alpha\n\nContent about alpha.", "score": 0.87, "similarity": 0.92, "freshness_weight": 0.95},
+        ]
+        path = gen.generate_query_sidecar(
+            query_id="qry-20260330-what-is-alpha",
+            query_text="What is alpha?",
+            scored_sources=scored_sources,
+            model_hint="heavy",
+        )
+        assert path.exists()
+        assert path.name == "query.j2"
+        assert path.parent.name == ".pending"
+        assert path.parent.parent.name == "qry-20260330-what-is-alpha"
+
+    def test_template_contains_metadata(self, sidecar_root: Path, completion_config: CompletionConfig):
+        from research_keeper.sidecar import SidecarGenerator
+        gen = SidecarGenerator(sidecar_root, completion_config)
+        (sidecar_root / "queries").mkdir()
+        path = gen.generate_query_sidecar(
+            query_id="qry-20260330-test",
+            query_text="What is alpha?",
+            scored_sources=[{"slug": "a", "content": "C", "score": 0.9, "similarity": 0.95, "freshness_weight": 0.95}],
+            model_hint="heavy",
+        )
+        content = path.read_text()
+        assert "rk:query" in content
+        assert "model_hint: heavy" in content
+        assert "target: qry-20260330-test" in content
+
+    def test_template_contains_query_and_sources(self, sidecar_root: Path, completion_config: CompletionConfig):
+        from research_keeper.sidecar import SidecarGenerator
+        gen = SidecarGenerator(sidecar_root, completion_config)
+        (sidecar_root / "queries").mkdir()
+        scored_sources = [
+            {"slug": "alpha-paper", "content": "# Alpha\n\nAlpha content.", "score": 0.87, "similarity": 0.92, "freshness_weight": 0.95},
+            {"slug": "beta-paper", "content": "# Beta\n\nBeta content.", "score": 0.74, "similarity": 0.82, "freshness_weight": 0.90},
+        ]
+        path = gen.generate_query_sidecar(
+            query_id="qry-20260330-test",
+            query_text="Compare alpha and beta",
+            scored_sources=scored_sources,
+            model_hint="heavy",
+        )
+        content = path.read_text()
+        assert "Compare alpha and beta" in content
+        assert "alpha-paper" in content
+        assert "beta-paper" in content
+        assert "Alpha content" in content
+        assert "Beta content" in content
+        assert "0.87" in content
+        assert "{{ synthesis }}" in content
+
+    def test_empty_sources(self, sidecar_root: Path, completion_config: CompletionConfig):
+        from research_keeper.sidecar import SidecarGenerator
+        gen = SidecarGenerator(sidecar_root, completion_config)
+        (sidecar_root / "queries").mkdir()
+        path = gen.generate_query_sidecar(
+            query_id="qry-20260330-empty",
+            query_text="anything?",
+            scored_sources=[],
+            model_hint="heavy",
+        )
+        assert path.exists()
+        content = path.read_text()
+        assert "anything?" in content
+        assert "{{ synthesis }}" in content
+
+
 class TestParseSynthesisResponse:
     def test_reads_as_is(self, sidecar_root: Path, completion_config: CompletionConfig):
         from research_keeper.sidecar import SidecarGenerator

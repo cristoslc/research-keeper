@@ -96,6 +96,46 @@ class SidecarGenerator:
         path.write_text(template)
         return path
 
+    def generate_query_sidecar(
+        self,
+        query_id: str,
+        query_text: str,
+        scored_sources: list[dict],
+        model_hint: str,
+    ) -> Path:
+        """Write a query.j2 sidecar template for a search query.
+
+        scored_sources: list of dicts with 'slug', 'content', 'score',
+                        'similarity', 'freshness_weight' keys.
+        Returns the path to the generated .j2 file.
+        """
+        pending_dir = self._root / "queries" / query_id / ".pending"
+        pending_dir.mkdir(parents=True, exist_ok=True)
+
+        sources_text = ""
+        for src in scored_sources:
+            sources_text += (
+                f"\nSource: {src['slug']} (score: {src['score']:.2f})\n"
+                f"{src['content']}\n"
+            )
+
+        template = (
+            f"{{# rk:query | model_hint: {model_hint} | target: {query_id} #}}\n"
+            "{#\n"
+            "Synthesize an answer to the following question using ONLY the sources below.\n"
+            "Organize by theme, not by source. Cite sources by slug in parentheses.\n"
+            "Surface agreements, disagreements, and gaps.\n"
+            "\n"
+            f"Question: {query_text}\n"
+            f"{sources_text}"
+            "#}\n"
+            "{{ synthesis }}\n"
+        )
+
+        path = pending_dir / "query.j2"
+        path.write_text(template)
+        return path
+
     def parse_tag_response(self, path: Path) -> list[str]:
         """Parse a rendered tag.yaml file, extracting tags with robust handling.
 
