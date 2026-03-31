@@ -1,0 +1,204 @@
+trove: agent-sandboxing-methods
+created: 2026-03-15
+refreshed: 2026-03-30
+tags:
+  - sandboxing
+  - isolation
+  - claude-code
+  - docker
+  - microvm
+  - containers
+  - security
+  - headless
+
+freshness-ttl:
+  web: 60d
+  search: 30d
+
+history:
+  - event: created
+    date: 2026-03-15
+    commit: "--"
+    sources: 30
+    notes: "Imported from boswell evidence-pool"
+
+sources:
+  - source-id: claude-code-sandboxing-docs
+    type: web
+    url: "https://code.claude.com/docs/en/sandboxing"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Claude Code sandboxing docs — seatbelt (macOS), bubblewrap (Linux), network proxy, configuration"
+
+  - source-id: anthropic-sandboxing-engineering
+    type: web
+    url: "https://www.anthropic.com/engineering/claude-code-sandboxing"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Anthropic engineering blog — sandbox-runtime architecture, dual isolation boundaries"
+
+  - source-id: sandbox-runtime-github
+    type: web
+    url: "https://github.com/anthropic-experimental/sandbox-runtime"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Anthropic sandbox-runtime — open-source npm package for OS-level isolation"
+
+  - source-id: docker-sandboxes-blog
+    type: web
+    url: "https://www.docker.com/blog/docker-sandboxes-run-claude-code-and-other-coding-agents-unsupervised-but-safely/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Docker Sandboxes announcement — microVM isolation, agent support"
+
+  - source-id: docker-sandboxes-docs
+    type: web
+    url: "https://docs.docker.com/ai/sandboxes/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Docker Sandboxes docs — microVM on macOS/Windows, legacy container on Linux"
+
+  - source-id: docker-claude-code-sandbox
+    type: web
+    url: "https://docs.docker.com/ai/sandboxes/agents/claude-code/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Docker sandbox setup for Claude Code — workspace mounting, named sandboxes"
+
+  - source-id: claude-code-devcontainer
+    type: web
+    url: "https://code.claude.com/docs/en/devcontainer"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Claude Code devcontainer reference — Docker-based dev containers with firewall rules"
+
+  - source-id: claude-code-container-github
+    type: web
+    url: "https://github.com/tintinweb/claude-code-container"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Community Docker container for Claude Code — dangerously-skip-permissions in isolation"
+
+  - source-id: sandboxed-claude-code-github
+    type: web
+    url: "https://github.com/CaptainMcCrank/SandboxedClaudeCode"
+    fetched: 2026-03-15T00:00:00Z
+    title: "SandboxedClaudeCode — bubblewrap, firejail, Apple Container wrapper scripts"
+
+  - source-id: firecracker-microvm
+    type: web
+    url: "https://firecracker-microvm.github.io/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Firecracker — AWS open-source microVM, 125ms boot, <5MiB overhead, Linux+KVM only"
+
+  - source-id: firecracker-github
+    type: web
+    url: "https://github.com/firecracker-microvm/firecracker"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Firecracker GitHub — lightweight VMM for serverless, requires Linux host with KVM"
+
+  - source-id: gvisor-docs
+    type: web
+    url: "https://gvisor.dev/docs/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "gVisor — user-space application kernel for containers, Linux only"
+
+  - source-id: k8s-agent-sandbox
+    type: web
+    url: "https://github.com/kubernetes-sigs/agent-sandbox"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Kubernetes Agent Sandbox — gVisor/Kata runtime for AI agent workloads"
+
+  - source-id: gke-agent-sandbox
+    type: web
+    url: "https://docs.google.com/kubernetes-engine/docs/how-to/agent-sandbox"
+    fetched: 2026-03-15T00:00:00Z
+    title: "GKE Agent Sandbox — gVisor-based isolation for AI code execution"
+
+  - source-id: kata-containers
+    type: web
+    url: "https://katacontainers.io/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Kata Containers — lightweight VMs with container UX, OCI-compatible"
+
+  - source-id: kata-agent-sandbox-integration
+    type: web
+    url: "https://katacontainers.io/blog/kata-containers-agent-sandbox-integration/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Kata Containers + Agent Sandbox integration — VM-backed K8s AI workloads"
+
+  - source-id: nsjail-github
+    type: web
+    url: "https://github.com/google/nsjail"
+    fetched: 2026-03-15T00:00:00Z
+    title: "nsjail — Google lightweight process isolation, namespaces, cgroups, seccomp-bpf"
+
+  - source-id: e2b-docs
+    type: web
+    url: "https://e2b.dev/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "E2B — cloud sandbox for AI agents, Firecracker microVMs, 150ms startup"
+
+  - source-id: e2b-claude-code
+    type: web
+    url: "https://e2b.dev/docs/template/examples/claude-code"
+    fetched: 2026-03-15T00:00:00Z
+    title: "E2B Claude Code template — sandbox setup, headless execution"
+
+  - source-id: e2b-pricing
+    type: web
+    url: "https://e2b.dev/pricing"
+    fetched: 2026-03-15T00:00:00Z
+    title: "E2B pricing — free hobby tier, Pro $150/mo, Enterprise BYOC"
+
+  - source-id: northflank-sandbox-comparison
+    type: web
+    url: "https://northflank.com/blog/best-code-execution-sandbox-for-ai-agents"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Northflank comparison — microVMs vs gVisor vs Docker vs Kata"
+
+  - source-id: northflank-sandbox-strategies
+    type: web
+    url: "https://northflank.com/blog/how-to-sandbox-ai-agents"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Northflank guide — isolation strategies for AI agents in 2026"
+
+  - source-id: incus-lxd
+    type: web
+    url: "https://linuxcontainers.org/incus/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Incus (LXD fork) — system containers and VMs, Linux daemon"
+
+  - source-id: apple-containerization
+    type: web
+    url: "https://github.com/apple/containerization"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Apple Containerization — Swift framework, VM-per-container on Apple Silicon"
+
+  - source-id: apple-container-cli
+    type: web
+    url: "https://github.com/apple/container"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Apple container CLI — run Linux containers on macOS via Virtualization.framework"
+
+  - source-id: bubblewrap-sambaiz
+    type: web
+    url: "https://www.sambaiz.net/en/article/547/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Bubblewrap deep dive — network restriction via unshare-net, socat forwarding"
+
+  - source-id: infralovers-macos-sandboxing
+    type: web
+    url: "https://www.infralovers.com/blog/2026-02-15-sandboxing-claude-code-macos/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Practical guide — sandboxing Claude Code on macOS, seatbelt limitations"
+
+  - source-id: awesome-sandbox
+    type: web
+    url: "https://github.com/restyler/awesome-sandbox"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Awesome Sandbox — curated list of code sandboxing solutions for AI agents"
+
+  - source-id: bunkervm-firecracker
+    type: web
+    url: "https://dev.to/ashish_chaudhary_b6089002/running-ai-agents-safely-with-firecracker-microvms-introducing-bunkervm-1ma8"
+    fetched: 2026-03-15T00:00:00Z
+    title: "BunkerVM — Firecracker-based sandbox for AI agents, REST API control"
+
+  - source-id: agent-seatbelt-sandbox
+    type: web
+    url: "https://github.com/michaelneale/agent-seatbelt-sandbox"
+    fetched: 2026-03-15T00:00:00Z
+    title: "agent-seatbelt-sandbox — macOS seatbelt wrapper to prevent data egress"

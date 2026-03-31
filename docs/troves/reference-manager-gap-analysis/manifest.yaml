@@ -1,0 +1,82 @@
+trove: reference-manager-gap-analysis
+created: 2026-03-15
+refreshed: 2026-03-30
+tags:
+  - zotero
+  - readwise
+  - omnivore
+  - pkm
+  - reference-management
+  - gap-analysis
+
+freshness-ttl:
+  web: 90d
+  search: 30d
+
+history:
+  - event: created
+    date: 2026-03-15
+    commit: "--"
+    sources: 10
+    notes: "Imported from boswell evidence-pool"
+
+sources:
+  - source-id: zotero-overview
+    type: web
+    url: "https://www.zotero.org/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Zotero — collect, organize, annotate, cite, share"
+
+  - source-id: zotero-workflow
+    type: web
+    url: "https://pine.libguides.com/c.php?g=1027648&p=7445926"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Research workflow stages with Zotero — gather, evaluate, note-take, write"
+
+  - source-id: zotero-wikipedia
+    type: web
+    url: "https://en.wikipedia.org/wiki/Zotero"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Zotero feature summary — browser integration, PDF annotation, citation generation"
+
+  - source-id: readwise-reader
+    type: web
+    url: "https://readwise.io/read"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Readwise Reader — read-it-later with highlights, annotations, RSS, PDF, YouTube"
+
+  - source-id: readwise-vision
+    type: web
+    url: "https://blog.readwise.io/readwise-reading-app/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Readwise founding vision — unify reading surfaces, highlight-first, sync to PKM"
+
+  - source-id: omnivore-github
+    type: web
+    url: "https://github.com/omnivore-app/omnivore"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Omnivore — open-source read-it-later with highlights, notes, tags, PKM sync"
+
+  - source-id: forte-tagging-guide
+    type: web
+    url: "https://fortelabs.com/blog/a-complete-guide-to-tagging-for-personal-knowledge-management/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Tiago Forte on PKM tagging — lifecycle-based tags over semantic tags"
+
+  - source-id: pkm-tools-comparison
+    type: forum
+    url: "https://www.reddit.com/r/PKMS/comments/1qklnhv/best_pkm_apps_for_2026_which_one_is_working_for/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Reddit PKMS community — 2026 tool landscape, common workflows, complaints"
+
+  - source-id: annotation-platforms-foresight
+    type: web
+    url: "https://tfsx.com/2022/04/the-4-best-research-annotation-platforms-for-strategic-foresight/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Comparison of Zotero, Raindrop, Pocket — annotation vs bookmarking vs reference management"
+
+  - source-id: zotero-obsidian-reddit
+    type: forum
+    url: "https://www.reddit.com/r/zotero/comments/1pdzhsw/zotero_as_allinone_reference_manager_and_notes/"
+    fetched: 2026-03-15T00:00:00Z
+    title: "Zotero vs Zotero+Obsidian — citation-centered vs synthesis-centered workflows"
