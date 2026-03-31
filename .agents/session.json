@@ -1,7 +1,10 @@
 {
   "bookmark": {
-    "note": "Committed FTS revert, pending query fix, DESIGN-004 update",
-    "timestamp": "2026-03-31T13:39:01Z"
+    "note": "EPIC-007: Homepage IA locked (DESIGN-005 Active). Three exploratory designs written (DESIGN-006/007/008 Proposed). INITIATIVE-002 expanded to companion model. 4 journeys, 1 new persona. Next: prototype topic detail page (DESIGN-006) or start implementing homepage.",
+    "files": [
+      "docs/design/Active/(DESIGN-005)-Homepage-Information-Architecture/(DESIGN-005)-Homepage-Information-Architecture.md"
+    ],
+    "timestamp": "2026-03-31T14:53:36Z"
   },
   "lastBranch": "worktree-session-20260330-231747-5382"
 }
