@@ -6,6 +6,12 @@ status: Active
 author: cristos
 created: 2026-03-31
 last-updated: 2026-03-31
+linked-artifacts:
+  - JOURNEY-001
+  - JOURNEY-002
+  - JOURNEY-003
+  - JOURNEY-004
+  - PERSONA-005
 parent-vision:
   - VISION-001
 priority-weight: medium
@@ -15,6 +21,8 @@ success-criteria:
   - "The experience invites new inquiry and supports picking up active research"
   - "Search is the primary entry point for known-item lookup"
   - "WCAG AA compliant"
+  - "The viewer can be opened to a specific entity (tag, source, investigation) via deep link from the CLI"
+  - "The architecture supports adding live session features without redesigning the IA"
 depends-on-artifacts: []
 addresses: []
 evidence-pool: "trove: git-repo-gui-frontends@1640143"
@@ -24,7 +32,7 @@ evidence-pool: "trove: git-repo-gui-frontends@1640143"
 
 ## Strategic Focus
 
-Provide a read-only web interface for browsing an rk instance — navigating tags, reading syntheses, exploring queries and investigations, and discovering connections. The viewer is a delivery surface for rk's existing data model, not a separate product.
+Provide a visual companion for rk agent sessions. The viewer starts as a read-only browser for an rk instance — navigating tags, reading syntheses, exploring queries and investigations, and discovering connections — but is designed from the start to support live agent session display. Phase 1 delivers the static viewer; later phases add deep linking from the CLI and live session companion features. The viewer is a delivery surface for rk's existing data model, not a separate product.
 
 Two spikes informed this direction: SPIKE-001 (TiddlyWiki) was No-Go because the interaction model was wrong — a wiki editor when we need a reader. SPIKE-002 (Custom SPA) was Conditional Go — the right component choices (Svelte, Vite) but the information architecture needs a ground-up rethink to center tags and syntheses rather than mirroring the filesystem.
 
@@ -48,8 +56,13 @@ The viewer makes rk's value visible to people who may never use the CLI directly
 **Out of scope:**
 - Write operations (adding sources, editing tags) — the CLI and agents handle mutation
 - Authentication or multi-user access
-- Real-time updates or WebSocket-driven refresh
 - Mobile-native applications
+
+## Delivery Phases
+
+- **Phase 1: Static viewer** — Browse tags, syntheses, sources, queries, and investigations. Homepage as routing surface for 4 journeys. No live agent connection.
+- **Phase 2: Deep linking** — rk CLI/TUI can open the viewer to specific pages (tag, source, investigation). Viewer as companion display.
+- **Phase 3: Live companion** — WebSocket/SSE connection to active agent session. Workbench chat pane. Real-time knowledge graph updates as sources are ingested.
 
 ## Tracks
 
@@ -77,3 +90,4 @@ None yet.
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
 | Active | 2026-03-31 | -- | Initial creation — informed by SPIKE-001 (No-Go) and SPIKE-002 (Conditional Go) |
+| Active | 2026-03-31 | -- | Expanded scope: companion model, 4 journeys |
