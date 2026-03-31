@@ -495,3 +495,95 @@ class TestResolveQueryStage:
 
         assert not (query_dir / "synthesis.md").exists()
         assert pending.exists()
+
+
+class TestResolveInvestigationSynthesis:
+    def test_generates_sidecar_for_investigation_with_queries(self, resolve_root: Path):
+        """When an investigation has linked queries and no synthesis, generate a sidecar."""
+        from research_keeper.adapters.filesystem.investigation_store import FilesystemInvestigationStore
+        from research_keeper.resolve import run_resolve
+
+        inv_store = FilesystemInvestigationStore(resolve_root)
+        inv_id = inv_store.create("memory", "Research memory architectures")
+
+        # Create a resolved query and link it
+        query_id = "qry-20260331-test"
+        query_dir = resolve_root / "queries" / query_id
+        query_dir.mkdir(parents=True)
+        (query_dir / "synthesis.md").write_text("Memory is key.")
+        import yaml
+        (query_dir / "meta.yaml").write_text(yaml.dump({
+            "query_id": query_id, "query_text": "what is memory?",
+            "kind": "query-synthesis", "created": "2026-03-31",
+        }))
+        inv_store.link(inv_id, query_id, "query")
+
+        output = run_resolve(resolve_root)
+
+        # Should generate investigation synthesis sidecar
+        sidecar = resolve_root / "investigations" / inv_id / ".pending" / "synthesize.j2"
+        assert sidecar.exists()
+        content = sidecar.read_text()
+        assert "memory" in content.lower()
+        assert "investigation" in output.lower()
+
+    def test_processes_rendered_investigation_synthesis(self, resolve_root: Path):
+        """When synthesize.md exists in .pending/, resolve writes synthesis.md."""
+        from research_keeper.adapters.filesystem.investigation_store import FilesystemInvestigationStore
+        from research_keeper.resolve import run_resolve
+
+        inv_store = FilesystemInvestigationStore(resolve_root)
+        inv_id = inv_store.create("memory", "Research memory")
+
+        # Simulate a rendered sidecar
+        pending = resolve_root / "investigations" / inv_id / ".pending"
+        pending.mkdir(parents=True, exist_ok=True)
+        (pending / "synthesize.md").write_text("# Memory Overview\n\nComprehensive findings.")
+
+        output = run_resolve(resolve_root)
+
+        inv_dir = resolve_root / "investigations" / inv_id
+        assert (inv_dir / "synthesis.md").exists()
+        assert "Comprehensive findings" in (inv_dir / "synthesis.md").read_text()
+        assert not pending.exists()
+
+    def test_closed_investigation_no_sidecar(self, resolve_root: Path):
+        """Closed investigations don't get synthesis sidecars."""
+        from research_keeper.adapters.filesystem.investigation_store import FilesystemInvestigationStore
+        from research_keeper.resolve import run_resolve
+
+        inv_store = FilesystemInvestigationStore(resolve_root)
+        inv_id = inv_store.create("memory", "Research memory")
+        inv_store.close(inv_id, "Final synthesis.")
+
+        # Link a query
+        query_id = "qry-20260331-closed"
+        query_dir = resolve_root / "queries" / query_id
+        query_dir.mkdir(parents=True)
+        (query_dir / "synthesis.md").write_text("New finding.")
+        import yaml
+        (query_dir / "meta.yaml").write_text(yaml.dump({
+            "query_id": query_id, "query_text": "test",
+            "kind": "query-synthesis", "created": "2026-03-31",
+        }))
+        inv_store.link(inv_id, query_id, "query")
+
+        output = run_resolve(resolve_root)
+
+        # Should NOT generate sidecar
+        sidecar = resolve_root / "investigations" / inv_id / ".pending" / "synthesize.j2"
+        assert not sidecar.exists()
+
+    def test_no_sidecar_when_no_linked_content(self, resolve_root: Path):
+        """Investigations with no linked content don't get sidecars."""
+        from research_keeper.adapters.filesystem.investigation_store import FilesystemInvestigationStore
+        from research_keeper.resolve import run_resolve
+
+        inv_store = FilesystemInvestigationStore(resolve_root)
+        inv_store.create("empty", "Nothing linked yet")
+
+        output = run_resolve(resolve_root)
+
+        # No investigation sidecars should exist
+        inv_sidecars = list(resolve_root.glob("investigations/*/.pending/synthesize.j2"))
+        assert len(inv_sidecars) == 0

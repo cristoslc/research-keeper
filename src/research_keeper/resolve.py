@@ -20,6 +20,7 @@ from pathlib import Path
 
 import yaml
 
+from research_keeper.adapters.filesystem.investigation_store import FilesystemInvestigationStore
 from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
 from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
 from research_keeper.adapters.sqlite.index import SqliteIndex
@@ -152,6 +153,22 @@ def _resolve_impl(root: Path, config) -> str:
             except Exception as exc:
                 logger.warning("Failed to process query.md for %s: %s", query_id, exc)
 
+    # Process rendered investigation synthesize.md files
+    inv_synth_results: list[str] = []
+    for inv_dir in _iter_investigation_dirs(root):
+        pending = inv_dir / ".pending"
+        synth_md = pending / "synthesize.md"
+        if synth_md.exists():
+            inv_id = inv_dir.name
+            try:
+                synthesis = synth_md.read_text()
+                _apply_investigation_synthesis(root, index, inv_dir, inv_id, synthesis)
+                inv_synth_results.append(inv_id)
+                resolved_count += 1
+                _cleanup_pending(pending)
+            except Exception as exc:
+                logger.warning("Failed to process investigation synthesis for %s: %s", inv_id, exc)
+
     # Report what was resolved
     if tag_results:
         lines.append(f"Resolved {len(tag_results)} tag sidecar(s):")
@@ -167,6 +184,12 @@ def _resolve_impl(root: Path, config) -> str:
         lines.append(f"Resolved {len(query_results)} query sidecar(s):")
         for qid in query_results:
             lines.append(f"  {qid}")
+        lines.append("")
+
+    if inv_synth_results:
+        lines.append(f"Resolved {len(inv_synth_results)} investigation synthesis(es):")
+        for inv_id in inv_synth_results:
+            lines.append(f"  {inv_id}")
         lines.append("")
 
     # --- Phase 2: Determine current stage ---
@@ -235,6 +258,38 @@ def _resolve_impl(root: Path, config) -> str:
         lines.append("")
         lines.append("Fill these sidecars, then run: rk resolve")
         return "\n".join(lines)
+
+    # Check for investigations needing (re-)synthesis
+    inv_store = FilesystemInvestigationStore(root)
+    invs_needing_synthesis = _find_investigations_needing_synthesis(root, inv_store)
+    if invs_needing_synthesis:
+        model_hint = config.completion.tasks.get("synthesis", "heavy")
+        generated_inv: list[tuple[str, Path]] = []
+        for inv in invs_needing_synthesis:
+            # Gather linked content
+            sources_content = _gather_investigation_sources(root, inv)
+            query_syntheses = _gather_investigation_queries(root, inv)
+
+            path = sidecar_gen.generate_investigation_sidecar(
+                inv_id=inv.inv_id,
+                topic=inv.topic,
+                brief=inv.brief,
+                sources_content=sources_content,
+                query_syntheses=query_syntheses,
+                prior_synthesis=inv.synthesis,
+                model_hint=model_hint,
+            )
+            generated_inv.append((inv.inv_id, path))
+
+        if generated_inv:
+            lines.append(f"Stage: investigation synthesis")
+            lines.append(f"{len(generated_inv)} investigation synthesis sidecar(s) generated:")
+            for inv_id, path in generated_inv:
+                rel = path.relative_to(root) if path.is_relative_to(root) else path
+                lines.append(f"  {rel} ({model_hint})")
+            lines.append("")
+            lines.append("Fill these sidecars, then run: rk resolve")
+            return "\n".join(lines)
 
     # --- Phase 3: Nothing pending -> Done ---
     if resolved_count > 0:
@@ -419,6 +474,103 @@ def _apply_query(
         index.upsert_edge(query_id, source_slug, "cites")
     for tag_slug in meta.get("cited_tags", []):
         index.upsert_edge(query_id, tag_slug, "cites")
+
+
+def _iter_investigation_dirs(root: Path):
+    """Iterate over investigation directories that have a .pending/ subdirectory."""
+    inv_dir = root / "investigations"
+    if not inv_dir.exists():
+        return
+    for d in sorted(inv_dir.iterdir()):
+        if d.is_dir() and (d / ".pending").is_dir():
+            yield d
+
+
+def _find_investigations_needing_synthesis(root: Path, inv_store) -> list:
+    """Find open investigations that have linked content but no synthesis, or new content since last synthesis."""
+    from research_keeper.models import Investigation
+
+    needing: list[Investigation] = []
+    for inv in inv_store.list():
+        if inv.status != "open":
+            continue
+        # Has linked content?
+        if not inv.linked_sources and not inv.linked_queries:
+            continue
+        # Already has a pending synthesis sidecar?
+        inv_path = root / "investigations" / inv.inv_id
+        if (inv_path / ".pending" / "synthesize.j2").exists():
+            continue
+        # No synthesis yet? Needs one.
+        if inv.synthesis is None:
+            needing.append(inv)
+            continue
+        # Has synthesis — check if new content was linked since last synthesis
+        synth_path = inv_path / "synthesis.md"
+        if synth_path.exists():
+            synth_mtime = synth_path.stat().st_mtime
+            # Check if any linked content is newer
+            for subdir in ["sources", "queries"]:
+                link_dir = inv_path / subdir
+                if link_dir.exists():
+                    for link in link_dir.iterdir():
+                        if link.is_symlink() and link.stat().st_mtime > synth_mtime:
+                            needing.append(inv)
+                            break
+                    else:
+                        continue
+                    break
+    return needing
+
+
+def _gather_investigation_sources(root: Path, inv) -> list[dict]:
+    """Read content of all sources linked to an investigation."""
+    sources = []
+    for slug in inv.linked_sources:
+        content_path = root / "library" / "sources" / slug / "source.md"
+        if content_path.exists():
+            sources.append({"slug": slug, "content": content_path.read_text()})
+    return sources
+
+
+def _gather_investigation_queries(root: Path, inv) -> list[dict]:
+    """Read synthesis of all queries linked to an investigation."""
+    queries = []
+    for query_id in inv.linked_queries:
+        synth_path = root / "queries" / query_id / "synthesis.md"
+        meta_path = root / "queries" / query_id / "meta.yaml"
+        if synth_path.exists() and meta_path.exists():
+            meta = yaml.safe_load(meta_path.read_text())
+            queries.append({
+                "query_id": query_id,
+                "query_text": meta.get("query_text", ""),
+                "synthesis": synth_path.read_text(),
+            })
+    return queries
+
+
+def _apply_investigation_synthesis(
+    root: Path,
+    index: SqliteIndex,
+    inv_dir: Path,
+    inv_id: str,
+    synthesis: str,
+) -> None:
+    """Write investigation synthesis.md and index the node."""
+    (inv_dir / "synthesis.md").write_text(synthesis)
+
+    # Update meta.yaml with synthesis timestamp
+    meta_path = inv_dir / "meta.yaml"
+    if meta_path.exists():
+        meta = yaml.safe_load(meta_path.read_text())
+        meta["last_synthesized"] = datetime.datetime.now(datetime.UTC).isoformat()
+        meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))
+
+    # Index in SQLite
+    index.upsert_tag_node(inv_id, synthesis, model="heavy", tier="frontier")
+    cur = index._conn.cursor()
+    cur.execute("UPDATE nodes SET kind = ? WHERE id = ?", ("investigation", inv_id))
+    index._conn.commit()
 
 
 def _cleanup_pending(pending_dir: Path) -> None:

@@ -136,6 +136,59 @@ class SidecarGenerator:
         path.write_text(template)
         return path
 
+    def generate_investigation_sidecar(
+        self,
+        inv_id: str,
+        topic: str,
+        brief: str,
+        sources_content: list[dict],
+        query_syntheses: list[dict],
+        prior_synthesis: str | None,
+        model_hint: str,
+    ) -> Path:
+        """Write a synthesize.j2 sidecar for an investigation rolling synthesis.
+
+        sources_content: list of dicts with 'slug' and 'content' keys.
+        query_syntheses: list of dicts with 'query_id', 'query_text', 'synthesis' keys.
+        Returns the path to the generated .j2 file.
+        """
+        pending_dir = self._root / "investigations" / inv_id / ".pending"
+        pending_dir.mkdir(parents=True, exist_ok=True)
+
+        context_text = ""
+        if sources_content:
+            context_text += "\nLinked sources:\n"
+            for src in sources_content:
+                context_text += f"\nSource: {src['slug']}\n{src['content']}\n"
+
+        if query_syntheses:
+            context_text += "\nLinked query syntheses:\n"
+            for q in query_syntheses:
+                context_text += f"\nQuery: {q['query_text']}\n{q['synthesis']}\n"
+
+        prior_text = ""
+        if prior_synthesis:
+            prior_text = f"\nPrior synthesis (update, don't repeat):\n{prior_synthesis}\n"
+
+        template = (
+            f"{{# rk:investigation | model_hint: {model_hint} | target: {inv_id} #}}\n"
+            "{#\n"
+            f"Rolling synthesis for investigation: {topic}\n"
+            f"Brief: {brief}\n"
+            f"{context_text}"
+            f"{prior_text}"
+            "\n"
+            "Synthesize a comprehensive overview of this investigation's findings.\n"
+            "Organize by theme, not by source. Cite sources and queries by slug.\n"
+            "Surface agreements, disagreements, gaps, and open questions.\n"
+            "#}\n"
+            "{{ synthesis }}\n"
+        )
+
+        path = pending_dir / "synthesize.j2"
+        path.write_text(template)
+        return path
+
     def parse_tag_response(self, path: Path) -> list[str]:
         """Parse a rendered tag.yaml file, extracting tags with robust handling.
 
