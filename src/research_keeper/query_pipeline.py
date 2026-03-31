@@ -1,33 +1,34 @@
 from __future__ import annotations
 
-import datetime
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
 from research_keeper.adapters.retriever.semantic import SemanticRetriever
 from research_keeper.adapters.sqlite.index import SqliteIndex
+from research_keeper.models import ScoredNode
+from research_keeper.sidecar import SidecarGenerator
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class QueryResult:
+class QuerySearchResult:
     query_id: str
     query_text: str
-    synthesis: str
-    cited_sources: list[str] = field(default_factory=list)
-    cited_tags: list[str] = field(default_factory=list)
+    sidecar_path: Path
+    scored_nodes: list[ScoredNode] = field(default_factory=list)
 
 
 class QueryPipeline:
-    """Orchestrates: embed query -> retrieve -> synthesize -> persist."""
+    """Orchestrates: embed query -> retrieve -> persist pending -> generate sidecar."""
 
     def __init__(
         self,
         retriever: SemanticRetriever,
-        synthesizer: object,
         query_store: FilesystemQueryStore,
+        sidecar_gen: SidecarGenerator,
         embedder: object,
         index: SqliteIndex,
         top_k: int = 20,
@@ -35,15 +36,21 @@ class QueryPipeline:
         remote_resolver: object | None = None,
     ) -> None:
         self._retriever = retriever
-        self._synthesizer = synthesizer
         self._query_store = query_store
+        self._sidecar_gen = sidecar_gen
         self._embedder = embedder
         self._index = index
         self._top_k = top_k
         self._investigation_store = investigation_store
         self._remote = remote_resolver
 
-    def search(self, query_text: str, top_k: int | None = None, investigation_id: str | None = None) -> QueryResult:
+    def search(
+        self,
+        query_text: str,
+        top_k: int | None = None,
+        investigation_id: str | None = None,
+        model_hint: str = "heavy",
+    ) -> QuerySearchResult:
         top_k = top_k or self._top_k
 
         # Bookend: sync before
@@ -54,112 +61,63 @@ class QueryPipeline:
         try:
             query_embedding = self._embedder.embed(query_text)
         except Exception:
-            logger.warning("Query embedding failed — returning empty result")
-            return QueryResult(
-                query_id="",
-                query_text=query_text,
-                synthesis="Unable to embed query. Check embedder configuration.",
-            )
+            logger.warning("Query embedding failed — cannot search")
+            raise
 
         # Step 2: Retrieve top-k results
         scored_nodes = self._retriever.search_by_embedding(query_embedding, top_k=top_k)
 
-        if not scored_nodes:
-            # No results — persist a record but skip synthesis
-            query_id = self._query_store.create(
-                query_text=query_text,
-                synthesis="No relevant sources found.",
-                cited_sources=[],
-                cited_tags=[],
-                embedding=query_embedding,
-            )
-            return QueryResult(
-                query_id=query_id,
-                query_text=query_text,
-                synthesis="No relevant sources found.",
-            )
+        # Step 3: Build retrieval list for meta.yaml
+        retrieval = [
+            {
+                "slug": node.slug,
+                "kind": node.kind,
+                "score": round(node.score, 4),
+                "similarity": round(node.similarity, 4),
+                "freshness_weight": round(node.freshness_weight, 4),
+            }
+            for node in scored_nodes
+        ]
 
-        # Step 3: Build Source objects for synthesizer
-        from research_keeper.models import Freshness, Provenance, Source
-
-        sources_for_synth = []
-        cited_source_slugs = []
-        cited_tag_slugs = []
-
-        for node in scored_nodes:
-            if node.kind == "source":
-                cited_source_slugs.append(node.slug)
-            elif node.kind == "tag-synthesis":
-                cited_tag_slugs.append(node.slug)
-            else:
-                cited_source_slugs.append(node.slug)
-
-            sources_for_synth.append(
-                Source(
-                    slug=node.slug,
-                    content_path="",
-                    content=node.content,
-                    freshness=Freshness(ingested=datetime.date.today()),
-                    provenance=Provenance(origin="retrieval"),
-                    kind="source",
-                )
-            )
-
-        # Step 4: Synthesize with query as steering (skip if no synthesizer)
-        if self._synthesizer is not None:
-            synthesis = self._synthesizer.synthesize(
-                sources_for_synth, steering=query_text
-            )
-        else:
-            # FTS-only mode: list matched sources without synthesis
-            source_list = "\n".join(f"- {s.slug}: {s.content[:200]}..." for s in sources_for_synth)
-            synthesis = f"(synthesis unavailable — showing search results only)\n\n{source_list}"
-
-        # Step 5: Persist query node
-        query_id = self._query_store.create(
+        # Step 4: Create pending query (directory, meta.yaml, embedding.bin)
+        query_id = self._query_store.create_pending(
             query_text=query_text,
-            synthesis=synthesis,
-            cited_sources=cited_source_slugs,
-            cited_tags=cited_tag_slugs,
+            retrieval=retrieval,
             embedding=query_embedding,
+            investigation_id=investigation_id,
         )
 
-        # Step 6: Index query node in SQLite
-        self._index.upsert_tag_node(
-            query_id, synthesis, model="query", tier="frontier"
-        )
-        # Override kind to query-synthesis
-        cur = self._index._conn.cursor()
-        cur.execute("UPDATE nodes SET kind = ? WHERE id = ?", ("query-synthesis", query_id))
-        self._index._conn.commit()
+        # Step 5: Build scored_sources for sidecar context
+        scored_sources = [
+            {
+                "slug": node.slug,
+                "content": node.content,
+                "score": round(node.score, 4),
+                "similarity": round(node.similarity, 4),
+                "freshness_weight": round(node.freshness_weight, 4),
+            }
+            for node in scored_nodes
+        ]
 
-        # Step 7: Store embedding
-        try:
-            model_name = getattr(self._embedder, "_model", "unknown")
-            if not isinstance(model_name, str):
-                model_name = "unknown"
-            self._index.upsert_embedding(query_id, model_name, query_embedding)
-        except Exception:
-            logger.warning("Failed to store query embedding for %s", query_id)
-
-        # Step 8: Create edges from query to cited sources
-        for slug in cited_source_slugs + cited_tag_slugs:
-            self._index.upsert_edge(query_id, slug, "cites")
-
-        # Link to investigation if specified
-        if investigation_id and self._investigation_store:
-            self._investigation_store.link(investigation_id, query_id, "query")
-
-        result = QueryResult(
+        # Step 6: Generate query.j2 sidecar
+        sidecar_path = self._sidecar_gen.generate_query_sidecar(
             query_id=query_id,
             query_text=query_text,
-            synthesis=synthesis,
-            cited_sources=cited_source_slugs,
-            cited_tags=cited_tag_slugs,
+            scored_sources=scored_sources,
+            model_hint=model_hint,
         )
+
+        # Step 7: Link to investigation if specified
+        if investigation_id and self._investigation_store:
+            self._investigation_store.link(investigation_id, query_id, "query")
 
         # Bookend: publish after
         if self._remote and self._remote.is_remote:
             self._remote.publish(f"rk: search {query_text[:50]}")
 
-        return result
+        return QuerySearchResult(
+            query_id=query_id,
+            query_text=query_text,
+            sidecar_path=sidecar_path,
+            scored_nodes=scored_nodes,
+        )
