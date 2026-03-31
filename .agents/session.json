@@ -1,10 +1,10 @@
 {
   "bookmark": {
-    "note": "Phase 1 (EPIC-001) complete and merged to main. 81 tests, 25 commits, 2327 lines. Ready for Phase 2 (auto-tagging + synthesis).",
+    "note": "Created DESIGN-003",
     "files": [
-      "docs/specs/2026-03-29-research-keeper-design.md"
+      "docs/design/Active/(DESIGN-003)-Query-Sidecar-And-Search-Synthesis/(DESIGN-003)-Query-Sidecar-And-Search-Synthesis.md"
     ],
-    "timestamp": "2026-03-29T19:15:44Z"
+    "timestamp": "2026-03-31T03:01:09Z"
   },
-  "lastBranch": "worktree-session-20260330-135229-efa9"
+  "lastBranch": "trunk"
 }

@@ -23,13 +23,34 @@ uv tool install "research-keeper[all] @ git+https://github.com/cristoslc/researc
 
 ## Quick start
 
+Install rk, create a library, and start researching:
+
 ```bash
-rk init my-research
-cd my-research
-rk add "https://example.com/interesting-article"
+# install
+uv tool install "research-keeper[all] @ git+https://github.com/cristoslc/research-keeper.git"
+
+# create a library
+rk init maine-lighthouses
+cd maine-lighthouses
+
+# add sources — URLs, PDFs, notes, anything
+rk add "https://portlandheadlight.com/history"
+rk add "https://lighthousefoundation.org/seguin-island"
+rk add "https://www.youtube.com/watch?v=example" --origin "PBS documentary on Nubble Light"
+
+# see what rk learned
 rk tags
-rk search "what do I know about this topic?"
+#  architecture        (3 sources)
+#  historic-preservation (2 sources)
+#  keepers-and-families (1 source)
+#  navigation-technology (2 sources)
+#  tourism             (1 source)
+
+# ask a question across everything you've collected
+rk search "Which Maine lighthouses had the most dangerous locations and why?"
 ```
+
+rk normalizes each source to markdown, auto-tags it, and updates per-tag synthesis documents so your understanding of each topic stays current as new material arrives. The `search` command synthesizes an answer across all sources, weighted by freshness and relevance.
 
 ## How rk thinks about intelligence
 
