@@ -131,7 +131,7 @@ def _handle_search(args: dict, completer=None) -> str:
     from research_keeper.cli import _build_search_pipeline
 
     root = Path(args.get("root", ".")).resolve()
-    pipeline = _build_search_pipeline(root, completer=completer)
+    pipeline = _build_search_pipeline(root)
 
     result = pipeline.search(
         args["query"],
@@ -140,9 +140,8 @@ def _handle_search(args: dict, completer=None) -> str:
     )
     return json.dumps({
         "query_id": result.query_id,
-        "synthesis": result.synthesis,
-        "cited_sources": result.cited_sources,
-        "cited_tags": result.cited_tags,
+        "sidecar_path": str(result.sidecar_path),
+        "retrieved": len(result.scored_nodes),
     })
 
 
