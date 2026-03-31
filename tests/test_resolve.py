@@ -306,3 +306,192 @@ class TestResolveEdgesAndIndex:
         assert len(rows) >= 1
         edge_pairs = {(row["source_id"], row["target_id"]) for row in rows}
         assert (src.slug, "memory") in edge_pairs
+
+
+class TestResolveQueryStage:
+    def test_processes_rendered_query_sidecar(self, resolve_root: Path):
+        """When query.md exists in .pending/, resolve writes synthesis.md and cleans up."""
+        from research_keeper.resolve import run_resolve
+
+        query_id = "qry-20260330-test-query"
+        query_dir = resolve_root / "queries" / query_id
+        query_dir.mkdir(parents=True)
+        pending = query_dir / ".pending"
+        pending.mkdir()
+
+        meta = {
+            "query_id": query_id,
+            "query_text": "What is memory?",
+            "kind": "query-synthesis",
+            "created": "2026-03-30",
+            "top_k": 1,
+            "retrieval": [
+                {"slug": "alpha-paper", "kind": "source", "score": 0.87, "similarity": 0.92, "freshness_weight": 0.95},
+            ],
+            "cited_sources": ["alpha-paper"],
+            "cited_tags": [],
+            "investigation": None,
+        }
+        import yaml as _yaml
+        (query_dir / "meta.yaml").write_text(
+            _yaml.dump(meta, default_flow_style=False, sort_keys=False)
+        )
+        (resolve_root / "library" / "sources" / "alpha-paper").mkdir(parents=True, exist_ok=True)
+        (pending / "query.md").write_text("# Answer\n\nMemory is fundamental (alpha-paper).")
+
+        output = run_resolve(resolve_root)
+
+        assert (query_dir / "synthesis.md").exists()
+        assert "Memory is fundamental" in (query_dir / "synthesis.md").read_text()
+        assert not pending.exists()
+        assert "query" in output.lower()
+
+    def test_creates_source_symlinks_from_meta(self, resolve_root: Path):
+        """Resolve creates symlinks in queries/<id>/sources/ from meta.yaml retrieval list."""
+        from research_keeper.resolve import run_resolve
+
+        query_id = "qry-20260330-symlinks"
+        query_dir = resolve_root / "queries" / query_id
+        query_dir.mkdir(parents=True)
+        pending = query_dir / ".pending"
+        pending.mkdir()
+
+        meta = {
+            "query_id": query_id,
+            "query_text": "test",
+            "kind": "query-synthesis",
+            "created": "2026-03-30",
+            "retrieval": [
+                {"slug": "src-a", "kind": "source", "score": 0.9, "similarity": 0.95, "freshness_weight": 0.95},
+                {"slug": "src-b", "kind": "source", "score": 0.8, "similarity": 0.85, "freshness_weight": 0.94},
+                {"slug": "tag-x", "kind": "tag-synthesis", "score": 0.7, "similarity": 0.80, "freshness_weight": 0.88},
+            ],
+            "cited_sources": ["src-a", "src-b"],
+            "cited_tags": ["tag-x"],
+            "investigation": None,
+        }
+        import yaml as _yaml
+        (query_dir / "meta.yaml").write_text(
+            _yaml.dump(meta, default_flow_style=False, sort_keys=False)
+        )
+        (resolve_root / "library" / "sources" / "src-a").mkdir(parents=True, exist_ok=True)
+        (resolve_root / "library" / "sources" / "src-b").mkdir(parents=True, exist_ok=True)
+        (resolve_root / "tags" / "tag-x").mkdir(parents=True, exist_ok=True)
+        (pending / "query.md").write_text("Synthesis text.")
+
+        run_resolve(resolve_root)
+
+        assert (query_dir / "sources" / "src-a").is_symlink()
+        assert (query_dir / "sources" / "src-b").is_symlink()
+        assert (query_dir / "tags" / "tag-x").is_symlink()
+
+    def test_indexes_query_in_sqlite(self, resolve_root: Path):
+        """Resolve indexes the query node in SQLite with kind='query-synthesis'."""
+        from research_keeper.resolve import run_resolve
+
+        query_id = "qry-20260330-indexed"
+        query_dir = resolve_root / "queries" / query_id
+        query_dir.mkdir(parents=True)
+        pending = query_dir / ".pending"
+        pending.mkdir()
+
+        meta = {
+            "query_id": query_id,
+            "query_text": "test",
+            "kind": "query-synthesis",
+            "created": "2026-03-30",
+            "retrieval": [
+                {"slug": "src-a", "kind": "source", "score": 0.9, "similarity": 0.95, "freshness_weight": 0.95},
+            ],
+            "cited_sources": ["src-a"],
+            "cited_tags": [],
+            "investigation": None,
+        }
+        import yaml as _yaml
+        (query_dir / "meta.yaml").write_text(
+            _yaml.dump(meta, default_flow_style=False, sort_keys=False)
+        )
+        (resolve_root / "library" / "sources" / "src-a").mkdir(parents=True, exist_ok=True)
+        (pending / "query.md").write_text("Synthesis text.")
+
+        run_resolve(resolve_root)
+
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+        index = SqliteIndex(resolve_root / "rk.db")
+        cur = index._conn.cursor()
+        cur.execute("SELECT kind FROM nodes WHERE id = ?", (query_id,))
+        row = cur.fetchone()
+        assert row is not None
+        assert row[0] == "query-synthesis"
+
+        cur.execute(
+            "SELECT target_id FROM edges WHERE source_id = ? AND relationship = ?",
+            (query_id, "cites"),
+        )
+        targets = [r[0] for r in cur.fetchall()]
+        assert "src-a" in targets
+
+    def test_query_resolution_independent_of_tag_stage(self, pipeline_and_root):
+        """Query sidecars are processed even when tag sidecars are pending."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+        pipeline.add("# Memory\n\nContent.", {"title": "Memory"})
+
+        query_id = "qry-20260330-independent"
+        query_dir = root / "queries" / query_id
+        query_dir.mkdir(parents=True)
+        pending = query_dir / ".pending"
+        pending.mkdir()
+
+        meta = {
+            "query_id": query_id,
+            "query_text": "test",
+            "kind": "query-synthesis",
+            "created": "2026-03-30",
+            "retrieval": [],
+            "cited_sources": [],
+            "cited_tags": [],
+            "investigation": None,
+        }
+        import yaml as _yaml
+        (query_dir / "meta.yaml").write_text(
+            _yaml.dump(meta, default_flow_style=False, sort_keys=False)
+        )
+        (pending / "query.md").write_text("Answer with no sources.")
+
+        output = run_resolve(root)
+
+        assert (query_dir / "synthesis.md").exists()
+        assert not pending.exists()
+        assert "tag" in output.lower()
+
+    def test_pending_query_sidecar_not_processed(self, resolve_root: Path):
+        """A query.j2 without query.md should NOT be processed."""
+        from research_keeper.resolve import run_resolve
+
+        query_id = "qry-20260330-unfilled"
+        query_dir = resolve_root / "queries" / query_id
+        pending = query_dir / ".pending"
+        pending.mkdir(parents=True)
+
+        meta = {
+            "query_id": query_id,
+            "query_text": "test",
+            "kind": "query-synthesis",
+            "created": "2026-03-30",
+            "retrieval": [],
+            "cited_sources": [],
+            "cited_tags": [],
+            "investigation": None,
+        }
+        import yaml as _yaml
+        (query_dir / "meta.yaml").write_text(
+            _yaml.dump(meta, default_flow_style=False, sort_keys=False)
+        )
+        (pending / "query.j2").write_text("{# template #}\n{{ synthesis }}")
+
+        output = run_resolve(resolve_root)
+
+        assert not (query_dir / "synthesis.md").exists()
+        assert pending.exists()

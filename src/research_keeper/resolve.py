@@ -134,6 +134,24 @@ def _resolve_impl(root: Path, config) -> str:
             except Exception as exc:
                 logger.warning("Failed to process synthesize.md for %s: %s", tag_slug, exc)
 
+    # Process rendered query.md files (Stage 4 — independent of Stages 1-3)
+    query_results: list[str] = []
+    for query_dir in _iter_query_dirs(root):
+        pending = query_dir / ".pending"
+        query_md = pending / "query.md"
+        if query_md.exists():
+            query_id = query_dir.name
+            try:
+                synthesis = query_md.read_text()
+                meta_path = query_dir / "meta.yaml"
+                meta = yaml.safe_load(meta_path.read_text()) if meta_path.exists() else {}
+                _apply_query(root, index, query_dir, query_id, synthesis, meta)
+                query_results.append(query_id)
+                resolved_count += 1
+                _cleanup_pending(pending)
+            except Exception as exc:
+                logger.warning("Failed to process query.md for %s: %s", query_id, exc)
+
     # Report what was resolved
     if tag_results:
         lines.append(f"Resolved {len(tag_results)} tag sidecar(s):")
@@ -143,6 +161,12 @@ def _resolve_impl(root: Path, config) -> str:
 
     if synth_results:
         lines.append(f"Resolved {len(synth_results)} synthesis sidecar(s).")
+        lines.append("")
+
+    if query_results:
+        lines.append(f"Resolved {len(query_results)} query sidecar(s):")
+        for qid in query_results:
+            lines.append(f"  {qid}")
         lines.append("")
 
     # --- Phase 2: Determine current stage ---
@@ -347,6 +371,54 @@ def _apply_synthesis(
     model_hint = config.completion.tasks.get("synthesis", "heavy")
     tag_store.write_synthesis(tag_slug, synthesis, model=model_hint, tier="frontier")
     index.upsert_tag_node(tag_slug, synthesis, model=model_hint, tier="frontier")
+
+
+def _iter_query_dirs(root: Path):
+    """Iterate over query directories that have a .pending/ subdirectory."""
+    queries_dir = root / "queries"
+    if not queries_dir.exists():
+        return
+    for d in sorted(queries_dir.iterdir()):
+        if d.is_dir() and (d / ".pending").is_dir():
+            yield d
+
+
+def _apply_query(
+    root: Path,
+    index: SqliteIndex,
+    query_dir: Path,
+    query_id: str,
+    synthesis: str,
+    meta: dict,
+) -> None:
+    """Write synthesis.md, create symlinks, and index the query node."""
+    (query_dir / "synthesis.md").write_text(synthesis)
+
+    (query_dir / "sources").mkdir(exist_ok=True)
+    (query_dir / "tags").mkdir(exist_ok=True)
+
+    for source_slug in meta.get("cited_sources", []):
+        symlink = query_dir / "sources" / source_slug
+        if not symlink.exists():
+            target = Path("..") / ".." / ".." / "library" / "sources" / source_slug
+            symlink.symlink_to(target)
+
+    for tag_slug in meta.get("cited_tags", []):
+        symlink = query_dir / "tags" / tag_slug
+        if not symlink.exists():
+            target = Path("..") / ".." / ".." / "tags" / tag_slug
+            symlink.symlink_to(target)
+
+    model_hint = "heavy"
+    index.upsert_tag_node(query_id, synthesis, model=model_hint, tier="frontier")
+    cur = index._conn.cursor()
+    cur.execute("UPDATE nodes SET kind = ? WHERE id = ?", ("query-synthesis", query_id))
+    index._conn.commit()
+
+    for source_slug in meta.get("cited_sources", []):
+        index.upsert_edge(query_id, source_slug, "cites")
+    for tag_slug in meta.get("cited_tags", []):
+        index.upsert_edge(query_id, tag_slug, "cites")
 
 
 def _cleanup_pending(pending_dir: Path) -> None:
