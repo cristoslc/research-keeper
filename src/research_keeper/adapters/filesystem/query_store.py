@@ -139,7 +139,10 @@ class FilesystemQueryStore:
             return None
 
         meta = yaml.safe_load(meta_path.read_text())
-        synthesis = (query_dir / "synthesis.md").read_text()
+        synthesis_path = query_dir / "synthesis.md"
+        if not synthesis_path.exists():
+            return None  # Pending query — not yet resolved
+        synthesis = synthesis_path.read_text()
 
         return QueryNode(
             query_id=meta["query_id"],

@@ -1,10 +1,7 @@
 {
   "bookmark": {
-    "note": "Created SPEC-031 SPEC-032 SPEC-033, revised SPEC-012",
-    "files": [
-      "docs/spec/Active/(SPEC-031)-FTS-Search-Fallback.md docs/spec/Active/(SPEC-032)-Embedding-Backfill-In-Rebuild.md docs/spec/Active/(SPEC-033)-Doctor-Embedding-Coverage.md docs/spec/Active/(SPEC-012)-Query-Pipeline-And-CLI.md"
-    ],
-    "timestamp": "2026-03-31T12:00:27Z"
+    "note": "Pushed SPEC-031 + new SPECs to trunk",
+    "timestamp": "2026-03-31T13:07:07Z"
   },
   "lastBranch": "worktree-session-20260330-231747-5382"
 }

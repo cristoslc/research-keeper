@@ -163,9 +163,9 @@ class TestQueryPipeline:
         assert "anything?" in content
 
 
-class TestQueryPipelineFTSFallback:
-    def test_fts_fallback_on_embedder_failure(self, setup):
-        """When embedder fails, search falls back to FTS and still produces a sidecar."""
+class TestQueryPipelineEmbedderOffline:
+    def test_raises_on_embedder_failure(self, setup):
+        """When embedder fails, search raises — no silent degradation."""
         setup["embedder"].embed.side_effect = ConnectionError("ollama offline")
 
         pipeline = QueryPipeline(
@@ -175,71 +175,5 @@ class TestQueryPipelineFTSFallback:
             embedder=setup["embedder"],
             index=setup["index"],
         )
-        result = pipeline.search("alpha")
-        assert result.query_id.startswith("qry-")
-        assert result.sidecar_path.exists()
-        assert result.fts_fallback is True
-
-        content = result.sidecar_path.read_text()
-        assert "alpha" in content
-
-    def test_fts_fallback_scores(self, setup):
-        """FTS fallback results have similarity=0.0 and score=freshness_weight."""
-        setup["embedder"].embed.side_effect = ConnectionError("ollama offline")
-
-        pipeline = QueryPipeline(
-            retriever=setup["retriever"],
-            query_store=setup["query_store"],
-            sidecar_gen=setup["sidecar_gen"],
-            embedder=setup["embedder"],
-            index=setup["index"],
-        )
-        result = pipeline.search("alpha")
-
-        for node in result.scored_nodes:
-            assert node.similarity == 0.0
-            assert node.score == node.freshness_weight
-
-    def test_fts_fallback_no_embedding_stored(self, setup):
-        """FTS fallback doesn't store a query embedding."""
-        setup["embedder"].embed.side_effect = ConnectionError("ollama offline")
-
-        pipeline = QueryPipeline(
-            retriever=setup["retriever"],
-            query_store=setup["query_store"],
-            sidecar_gen=setup["sidecar_gen"],
-            embedder=setup["embedder"],
-            index=setup["index"],
-        )
-        result = pipeline.search("alpha")
-
-        emb_path = setup["tmp_path"] / "queries" / result.query_id / "embedding.bin"
-        assert not emb_path.exists()
-
-    def test_fts_fallback_special_characters(self, setup):
-        """FTS queries with special characters don't crash."""
-        setup["embedder"].embed.side_effect = ConnectionError("ollama offline")
-
-        pipeline = QueryPipeline(
-            retriever=setup["retriever"],
-            query_store=setup["query_store"],
-            sidecar_gen=setup["sidecar_gen"],
-            embedder=setup["embedder"],
-            index=setup["index"],
-        )
-        result = pipeline.search('what about "alpha" AND beta*')
-        assert result.query_id.startswith("qry-")
-        assert result.sidecar_path.exists()
-
-    def test_semantic_search_still_works(self, setup):
-        """When embedder is online, semantic search is used (fts_fallback is False)."""
-        pipeline = QueryPipeline(
-            retriever=setup["retriever"],
-            query_store=setup["query_store"],
-            sidecar_gen=setup["sidecar_gen"],
-            embedder=setup["embedder"],
-            index=setup["index"],
-        )
-        result = pipeline.search("what is alpha?")
-        assert result.fts_fallback is False
-        assert result.scored_nodes[0].similarity > 0.0
+        with pytest.raises(ConnectionError, match="ollama offline"):
+            pipeline.search("alpha")

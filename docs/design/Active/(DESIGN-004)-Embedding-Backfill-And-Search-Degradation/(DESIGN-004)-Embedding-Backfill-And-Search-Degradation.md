@@ -75,13 +75,9 @@ When `rk search` runs and encounters issues:
 
 **Scenario A — Embedder offline (can't embed the query):**
 
-Fall back to FTS:
+Fail with a clear error: `"Error: <embedder error message>"`. Do not degrade to keyword search — FTS-only results are keyword-matched, not semantically relevant, and produce misleading synthesis. The fix is to start ollama or run `rk rebuild` when it's back.
 
-1. Run `search_fts(query_text, limit=top_k)` against the SQLite FTS5 index
-2. Build `ScoredNode` results with `similarity=0.0` and `freshness_weight` from the node's ingestion date (FTS doesn't produce similarity scores, but freshness still applies)
-3. Set `score = freshness_weight` (FTS results ranked by freshness only, since we have no similarity signal)
-4. Generate the query sidecar with these results — same format as semantic search
-5. CLI output includes: `"(FTS fallback — embedder unavailable, results ranked by freshness)"`
+> **Why not FTS fallback?** FTS uses implicit AND and matches tokens, not meaning. "Dangerous lighthouses" won't match a source about "hazardous coastal conditions." Giving the agent irrelevant sources to synthesize from is worse than failing clearly. FTS may return as a scoring factor in hybrid retrieval (boosting semantic candidates that also have keyword matches), but not as a standalone fallback.
 
 **Scenario B — Embedder online but some sources lack embeddings:**
 
@@ -89,7 +85,7 @@ Semantic search proceeds normally. Sources without embeddings are simply absent 
 
 The sidecar is generated with whatever semantic search returns. The agent synthesizes from what's available. The operator may not even notice — unless they know a source should have matched.
 
-**Scenario C — No results from either method:**
+**Scenario C — No results from semantic search:**
 
 Generate the sidecar with empty source context. The `query.j2` template still contains the question. The agent can synthesize a "no sources found" response. This is already handled by [DESIGN-003](../(DESIGN-003)-Query-Sidecar-And-Search-Synthesis/(DESIGN-003)-Query-Sidecar-And-Search-Synthesis.md).
 
@@ -97,17 +93,16 @@ Generate the sidecar with empty source context. The `query.j2` template still co
 flowchart TD
     search["rk search 'query'"]
     embed_query{"Embed query?"}
-    semantic["Semantic search\n(cosine × freshness)"]
-    fts["FTS fallback\n(keyword × freshness)"]
+    semantic["Semantic search\n(cosine x freshness)"]
+    fail["Fail with clear error"]
     results{"Results?"}
     sidecar["Generate query.j2 sidecar"]
     empty["Generate sidecar\nwith empty context"]
 
     search --> embed_query
     embed_query -->|"embedder online"| semantic
-    embed_query -->|"embedder offline"| fts
+    embed_query -->|"embedder offline"| fail
     semantic --> results
-    fts --> results
     results -->|"yes"| sidecar
     results -->|"no"| empty
 ```
@@ -220,10 +215,9 @@ agent runs: rk search "question"
 ## Design Decisions
 
 1. **Best-effort at capture, guaranteed at rebuild** — Embedding shouldn't gate the intake pipeline. Sources are useful for tagging and synthesis without embeddings. The operator can backfill when convenient.
-2. **FTS as fallback, not replacement** — FTS lacks semantic understanding but is always available (no external dependency). It ensures `rk search` never crashes — the agent always gets a sidecar to fill.
-3. **Freshness-only ranking for FTS** — Without similarity, freshness is the only signal we have. Newer sources are more likely to be relevant in a research context. This is better than random order and avoids inventing a fake similarity score.
-4. **`rk rebuild` as explicit trigger** — No background embedding, no implicit re-embedding. The operator controls when expensive work happens. This keeps rk predictable and avoids surprise ollama calls.
-5. **Identical sidecar format** — The agent shouldn't need to handle two sidecar formats. FTS and semantic search produce the same `query.j2` with the same structure. The difference is in retrieval quality, not output format.
+2. **Fail clearly, don't degrade misleadingly** — FTS-only search was implemented and reverted. Keyword matching produces confidently wrong results — "dangerous lighthouses" misses sources about hazardous conditions. Giving the agent irrelevant sources to synthesize from is worse than a clear error. FTS may return as a scoring boost in hybrid retrieval, but not as a standalone fallback.
+3. **`rk rebuild` as explicit trigger** — No background embedding, no implicit re-embedding. The operator controls when expensive work happens. This keeps rk predictable and avoids surprise ollama calls.
+4. **Embedding is the gate for search, not for intake** — `rk add` works without embeddings. `rk search` requires them. This asymmetry is intentional — filing sources should never be blocked, but searching should be accurate or not happen at all.
 
 ## Assets
 

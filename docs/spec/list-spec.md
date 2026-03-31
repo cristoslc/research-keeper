@@ -39,7 +39,12 @@
 | SPEC-028 | Jinja2 Sidecar Templates | 2026-03-30 | -- |
 | SPEC-029 | Query Sidecar Generation | 2026-03-30 | -- |
 | SPEC-030 | Resolve Query Sidecars | 2026-03-30 | -- |
-| SPEC-031 | FTS Search Fallback | 2026-03-31 | -- |
 | SPEC-032 | Embedding Backfill in Rebuild | 2026-03-31 | -- |
 | SPEC-033 | Doctor Embedding Coverage | 2026-03-31 | -- |
+
+## Abandoned
+
+| Artifact | Title | Last Updated | Commit |
+|----------|-------|-------------|--------|
+| SPEC-031 | FTS Search Fallback | 2026-03-31 | -- |
 
