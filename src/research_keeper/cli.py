@@ -543,6 +543,47 @@ def serve(root: str) -> None:
 
 
 @main.group()
+def skill() -> None:
+    """Manage agent skills for rk."""
+    pass
+
+
+@skill.command()
+def install() -> None:
+    """Install agent skill for the current project."""
+    from research_keeper.skill_template import CURSOR_SKILL_CONTENT, SKILL_CONTENT
+
+    cwd = Path.cwd()
+    installed: list[str] = []
+
+    runtimes = [
+        ("Claude Code", cwd / ".claude", cwd / ".claude" / "skills" / "research-keeper" / "SKILL.md", SKILL_CONTENT),
+        ("Cursor", cwd / ".cursor", cwd / ".cursor" / "rules" / "research-keeper.mdc", CURSOR_SKILL_CONTENT),
+        ("Codex", cwd / ".codex", cwd / ".codex" / "skills" / "research-keeper.md", SKILL_CONTENT),
+        ("Gemini", cwd / ".gemini", cwd / ".gemini" / "skills" / "research-keeper.md", SKILL_CONTENT),
+    ]
+
+    for name, detect_dir, skill_path, content in runtimes:
+        if detect_dir.is_dir():
+            skill_path.parent.mkdir(parents=True, exist_ok=True)
+            skill_path.write_text(content)
+            installed.append(name)
+
+    if not installed:
+        # Generic fallback
+        generic_path = cwd / ".agent" / "skills" / "research-keeper" / "SKILL.md"
+        generic_path.parent.mkdir(parents=True, exist_ok=True)
+        generic_path.write_text(SKILL_CONTENT)
+        click.echo(f"No agent runtime detected. Installed generic skill at {generic_path}")
+        click.echo("Copy this file to your agent runtime's skill directory.")
+        return
+
+    names = ", ".join(installed)
+    count = len(installed)
+    click.echo(f"Installed rk skill for {names} ({count} runtime{'s' if count > 1 else ''})")
+
+
+@main.group()
 def auth() -> None:
     """Manage credentials for remote data access."""
     pass
