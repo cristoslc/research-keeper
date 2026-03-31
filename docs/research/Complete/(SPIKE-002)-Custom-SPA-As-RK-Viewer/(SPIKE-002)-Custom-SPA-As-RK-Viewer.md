@@ -2,7 +2,7 @@
 title: "Custom SPA as rk Viewer"
 artifact: SPIKE-002
 track: container
-status: Active
+status: Complete
 author: cristos
 created: 2026-03-30
 last-updated: 2026-03-30
@@ -22,7 +22,7 @@ linked-artifacts:
 
 ## Summary
 
-<!-- Final-pass section: populated when transitioning to Complete. -->
+**Conditional Go.** The SPA approach is clearly preferred over TiddlyWiki — it has the right *components* (faceted sidebar, tag-based entry, synthesis access) but needs a fundamental information architecture overhaul before it's usable. The prototype validated that a custom build is the right path, but the current implementation is a developer tool, not a knowledge browser. Next step: create a DESIGN artifact defining the IA, design system, and interaction patterns before writing more code.
 
 ## Question
 
@@ -106,10 +106,55 @@ Document for each criterion: pass/fail, evidence, comparative notes. Pay special
 
 ## Findings
 
-<!-- Populated during Active phase. -->
+### Criteria Results
+
+| Criterion | Result | Evidence |
+|-----------|--------|----------|
+| Tag intersection visualization | **Partial** | UpSet plot rendered but operator found it not useful in current form — "might work as nearest-neighbor discovery on an open piece, not as a standalone panel" |
+| Tag graph navigation | **Fail** | Sigma.js graph container was blank — CDN/graphology loading issue. Not debugged. |
+| Faceted drill-down | **Pass** | Selecting tags filtered sources and updated counts. Progressive narrowing worked. |
+| Source rendering | **Pass** | Markdown rendered via marked.js. Frontmatter displayed as metadata card. |
+| Synthesis browsing | **Fail** | Double-click to open synthesis was undiscoverable — and on the operator's setup, impossible. No visual affordance. |
+| Build time | **Pass** | Single HTML file built in ~1 hour. |
+| Comparative advantage | **Pass** | Operator clearly preferred SPA: "also terrible, but at least has the components that could make it better" |
+
+**Gate: 4 of 7 passed. Needed 5 + comparative advantage. Technically a fail, but the comparative advantage criterion passed decisively.**
+
+### Operator Feedback (verbatim, categorized)
+
+**Information Architecture:**
+- "There's no invitation. Search should be prominent on the landing page."
+- "It should feel more like Wikipedia or Britannica, with a featured synthesis or source of the day."
+- "A scrollable list of sources will be 100% useless — there will be too many."
+- "This needs an information architecture overhaul and a concrete design system."
+
+**Interaction Design:**
+- "Double-click for synthesis is undiscoverable — and impossible [on my setup]."
+- "UpSet is not useful like this. Might be more useful as nearest-neighbor discovery on an open piece."
+- "Graph doesn't show anything, it's blank."
+
+**Visual Design:**
+- "Theme is definitely half-baked but that's not the deepest problem."
+- "Could use a WCAG AA pass."
+- "Readability is poor — needs narrower max-width and larger text, more modern typography."
+- "Reading pane should feel materially offset (by color bg?) from the sidebars."
+- "Primary sidebar on left and secondary sidebar as part of reading pane surface."
+
+### Design Requirements Extracted
+
+1. **Tags and syntheses are the starting point, not sources.** The landing page should present tags as navigable categories with synthesis previews — not a list of documents.
+2. **Search must be prominent and central** on the landing experience.
+3. **Featured content** — random or recent synthesis/source as an invitation to explore.
+4. **Sources are drill-down targets**, not the primary view. They appear when you've navigated to a tag or intersection.
+5. **UpSet/intersection visualization** works better as contextual discovery ("related intersections for this tag") than as a standalone panel.
+6. **Graph visualization** is secondary — only worth including if it provides real navigation value, not decoration.
+7. **WCAG AA compliance** is a baseline requirement.
+8. **Typography and reading experience** must be designed, not defaulted — narrower max-width, larger text, modern fonts, clear visual hierarchy between navigation and content surfaces.
+9. **Explicit design system** needed before more code — color, type scale, spacing, component library.
 
 ## Lifecycle
 
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
 | Active | 2026-03-30 | 7da3311 | Initial creation |
+| Complete | 2026-03-30 | -- | Conditional Go — needs IA/design overhaul |

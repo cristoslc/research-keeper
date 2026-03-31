@@ -2,7 +2,7 @@
 title: "TiddlyWiki as rk Viewer"
 artifact: SPIKE-001
 track: container
-status: Active
+status: Complete
 author: cristos
 created: 2026-03-30
 last-updated: 2026-03-30
@@ -22,7 +22,7 @@ linked-artifacts:
 
 ## Summary
 
-<!-- Final-pass section: populated when transitioning to Complete. -->
+**No-Go.** TiddlyWiki's interaction model is fundamentally wrong for rk — it presents a flat dump of pages with a search bar, offering no structured navigation, no tag-first browsing, and no way to surface syntheses as entry points. The Notebook theme improved aesthetics but didn't address the core problem: TiddlyWiki's story-river paradigm assumes you know what you're looking for, while rk's value is in navigating what you don't yet know you have.
 
 ## Question
 
@@ -100,10 +100,29 @@ Document for each criterion: pass/fail, evidence, screenshots/notes from the eva
 
 ## Findings
 
-<!-- Populated during Active phase. -->
+### Criteria Results
+
+| Criterion | Result | Evidence |
+|-----------|--------|----------|
+| Tag intersection queries | **Pass** (technically) | `[tag[X]tag[Y]]` filter syntax works, but is undiscoverable — requires knowing TiddlyWiki's filter language |
+| Tag synthesis visibility | **Fail** | Syntheses are buried in the sidebar page list alongside everything else. No visual distinction. |
+| Source rendering quality | **Pass** | Markdown rendered correctly with the markdown plugin. YAML frontmatter displayed as metadata. |
+| Conversion feasibility | **Pass** | Script converted 20 sources + 8 tags + 3 queries in <1 second. |
+| Navigation UX | **Fail** | Evaluator's first reaction: "a dump of pages and a search bar." No structured starting point, no tag-first navigation. |
+| Acceptable latency | **Pass** | Sub-second response on all operations. |
+
+**Gate: 4 of 6 passed. Needed 5. No-Go.**
+
+### Key Observations
+
+1. **No invitation** — TiddlyWiki opens to a "Getting Started" page and a chronological list. There's no sense of "here's your knowledge base, start exploring."
+2. **Tags exist but aren't navigable** — Tags appear as colored pills on tiddlers but clicking them just opens that tag's tiddler. No faceted drill-down.
+3. **Notebook theme applied but didn't help** — The dark palette loaded but the fundamental layout (story-river left, sidebar right) doesn't change. The sidebar is still a flat list.
+4. **Server stability issues** — The Node.js server crashed when restarting with theme changes. Environment variables for plugin paths didn't persist across shell sessions.
 
 ## Lifecycle
 
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
 | Active | 2026-03-30 | 7da3311 | Initial creation |
+| Complete | 2026-03-30 | -- | No-Go verdict |
