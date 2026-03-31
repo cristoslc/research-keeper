@@ -1,0 +1,424 @@
+trove: git-repo-gui-frontends
+created: 2026-03-30
+refreshed: 2026-03-30
+tags:
+  - gui
+  - frontend
+  - knowledge-base
+  - markdown
+  - git
+  - obsidian
+  - wiki
+  - graph-visualization
+  - faceted-search
+  - tag-intersection
+  - knowledge-synthesis
+  - digital-garden
+  - static-site-generator
+  - rag
+  - semantic-search
+
+freshness-ttl:
+  web: 30d
+  forum: 30d
+
+history:
+  - event: created
+    date: 2026-03-30
+    commit: "1640143"
+    sources: 76
+
+sources:
+  # === Obsidian & vault readers (8) ===
+  - source-id: obsidian-git-plugin-github
+    type: web
+    url: "https://github.com/Vinzent03/obsidian-git"
+    title: "Obsidian Git Plugin"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: obsidian-off-vault-editor
+    type: web
+    url: "https://forum.obsidian.md/t/obsidian-as-editor-of-off-vault-markdown-notes-obseditor-in-github/107583"
+    title: "Obsidian as editor of off-vault markdown notes"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: obsidian-graph-view-discussion
+    type: forum
+    url: "https://forum.obsidian.md/t/whats-the-point-of-the-graph-view-how-are-you-using-it/71316"
+    title: "What's the point of the graph view?"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: xda-obsidian-open-source-stack
+    type: web
+    url: "https://www.xda-developers.com/replaced-entire-productivity-stack-with-open-source-tools-except-obsidian/"
+    title: "I've replaced my entire productivity stack with open-source tools, except for Obsidian"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: capacities-obsidian-notion-logseq-comparison
+    type: web
+    url: "https://medium.com/@ann_p/capacities-vs-obsidian-vs-notion-vs-logseq-2025-feature-comparison-72bff05e496c"
+    title: "Capacities vs Obsidian vs Notion vs Logseq: 2025 Feature Comparison"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: building-knowledge-graph-obsidian
+    type: web
+    url: "https://ericmjl.github.io/blog/2020/12/15/building-a-personal-knowledge-graph-on-obsidian/"
+    title: "Building a personal knowledge graph on Obsidian"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: obsidian-data-lock-in-discussion
+    type: forum
+    url: "https://forum.obsidian.md/t/is-there-a-data-lock-in-policy-in-obsidian/25277"
+    title: "Is there a Data Lock-in Policy in Obsidian?"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: obsidian-review-2026-lindy
+    type: web
+    url: "https://www.lindy.ai/blog/obsidian-review"
+    title: "Obsidian Review 2026"
+    fetched: 2026-03-30T18:04:37Z
+
+  # === Wiki engines (10) ===
+  - source-id: wikijs-git-storage-backend
+    type: web
+    url: "https://docs.requarks.io/storage/git"
+    title: "Wiki.js Git Storage Module"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: gollum-github-readme
+    type: web
+    url: "https://github.com/gollum/gollum"
+    title: "Gollum - A git-based Wiki"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: gollum-wikipedia
+    type: web
+    url: "https://en.wikipedia.org/wiki/Gollum_(software)"
+    title: "Gollum (software) - Wikipedia"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: mdbook-documentation
+    type: web
+    url: "https://rust-lang.github.io/mdBook/"
+    title: "mdBook Documentation"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: docusaurus-introduction
+    type: web
+    url: "https://docusaurus.io/docs"
+    title: "Docusaurus Introduction"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: mkdocs-material-getting-started
+    type: web
+    url: "https://squidfunk.github.io/mkdocs-material/getting-started/"
+    title: "Material for MkDocs"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: perforce-git-wiki-comparison
+    type: web
+    url: "https://www.perforce.com/blog/vcs/how-choose-right-git-powered-wiki-your-team"
+    title: "How to Choose the Right Git-Powered Wiki"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: dev-to-git-repo-knowledge-base
+    type: web
+    url: "https://dev.to/adam_b/a-personal-git-repo-as-a-knowledge-base-wiki-j51"
+    title: "A Personal Git Repo as a Knowledge Base Wiki"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: wikmd-github-readme
+    type: web
+    url: "https://github.com/Linbreux/wikmd"
+    title: "wikmd - A file based wiki with knowledge graph"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: selfhosted-reddit-markdown-wiki-discussion
+    type: forum
+    url: "https://www.reddit.com/r/selfhosted/comments/oe7xpp/markdown_based_wiki_i_can_git_push_to/"
+    title: "Markdown based wiki I can git push to?"
+    fetched: 2026-03-30T18:04:37Z
+
+  # === Knowledge graph visualization (8) ===
+  - source-id: top-5-knowledge-graph-visualization-tools
+    type: web
+    url: "https://knowledgegraph.solutions/article/Top_5_Knowledge_Graph_Visualization_Tools.html"
+    title: "Top 5 Knowledge Graph Visualization Tools"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: foam-personal-knowledge-management
+    type: web
+    url: "https://foambubble.github.io/foam/"
+    title: "Foam - Personal Knowledge Management for VS Code"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: top-10-js-libraries-knowledge-graph-visualization
+    type: web
+    url: "https://www.getfocal.co/post/top-10-javascript-libraries-for-knowledge-graph-visualization"
+    title: "Top 10 JS Libraries for Knowledge Graph Visualization"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: memgraph-graph-visualization-benchmark
+    type: web
+    url: "https://memgraph.com/blog/you-want-a-fast-easy-to-use-and-popular-graph-visualization-tool"
+    title: "Graph Visualization Tool Benchmarks (Memgraph)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: md-graph-interactive-network-from-markdown
+    type: web
+    url: "https://github.com/barrettotte/md-graph"
+    title: "md-graph: Interactive network from markdown links"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: infranodus-obsidian-knowledge-graph
+    type: web
+    url: "https://infranodus.com/use-case/visualize-knowledge-graphs-pkm"
+    title: "InfraNodus - AI-Powered Knowledge Graph for Obsidian"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: cambridge-intelligence-open-source-data-viz
+    type: web
+    url: "https://cambridge-intelligence.com/open-source-data-visualization/"
+    title: "Open source data visualization: 5 tools compared"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: brain-knowledge-graph-from-markdown
+    type: web
+    url: "https://github.com/enter-haken/brain"
+    title: "Brain - Knowledge graph from markdown documents"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: mindforger-thinking-notebook
+    type: web
+    url: "https://www.mindforger.com/"
+    title: "MindForger - Thinking Notebook and Knowledge Graph Navigator"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: obsidian-alternatives-graph-features
+    type: web
+    url: "https://scrintal.com/comparisons/obsidian-alternatives-with-robust-graph-features"
+    title: "7 Best Obsidian Alternatives with Graph Features (2025)"
+    fetched: 2026-03-30T18:04:37Z
+
+  # === Tag-based knowledge models (8) ===
+  - source-id: faceted-navigation-design-patterns-morville
+    type: web
+    url: "https://alistapart.com/article/design-patterns-faceted-navigation/"
+    title: "Design Patterns: Faceted Navigation (A List Apart)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: faceted-search-wikipedia
+    type: web
+    url: "https://en.wikipedia.org/wiki/Faceted_search"
+    title: "Faceted Search - Wikipedia"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: kinds-of-ties-zettelkasten
+    type: web
+    url: "https://zettelkasten.de/posts/kinds-of-ties/"
+    title: "Different Kinds of Ties Between Notes (Zettelkasten)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: folksonomy-wikipedia
+    type: web
+    url: "https://en.wikipedia.org/wiki/Folksonomy"
+    title: "Folksonomy - Wikipedia"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: formal-concept-analysis-software
+    type: web
+    url: "https://upriss.github.io/fca/fcasoftware.html"
+    title: "FCA Software - Formal Concept Analysis tools"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: ao3-curated-folksonomy-tag-wrangling
+    type: web
+    url: "https://archiveofourown.org/admin_posts/267"
+    title: "AO3 Tag Wrangling - Curated Folksonomy at Scale"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: indexed-references-vs-tags-matuschak
+    type: web
+    url: "https://notes.andymatuschak.org/Indexed_references_vs._tags"
+    title: "Indexed References vs. Tags (Andy Matuschak)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: grafs-graphical-faceted-search-exploratory
+    type: web
+    url: "https://arxiv.org/abs/2302.09448"
+    title: "GRAFS: Graphical Faceted Search for Exploratory Search"
+    fetched: 2026-03-30T18:04:37Z
+
+  # === Tag intersection & faceted browsing (7) ===
+  - source-id: faceted-navigation-enterprise-knowledge
+    type: web
+    url: "https://enterprise-knowledge.com/how-faceted-navigation-works/"
+    title: "How Faceted Navigation Works (Enterprise Knowledge)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: upset-home
+    type: web
+    url: "https://upset.app/"
+    title: "UpSet: Visualization of Intersecting Sets"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: upsetjs-ecosystem
+    type: web
+    url: "https://medium.com/@sgratzl/upset-js-the-upset-js-ecosystem-ab6692d2f34a"
+    title: "UpSet.js Ecosystem"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: facet-web-howto
+    type: web
+    url: "https://www.miskatonic.org/library/facet-web-howto.html"
+    title: "How to Make a Faceted Classification and Put It On the Web"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: raindrop-tag-filtering
+    type: forum
+    url: "https://raindropio.canny.io/feature-requests/p/tag-filtering-and-multi-tag-selection"
+    title: "Raindrop.io Tag Filtering and Multi-tag Selection"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: faceted-classification-hedden
+    type: web
+    url: "https://www.hedden-information.com/faceted-classification-and-faceted-taxonomies/"
+    title: "Faceted Classification and Faceted Taxonomies (Hedden)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: skos-w3c-primer
+    type: web
+    url: "https://www.w3.org/TR/skos-primer/"
+    title: "SKOS Simple Knowledge Organization System Primer (W3C)"
+    fetched: 2026-03-30T18:04:37Z
+
+  # === Static site generators & digital gardens (8) ===
+  - source-id: quartz-4-official
+    type: web
+    url: "https://quartz.jzhao.xyz/"
+    title: "Quartz 4 - Static site from Obsidian/markdown"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: digital-gardeners-repo
+    type: web
+    url: "https://github.com/MaggieAppleton/digital-gardeners"
+    title: "Digital Gardening Tools and Resources"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: nesslabs-digital-garden-setup
+    type: web
+    url: "https://nesslabs.com/digital-garden-set-up"
+    title: "How to set up your own digital garden (Ness Labs)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: vitepress-what-is
+    type: web
+    url: "https://vitepress.dev/guide/what-is-vitepress"
+    title: "What is VitePress?"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: why-i-chose-zola
+    type: web
+    url: "https://thedataquarry.com/blog/static-site-zola/"
+    title: "Why I chose Zola to build this site"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: grokipedia-tiddlywiki
+    type: web
+    url: "https://grokipedia.com/page/TiddlyWiki"
+    title: "TiddlyWiki - comprehensive reference"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: markdown-kb-client-search
+    type: web
+    url: "https://dev.to/hexshift/adding-search-to-your-markdown-knowledge-base-without-a-backend-35pc"
+    title: "Adding Search to Your Markdown Knowledge Base Without a Backend"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: ssg-comparison-mtm
+    type: web
+    url: "https://mtm.dev/static"
+    title: "Jekyll vs Hugo vs Gatsby vs Next vs Zola vs Eleventy"
+    fetched: 2026-03-30T18:04:37Z
+
+  # === Git-native browsing tools (8) ===
+  - source-id: forgejo-compare-forges
+    type: web
+    url: "https://forgejo.org/compare/"
+    title: "Comparison with other Forges (Forgejo)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: gitlab-wiki-docs
+    type: web
+    url: "https://docs.gitlab.com/user/project/wiki/"
+    title: "GitLab Wiki Documentation"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: sourcegraph-code-search-features
+    type: web
+    url: "https://sourcegraph.com/docs/code-search/features"
+    title: "Sourcegraph Code Search Capabilities"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: decap-cms-git-based-cms-guide
+    type: web
+    url: "https://decapcms.org/blog/git-based-cms-definition-features-best-practices/"
+    title: "Git-Based CMS: Definition, Features, Best Practices (Decap)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: flat-file-cms-markdown-rise
+    type: web
+    url: "https://dev.to/trendschau/markdown-everywhere-why-flat-file-cms-should-be-on-the-rise-again-4366"
+    title: "Markdown Everywhere: Why Flat-File CMS Should Be on the Rise"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: personal-git-repo-knowledge-base
+    type: web
+    url: "https://dev.to/adam_b/a-personal-git-repo-as-a-knowledge-base-wiki-j51"
+    title: "A Personal Git Repo as a Knowledge Base Wiki"
+    fetched: 2026-03-30T18:04:37Z
+    notes: "Duplicate of dev-to-git-repo-knowledge-base, kept both extractions"
+  - source-id: jekyll-personal-wiki-setup
+    type: web
+    url: "https://strikingloo.github.io/personal-wiki-set-up"
+    title: "How to Set Up a Personal Wiki (with Jekyll)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: top-git-based-cms-comparison-2025
+    type: web
+    url: "https://staticmania.com/blog/top-git-based-cms"
+    title: "Top Git-Based CMS Comparison 2025"
+    fetched: 2026-03-30T18:04:37Z
+
+  # === AI/semantic knowledge UIs (8) ===
+  - source-id: khoj-open-source-second-brain
+    type: web
+    url: "https://www.i-scoop.eu/khoj/"
+    title: "Khoj, the Open-Source Second Brain and Research Copilot"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: qmd-semantic-markdown-search
+    type: web
+    url: "https://github.com/tobi/qmd"
+    title: "QMD - On-device semantic search for markdown"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: khoj-vs-notebooklm-xda
+    type: web
+    url: "https://www.xda-developers.com/found-open-source-notebooklm-alternative-and-its-amazing/"
+    title: "Open-source NotebookLM alternative (Khoj)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: open-source-rag-frameworks-2026
+    type: web
+    url: "https://www.firecrawl.dev/blog/best-open-source-rag-frameworks"
+    title: "15 Best Open-Source RAG Frameworks in 2026"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: local-llm-file-access-replaces-apps
+    type: web
+    url: "https://www.makeuseof.com/gave-local-llm-access-to-files-replaced-three-apps/"
+    title: "Local LLM file access replaces three paid apps"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: mem-vs-reflect-ai-knowledge-management
+    type: web
+    url: "https://aloa.co/ai/comparisons/ai-note-taker-comparison/mem-vs-reflect"
+    title: "Mem vs Reflect 2025: AI-First vs Networked Thought"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: umap-document-embedding-tutorial
+    type: web
+    url: "https://umap-learn.readthedocs.io/en/latest/document_embedding.html"
+    title: "Document embedding using UMAP (tutorial)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: lazyqmd-tui-for-qmd
+    type: web
+    url: "https://alexanderzeitler.com/articles/introducing-lazyqmd-a-tui-for-qmd/"
+    title: "lazyqmd: a TUI for QMD semantic search"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: pyllmsearch-advanced-rag
+    type: web
+    url: "https://github.com/snexus/llm-search"
+    title: "pyLLMSearch - Advanced RAG for local documents"
+    fetched: 2026-03-30T18:04:37Z
+
+  # === Knowledge synthesis UIs (7) ===
+  - source-id: iatrox-ai-research-tools-comparison
+    type: web
+    url: "https://www.iatrox.com/blog/best-ai-tools-medical-research-2026-elicit-consensus-semantic-scholar-perplexity"
+    title: "AI Research Tools Comparison: Elicit, Consensus, Semantic Scholar, Perplexity, scite"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: notebooklm-comprehensive-guide
+    type: web
+    url: "https://www.baytechconsulting.com/blog/google-notebooklm-2025"
+    title: "NotebookLM: AI Research Partner (comprehensive guide)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: notebooklm-howto-learnprompting
+    type: web
+    url: "https://learnprompting.org/blog/notebooklm-guide"
+    title: "A Complete How-To Guide to NotebookLM"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: readwise-idea-workflow-progressive-summarization
+    type: web
+    url: "https://afadingthought.substack.com/p/readwise-and-the-idea-workflow"
+    title: "Readwise and the IDEA Workflow (Progressive Summarization)"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: adaptive-progressive-summarization-hf
+    type: web
+    url: "https://huggingface.co/blog/chansung/adaptive-summarization"
+    title: "Adaptive/Progressive Summarization for LLM Dialogues"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: mem-ai-review-knowledge-synthesis
+    type: web
+    url: "https://theprocesshacker.com/blog/mem-ai-review/"
+    title: "Mem AI Review: AI-Powered Knowledge Synthesis"
+    fetched: 2026-03-30T18:04:37Z
+  - source-id: dovetail-ai-sensemaking-synthesis
+    type: web
+    url: "https://docs.dovetail.com/help/dovetail-ai"
+    title: "Dovetail AI - Sensemaking and Synthesis"
+    fetched: 2026-03-30T18:04:37Z
