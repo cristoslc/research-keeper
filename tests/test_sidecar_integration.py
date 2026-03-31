@@ -279,3 +279,83 @@ class TestFullCycleCLI:
         # Verify final state
         for tag_slug in tag_store.list():
             assert (rk_root / "tags" / tag_slug / "synthesis.md").exists()
+
+
+class TestQuerySidecarFullCycle:
+    def test_search_fill_resolve_cycle(self, rk_root: Path):
+        """Full cycle: rk search generates sidecar -> agent fills -> rk resolve finalizes."""
+        import datetime
+        import struct
+        from unittest.mock import MagicMock
+
+        from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
+        from research_keeper.adapters.retriever.semantic import SemanticRetriever
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+        from research_keeper.config import load_config
+        from research_keeper.models import Freshness, Provenance, Source
+        from research_keeper.query_pipeline import QueryPipeline
+        from research_keeper.resolve import run_resolve
+        from research_keeper.sidecar import SidecarGenerator
+
+        root = rk_root
+
+        # Set up indexed source
+        index = SqliteIndex(root / "rk.db")
+        src = Source(
+            slug="alpha-paper",
+            content_path="library/sources/alpha-paper/source.md",
+            content="# Alpha\n\nContent about alpha.",
+            freshness=Freshness(ingested=datetime.date.today()),
+            provenance=Provenance(origin="test"),
+        )
+        index.upsert_source(src)
+        vec = struct.pack("3f", 1.0, 0.0, 0.0)
+        index.upsert_embedding("alpha-paper", "test", vec)
+
+        (root / "library" / "sources" / "alpha-paper").mkdir(parents=True, exist_ok=True)
+        (root / "library" / "sources" / "alpha-paper" / "source.md").write_text(src.content)
+
+        # Step 1: rk search (via pipeline)
+        retriever = SemanticRetriever(index=index, half_life_days=30)
+        query_store = FilesystemQueryStore(root)
+        config = load_config(root / "rk.yaml")
+        sidecar_gen = SidecarGenerator(root, config.completion)
+        embedder = MagicMock()
+        embedder.embed.return_value = vec
+
+        pipeline = QueryPipeline(
+            retriever=retriever,
+            query_store=query_store,
+            sidecar_gen=sidecar_gen,
+            embedder=embedder,
+            index=index,
+        )
+        result = pipeline.search("What is alpha?")
+
+        assert result.sidecar_path.exists()
+        assert result.sidecar_path.name == "query.j2"
+
+        # Step 2: Simulate agent rendering sidecar
+        pending_dir = result.sidecar_path.parent
+        (pending_dir / "query.md").write_text(
+            "# Alpha Explained\n\nAlpha is fundamental (alpha-paper)."
+        )
+
+        # Step 3: rk resolve
+        output = run_resolve(root)
+
+        # Verify final state
+        query_dir = root / "queries" / result.query_id
+        assert (query_dir / "synthesis.md").exists()
+        assert "Alpha is fundamental" in (query_dir / "synthesis.md").read_text()
+        assert (query_dir / "sources" / "alpha-paper").is_symlink()
+        assert not (query_dir / ".pending").exists()
+
+        # Verify SQLite
+        cur = index._conn.cursor()
+        cur.execute("SELECT kind FROM nodes WHERE id = ?", (result.query_id,))
+        row = cur.fetchone()
+        assert row is not None
+        assert row[0] == "query-synthesis"
+
+        assert "query" in output.lower()
