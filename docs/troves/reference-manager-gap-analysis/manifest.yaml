@@ -16,7 +16,7 @@ freshness-ttl:
 history:
   - event: created
     date: 2026-03-15
-    commit: "--"
+    commit: "13ff797"
     sources: 10
     notes: "Imported from boswell evidence-pool"
 
