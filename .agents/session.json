@@ -1,10 +1,10 @@
 {
   "bookmark": {
-    "note": "Created DESIGN-004",
+    "note": "Created SPEC-031 SPEC-032 SPEC-033, revised SPEC-012",
     "files": [
-      "docs/design/Active/(DESIGN-004)-Embedding-Backfill-And-Search-Degradation/(DESIGN-004)-Embedding-Backfill-And-Search-Degradation.md"
+      "docs/spec/Active/(SPEC-031)-FTS-Search-Fallback.md docs/spec/Active/(SPEC-032)-Embedding-Backfill-In-Rebuild.md docs/spec/Active/(SPEC-033)-Doctor-Embedding-Coverage.md docs/spec/Active/(SPEC-012)-Query-Pipeline-And-CLI.md"
     ],
-    "timestamp": "2026-03-31T11:48:35Z"
+    "timestamp": "2026-03-31T12:00:27Z"
   },
   "lastBranch": "worktree-session-20260330-231747-5382"
 }
