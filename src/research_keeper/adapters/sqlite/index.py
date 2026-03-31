@@ -193,6 +193,16 @@ class SqliteIndex:
         )
         self._conn.commit()
 
+    def nodes_missing_embeddings(self) -> list[tuple[str, str]]:
+        """Return (node_id, content) pairs for nodes without embeddings."""
+        cur = self._conn.cursor()
+        cur.execute(
+            """SELECT n.id, n.content FROM nodes n
+            LEFT JOIN embeddings e ON n.id = e.node_id
+            WHERE e.node_id IS NULL"""
+        )
+        return [(row["id"], row["content"]) for row in cur.fetchall()]
+
     def _row_to_source(self, row: sqlite3.Row) -> Source:
         published = None
         if row["published"]:

@@ -351,6 +351,32 @@ def _rebuild_impl(root: str) -> None:
         f"{query_count} query(s), {inv_count} investigation(s) indexed"
     )
 
+    # Embedding backfill phase: generate embeddings for nodes missing them
+    embedder = _build_embedder(config)
+    # Skip backfill if embedder is a stub
+    if getattr(embedder, "_model", None) == "stub":
+        return
+
+    missing = index.nodes_missing_embeddings()
+    if not missing:
+        return
+
+    backfilled = 0
+    skipped = 0
+    for node_id, content in missing:
+        try:
+            emb_bytes = embedder.embed(content)
+            if emb_bytes:
+                index.upsert_embedding(node_id, getattr(embedder, "_model", "unknown"), emb_bytes)
+                backfilled += 1
+        except Exception:
+            skipped += 1
+
+    parts = [f"Backfilled embeddings for {backfilled} source(s)"]
+    if skipped:
+        parts.append(f"{skipped} skipped (embedder unavailable)")
+    click.echo(". ".join(parts) + ".")
+
 
 @main.command()
 @click.argument("query")
