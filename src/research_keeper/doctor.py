@@ -281,6 +281,32 @@ def check_orphaned_locks(root: Path) -> list[DiagnosticResult]:
     return results
 
 
+def check_embedding_coverage(root: Path) -> list[DiagnosticResult]:
+    """Check SQLite index for nodes missing embeddings."""
+    db_path = root / "rk.db"
+    if not db_path.exists():
+        return []
+
+    from research_keeper.adapters.sqlite.index import SqliteIndex
+
+    index = SqliteIndex(db_path)
+    try:
+        missing = index.nodes_missing_embeddings()
+    finally:
+        index._conn.close()
+
+    if not missing:
+        return []
+
+    count = len(missing)
+    return [DiagnosticResult(
+        severity=Severity.WARNING,
+        check="embedding_coverage",
+        message=f"{count} node(s) missing embeddings — run rk rebuild to backfill",
+        count=count,
+    )]
+
+
 def check_unresolved_sidecars(root: Path) -> list[DiagnosticResult]:
     """Report unresolved sidecars (informational)."""
     results = []
@@ -333,4 +359,5 @@ def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     results.extend(check_stale_sidecars(root))
     results.extend(check_orphaned_locks(root))
     results.extend(check_unresolved_sidecars(root))
+    results.extend(check_embedding_coverage(root))
     return results

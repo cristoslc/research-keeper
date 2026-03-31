@@ -11,6 +11,7 @@ from research_keeper.doctor import (
     DiagnosticResult,
     Severity,
     check_duplicate_hashes,
+    check_embedding_coverage,
     check_missing_embeddings,
     check_orphaned_symlinks,
     check_stale_nodes,
@@ -195,3 +196,77 @@ class TestCheckMissingEmbeddingsAutoFix:
         # For unit test, we just verify the function accepts fix parameter
         results = check_missing_embeddings(lib_root, fix=False)
         assert len(results) == 1
+
+
+class TestCheckEmbeddingCoverage:
+    """Tests for SQLite-level embedding coverage check (SPEC-033)."""
+
+    def test_no_warning_when_all_embedded(self, lib_root: Path):
+        """All nodes have embeddings -> no embedding_coverage warning."""
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        db_path = lib_root / "rk.db"
+        index = SqliteIndex(db_path)
+        # Insert a node
+        index._conn.execute(
+            "INSERT INTO nodes (id, kind, content_path, content) VALUES (?, ?, ?, ?)",
+            ("node-a", "source", "sources/node-a/source.md", "content a"),
+        )
+        # Insert its embedding
+        index._conn.execute(
+            "INSERT INTO embeddings (node_id, model, embedding) VALUES (?, ?, ?)",
+            ("node-a", "test-model", b"\x00" * 16),
+        )
+        index._conn.commit()
+        index._conn.close()
+
+        results = check_embedding_coverage(lib_root)
+        assert len(results) == 0
+
+    def test_warns_on_missing_embeddings(self, lib_root: Path):
+        """Some nodes lack embeddings -> output contains count and rebuild suggestion."""
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        db_path = lib_root / "rk.db"
+        index = SqliteIndex(db_path)
+        # Insert two nodes, only one with an embedding
+        for nid in ("node-a", "node-b"):
+            index._conn.execute(
+                "INSERT INTO nodes (id, kind, content_path, content) VALUES (?, ?, ?, ?)",
+                (nid, "source", f"sources/{nid}/source.md", f"content {nid}"),
+            )
+        index._conn.execute(
+            "INSERT INTO embeddings (node_id, model, embedding) VALUES (?, ?, ?)",
+            ("node-a", "test-model", b"\x00" * 16),
+        )
+        index._conn.commit()
+        index._conn.close()
+
+        results = check_embedding_coverage(lib_root)
+        assert len(results) == 1
+        assert results[0].count == 1
+        assert "1 node(s) missing embeddings" in results[0].message
+        assert "rk rebuild" in results[0].message
+
+    def test_warning_is_not_error(self, lib_root: Path):
+        """Missing embeddings produce WARNING severity, not ERROR."""
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        db_path = lib_root / "rk.db"
+        index = SqliteIndex(db_path)
+        index._conn.execute(
+            "INSERT INTO nodes (id, kind, content_path, content) VALUES (?, ?, ?, ?)",
+            ("node-a", "source", "sources/node-a/source.md", "content"),
+        )
+        index._conn.commit()
+        index._conn.close()
+
+        results = check_embedding_coverage(lib_root)
+        assert len(results) == 1
+        assert results[0].severity == Severity.WARNING
+        assert results[0].severity != Severity.ERROR
+
+    def test_no_db_returns_empty(self, lib_root: Path):
+        """When rk.db doesn't exist, check returns no results."""
+        results = check_embedding_coverage(lib_root)
+        assert len(results) == 0
