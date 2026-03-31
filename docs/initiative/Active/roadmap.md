@@ -5,15 +5,15 @@
 
 ## Progress
 
-░░░░░░░░░░░░ 0/32 complete (0%)
+█░░░░░░░░░░░ 2/35 complete (6%)
 
 ## Recent Activity
 
 | Date | Time | Commit | Message |
 |------|------|--------|---------|
-| 2026-03-30 | 13:49 | `e18e0fe` | docs: add EPIC-006 (V1 Ready) with SPECs 021-026 |
-| 2026-03-30 | 12:40 | `4520a87` | docs: add personas, update vision, split completion spec, add README |
-| 2026-03-29 | 15:26 | `d1f3ba5` | docs: add Epics 002-005 and Specs 006-009 for Phases 2-5 |
+| 2026-03-30 | 23:03 | `4186413` | docs: complete SPIKE-001 (No-Go) and SPIKE-002 (Conditional Go), retro on EPIC-007 |
+| 2026-03-30 | 17:00 | `b393217` | Rewrite rk add for sidecar model, remove old completion code (SPEC-019) |
+| 2026-03-30 | 16:59 | `1df3584` | docs(EPIC-007): stamp lifecycle hash 2491404 |
 
 ## Priority Subset
 
@@ -22,7 +22,7 @@
 
 | Initiative | Epic | Progress | Unblocks | Needs |
 |-----------|------|----------|----------|-------|
-| [Mechanism Layer](docs/initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Hexagonal Foundation](docs/epic/Active/(EPIC-001)-Hexagonal-Foundation.md) | 0/5 | 1 | — |
+| [Mechanism Layer](docs/initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Hexagonal Foundation](docs/epic/Active/(EPIC-001)-Hexagonal-Foundation.md) | 0/5 | 2 | — |
 |  | [Auto-Tagging & Synthesis](docs/epic/Active/(EPIC-002)-Auto-Tagging-And-Synthesis.md) | 0/4 | 1 | — |
 |  | [V1 Ready](docs/epic/Active/(EPIC-006)-V1-Ready.md) | 0/5 | 1 | — |
 |  | [Completion Config & Task Routing](docs/spec/Active/(SPEC-019)-Completion-Resolution-And-Config.md) | 0/0 | 1 | **needs decomposition** |
@@ -40,6 +40,7 @@
 | [Mechanism Layer](docs/initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Query System](docs/epic/Active/(EPIC-003)-Query-System.md) | 0/3 | 1 | — |
 |  | [Investigations & MCP Server](docs/epic/Active/(EPIC-004)-Investigations-And-MCP.md) | 0/3 | 1 | — |
 |  | [Multi-Environment Access](docs/epic/Active/(EPIC-005)-Multi-Environment.md) | 0/3 | 0 | — |
+|  | [Knowledge Base Viewer](docs/epic/Active/(EPIC-007)-Knowledge-Base-Viewer.md) | 0/0 | 0 | **needs decomposition** |
 
 ### Backlog
 *Not yet prioritized or started*
@@ -83,6 +84,9 @@
   - [SPEC-023](../../spec/Active/(SPEC-023)-Graceful-Degradation-And-User-Feedback.md) — Graceful Degradation & User Feedback (Active, in progress)
   - [SPEC-024](../../spec/Active/(SPEC-024)-Fix-Investigation-Brief.md) — Fix Investigation Brief (Active, in progress)
   - [SPEC-025](../../spec/Active/(SPEC-025)-Fix-Investigation-Source-Symlinks.md) — Fix Investigation Source Symlinks (Active, in progress)
+- [EPIC-007](../../epic/Active/(EPIC-007)-Knowledge-Base-Viewer.md) — Knowledge Base Viewer (—)
+  - [SPIKE-001](../../research/Complete/(SPIKE-001)-TiddlyWiki-As-RK-Viewer/(SPIKE-001)-TiddlyWiki-As-RK-Viewer.md) — TiddlyWiki as rk Viewer (Complete, done)
+  - [SPIKE-002](../../research/Complete/(SPIKE-002)-Custom-SPA-As-RK-Viewer/(SPIKE-002)-Custom-SPA-As-RK-Viewer.md) — Custom SPA as rk Viewer (Complete, done)
 - [SPEC-019](../../spec/Active/(SPEC-019)-Completion-Resolution-And-Config.md) — Completion Config & Task Routing (in progress)
 ### Proposed
 

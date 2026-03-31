@@ -1,16 +1,11 @@
 {
-  "session_id": "session-20260329-121805-458b",
+  "session_id": "session-20260330-135249-c943",
   "focus_lane": "EPIC-001",
   "phase": "active",
-  "start_time": "2026-03-29T16:18:05Z",
+  "start_time": "2026-03-30T17:52:49Z",
   "end_time": null,
   "decision_budget": 5,
-  "decisions_made": 1,
-  "decisions": [
-    {
-      "note": "Approved Phase 1 plan \u2014 subagent-driven execution of SPEC-001 through SPEC-005",
-      "timestamp": "2026-03-29T16:18:09Z"
-    }
-  ],
+  "decisions_made": 0,
+  "decisions": [],
   "walkaway": null
 }
