@@ -1,0 +1,48 @@
+# Changelog
+
+## [0.1.0] - 2026-03-31
+
+### Features
+
+#### Core intake pipeline — add any source, search intelligently
+
+The `rk add` command accepts URLs, PDFs, notes, YouTube videos, and audio files. Each source is normalized to markdown, deduplicated by content hash, embedded via Ollama, and filed with ingestion-date symlinks. `rk search` runs a full semantic query pipeline with freshness decay and cosine similarity ranking — falling back to SQLite FTS5 when the embedder is offline, so search never goes dark.
+
+#### Investigation lifecycle — focused research threads with rolling synthesis
+
+Open an investigation with `rk investigate open`, add sources inside its context, and search within scope. Each search produces a query sidecar that accumulates results over time. `rk resolve` runs the sidecar pipeline state machine and now generates a rolling synthesis — a live narrative that extends with each new run rather than overwriting from scratch, so your emerging understanding compounds as the investigation deepens.
+
+#### Agent-agnostic design — no LLM SDK, no API keys baked in
+
+The tagger and synthesizer are now prompt builders and response parsers that delegate through a Completer port. The calling agent — Claude Code, Cursor, any MCP client — provides the LLM. rk never calls an API directly. Ollama for local embeddings is the only optional external service, configurable via `rk.yaml`. This means rk works in any agentic runtime without credential wiring.
+
+#### MCP server — expose your knowledge base as a tool
+
+`rk serve` starts an MCP server exposing `rk add` and `rk search` as tools that any MCP-compatible agent can call. Your knowledge base becomes a live context resource, not just a local file store.
+
+#### Health, sync, and auth commands
+
+`rk doctor` runs health checks and reports embedding coverage gaps. `rk sync` and `rk publish` support git-backed remote data directories. `rk auth` manages credentials. `rk rebuild` reconstructs the SQLite index and backfills any missing embeddings.
+
+- `rk skill install` bootstraps the rk agent skill into Claude Code, Cursor, Codex, or Gemini — detects which runtime is present and installs the right skill file with one command
+- Graceful degradation throughout: embedder failures are logged and skipped, missing synthesizer does not crash search, stores self-bootstrap their directory structure (no `rk init` required)
+
+### Planned
+
+- Browser-based knowledge base viewer — browse your research library, pick up investigations, and read sources in a clean interface designed for the Explorer persona (topic index, source reading, investigation detail)
+- Companion model for the viewer — a phased delivery plan covering four user journeys: exploring the knowledge base, picking up an investigation, browsing new material, and adding a source through the UI
+
+### Research
+
+- Git repo GUI frontends trove — 76 sources collected, informing viewer technology selection
+- Agent sandboxing methods and reference manager gap analysis — imported from boswell research archive
+- SPIKE-001 (TiddlyWiki viewer) — completed No-Go: rendering limitations and extension model don't fit the investigation UX
+- SPIKE-002 (Custom SPA viewer) — completed Conditional Go: viable with scoped implementation plan
+- SPIKE-003 (media subtitle extraction + Whisper transcription) — subtitle fallback and local transcription now wired into the media normalizer
+
+### Supporting Changes
+
+- Hexagonal architecture throughout: SourceStore, Normalizer, Embedder, Index, Tagger, Synthesizer, Completer, QueryStore, InvestigationStore, RemoteResolver all defined as port protocols
+- Full integration test suite: end-to-end lifecycle, rebuild, doctor, accumulation, context threading, sidecar pipeline smoke tests
+- ADRs 001-004 document architecture decisions: port protocols, sidecar pipeline, agent-agnostic design, embedding strategy
+- Retros embedded after initial buildout, query pipeline buildout, and viewer design sessions
