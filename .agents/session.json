@@ -1,7 +1,10 @@
 {
   "bookmark": {
-    "note": "Pushed SPEC-030 implementation plan and session state to trunk",
-    "timestamp": "2026-03-31T04:07:52Z"
+    "note": "Created DESIGN-004",
+    "files": [
+      "docs/design/Active/(DESIGN-004)-Embedding-Backfill-And-Search-Degradation/(DESIGN-004)-Embedding-Backfill-And-Search-Degradation.md"
+    ],
+    "timestamp": "2026-03-31T11:48:35Z"
   },
   "lastBranch": "worktree-session-20260330-231747-5382"
 }
