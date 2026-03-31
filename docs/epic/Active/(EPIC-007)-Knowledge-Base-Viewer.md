@@ -7,7 +7,7 @@ author: cristos
 created: 2026-03-30
 last-updated: 2026-03-30
 parent-vision: VISION-001
-parent-initiative: INITIATIVE-001
+parent-initiative: INITIATIVE-002
 priority-weight: medium
 success-criteria:
   - "A human can browse an rk instance's sources, tags, and syntheses through a GUI"
