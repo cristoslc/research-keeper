@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import datetime
-import struct
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -9,10 +7,6 @@ import pytest
 from click.testing import CliRunner
 
 from research_keeper.cli import main
-
-
-def _pack(vec: list[float]) -> bytes:
-    return struct.pack(f"{len(vec)}f", *vec)
 
 
 @pytest.fixture
@@ -52,35 +46,51 @@ class TestCLISearch:
         assert "Search" in result.output or "search" in result.output.lower()
 
     @patch("research_keeper.cli._build_search_pipeline")
-    def test_search_prints_synthesis(self, mock_build, initialized_root: Path):
-        from research_keeper.query_pipeline import QueryResult
+    def test_search_shows_sidecar_path(self, mock_build, initialized_root: Path):
+        from research_keeper.query_pipeline import QuerySearchResult
 
         mock_pipeline = MagicMock()
-        mock_pipeline.search.return_value = QueryResult(
-            query_id="qry-2026-03-30-test",
+        sidecar_path = initialized_root / "queries" / "qry-20260330-test" / ".pending" / "query.j2"
+        sidecar_path.parent.mkdir(parents=True)
+        sidecar_path.write_text("template")
+
+        mock_pipeline.search.return_value = QuerySearchResult(
+            query_id="qry-20260330-test",
             query_text="test query",
-            synthesis="This is the synthesized answer.",
-            cited_sources=["source-a"],
+            sidecar_path=sidecar_path,
+            scored_nodes=[],
         )
         mock_build.return_value = mock_pipeline
 
         runner = CliRunner()
         result = runner.invoke(main, ["search", "test query", "--root", str(initialized_root)])
         assert result.exit_code == 0
-        assert "synthesized answer" in result.output
+        assert "Sidecar:" in result.output
+        assert "Fill the sidecar" in result.output
 
     @patch("research_keeper.cli._build_search_pipeline")
-    def test_search_shows_query_id(self, mock_build, initialized_root: Path):
-        from research_keeper.query_pipeline import QueryResult
+    def test_search_shows_retrieval_summary(self, mock_build, initialized_root: Path):
+        from research_keeper.models import ScoredNode
+        from research_keeper.query_pipeline import QuerySearchResult
 
         mock_pipeline = MagicMock()
-        mock_pipeline.search.return_value = QueryResult(
-            query_id="qry-2026-03-30-test",
+        sidecar_path = initialized_root / "queries" / "qry-20260330-test" / ".pending" / "query.j2"
+        sidecar_path.parent.mkdir(parents=True)
+        sidecar_path.write_text("template")
+
+        mock_pipeline.search.return_value = QuerySearchResult(
+            query_id="qry-20260330-test",
             query_text="test query",
-            synthesis="Answer text.",
+            sidecar_path=sidecar_path,
+            scored_nodes=[
+                ScoredNode(slug="alpha-paper", content="...", score=0.87, similarity=0.92, freshness_weight=0.95),
+            ],
         )
         mock_build.return_value = mock_pipeline
 
         runner = CliRunner()
         result = runner.invoke(main, ["search", "test query", "--root", str(initialized_root)])
-        assert "qry-2026-03-30-test" in result.output
+        assert result.exit_code == 0
+        assert "Retrieved 1 sources" in result.output
+        assert "alpha-paper" in result.output
+        assert "0.87" in result.output

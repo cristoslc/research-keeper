@@ -97,17 +97,23 @@ class TestNoEmbedderAvailable:
 
 class TestSearchDegradation:
     @patch("research_keeper.cli._build_search_pipeline")
-    def test_search_without_synthesizer_returns_fts(self, mock_build, runner: CliRunner, initialized_root: Path):
-        """When synthesizer is None, search should return FTS results with message."""
-        from research_keeper.query_pipeline import QueryResult
+    def test_search_returns_sidecar_path(self, mock_build, runner: CliRunner, initialized_root: Path):
+        """Search should return a sidecar path for async completion."""
+        from research_keeper.query_pipeline import QuerySearchResult
 
         mock_pipeline = MagicMock()
-        mock_pipeline.search.return_value = QueryResult(
+        sidecar_path = initialized_root / "queries" / "qry-test" / ".pending" / "query.j2"
+        sidecar_path.parent.mkdir(parents=True)
+        sidecar_path.write_text("template")
+
+        mock_pipeline.search.return_value = QuerySearchResult(
             query_id="qry-test",
             query_text="test",
-            synthesis="(synthesis unavailable -- showing search results only)",
+            sidecar_path=sidecar_path,
+            scored_nodes=[],
         )
         mock_build.return_value = mock_pipeline
 
         result = runner.invoke(main, ["search", "test query", "--root", str(initialized_root)])
         assert result.exit_code == 0
+        assert "Sidecar:" in result.output

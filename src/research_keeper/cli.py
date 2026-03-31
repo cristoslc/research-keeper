@@ -364,13 +364,19 @@ def search(query: str, root: str, top_k: int | None, investigation: str | None) 
         result = pipeline.search(query, top_k=top_k, investigation_id=investigation)
 
         click.echo(f"\n--- Query: {query} ---\n")
-        click.echo(result.synthesis)
-        click.echo(f"\n--- Saved as: {result.query_id} ---")
 
-        if result.cited_sources:
-            click.echo(f"Cited sources: {', '.join(result.cited_sources)}")
-        if result.cited_tags:
-            click.echo(f"Cited tags: {', '.join(result.cited_tags)}")
+        if result.scored_nodes:
+            click.echo(f"Retrieved {len(result.scored_nodes)} sources:")
+            for node in result.scored_nodes:
+                click.echo(
+                    f"  {node.slug:<30s} score={node.score:.2f} "
+                    f"(sim={node.similarity:.2f}, fresh={node.freshness_weight:.2f})"
+                )
+            click.echo()
+
+        click.echo(f"Sidecar: {result.sidecar_path}")
+        click.echo("\nFill the sidecar, then run: rk resolve")
+
         if investigation:
             click.echo(f"Linked to investigation: {investigation}")
     except Exception as exc:
@@ -613,6 +619,7 @@ def _build_search_pipeline(root: Path):
     from research_keeper.adapters.sqlite.index import SqliteIndex
     from research_keeper.query_pipeline import QueryPipeline
     from research_keeper.retrieval import parse_ttl_days
+    from research_keeper.sidecar import SidecarGenerator
 
     config = load_config(root / "rk.yaml")
 
@@ -621,11 +628,12 @@ def _build_search_pipeline(root: Path):
     half_life = parse_ttl_days(config.freshness.default_ttl)
     retriever = SemanticRetriever(index=index, half_life_days=half_life)
     embedder = _build_embedder(config)
+    sidecar_gen = SidecarGenerator(root, config.completion)
 
     return QueryPipeline(
         retriever=retriever,
-        synthesizer=None,
         query_store=query_store,
+        sidecar_gen=sidecar_gen,
         embedder=embedder,
         index=index,
         top_k=config.retrieval.top_k,
