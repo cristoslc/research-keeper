@@ -38,3 +38,9 @@ No decisions recorded yet this session.
 ## Walk-Away Signal
 
 No decisions needed — this focus area has no pending operator actions.
+
+## Walk-Away Signal
+
+> EPIC-007 spikes done (TW No-Go, SPA Conditional Go). Merged to trunk. Next: brainstorm IA then write interaction DESIGN.
+
+*Session closed: 2026-03-31T03:18:28Z*

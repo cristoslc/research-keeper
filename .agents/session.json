@@ -1,10 +1,11 @@
 {
   "bookmark": {
-    "note": "Created DESIGN-003",
+    "note": "EPIC-007: Spikes complete, worktree merged to trunk. Next: brainstorm IA for viewer DESIGN artifact, then write DESIGN-NNN (interaction). Operator question open: one big DESIGN or break it up? Brainstorm before formal artifact.",
     "files": [
-      "docs/design/Active/(DESIGN-003)-Query-Sidecar-And-Search-Synthesis/(DESIGN-003)-Query-Sidecar-And-Search-Synthesis.md"
+      "docs/epic/Active/(EPIC-007)-Knowledge-Base-Viewer.md",
+      "docs/research/Complete/(SPIKE-002)-Custom-SPA-As-RK-Viewer/(SPIKE-002)-Custom-SPA-As-RK-Viewer.md"
     ],
-    "timestamp": "2026-03-31T03:01:09Z"
+    "timestamp": "2026-03-31T03:18:22Z"
   },
   "lastBranch": "worktree-session-20260330-231747-5382"
 }
