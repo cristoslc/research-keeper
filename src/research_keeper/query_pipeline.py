@@ -19,6 +19,7 @@ class QuerySearchResult:
     query_text: str
     sidecar_path: Path
     scored_nodes: list[ScoredNode] = field(default_factory=list)
+    fts_fallback: bool = False
 
 
 class QueryPipeline:
@@ -57,17 +58,20 @@ class QueryPipeline:
         if self._remote and self._remote.is_remote:
             self._remote.sync()
 
-        # Step 1: Embed the query
+        # Step 1: Try embedding + semantic search; fall back to FTS on failure
+        fts_fallback = False
+        query_embedding: bytes | None = None
+        scored_nodes: list[ScoredNode] = []
+
         try:
             query_embedding = self._embedder.embed(query_text)
+            scored_nodes = self._retriever.search_by_embedding(query_embedding, top_k=top_k)
         except Exception:
-            logger.warning("Query embedding failed — cannot search")
-            raise
+            logger.warning("Embedder unavailable — falling back to FTS")
+            fts_fallback = True
+            scored_nodes = self._fts_search(query_text, top_k)
 
-        # Step 2: Retrieve top-k results
-        scored_nodes = self._retriever.search_by_embedding(query_embedding, top_k=top_k)
-
-        # Step 3: Build retrieval list for meta.yaml
+        # Step 2: Build retrieval list for meta.yaml
         retrieval = [
             {
                 "slug": node.slug,
@@ -79,15 +83,15 @@ class QueryPipeline:
             for node in scored_nodes
         ]
 
-        # Step 4: Create pending query (directory, meta.yaml, embedding.bin)
+        # Step 3: Create pending query (directory, meta.yaml, embedding.bin)
         query_id = self._query_store.create_pending(
             query_text=query_text,
             retrieval=retrieval,
-            embedding=query_embedding,
+            embedding=query_embedding,  # None if FTS fallback
             investigation_id=investigation_id,
         )
 
-        # Step 5: Build scored_sources for sidecar context
+        # Step 4: Build scored_sources for sidecar context
         scored_sources = [
             {
                 "slug": node.slug,
@@ -99,7 +103,7 @@ class QueryPipeline:
             for node in scored_nodes
         ]
 
-        # Step 6: Generate query.j2 sidecar
+        # Step 5: Generate query.j2 sidecar
         sidecar_path = self._sidecar_gen.generate_query_sidecar(
             query_id=query_id,
             query_text=query_text,
@@ -107,7 +111,7 @@ class QueryPipeline:
             model_hint=model_hint,
         )
 
-        # Step 7: Link to investigation if specified
+        # Step 6: Link to investigation if specified
         if investigation_id and self._investigation_store:
             self._investigation_store.link(investigation_id, query_id, "query")
 
@@ -120,4 +124,30 @@ class QueryPipeline:
             query_text=query_text,
             sidecar_path=sidecar_path,
             scored_nodes=scored_nodes,
+            fts_fallback=fts_fallback,
         )
+
+    def _fts_search(self, query_text: str, top_k: int) -> list[ScoredNode]:
+        """Fall back to FTS5 keyword search, ranked by freshness only."""
+        from research_keeper.retrieval import freshness_weight
+
+        try:
+            sources = self._index.search_fts(query_text, limit=top_k)
+        except Exception:
+            logger.warning("FTS query failed — returning empty results")
+            return []
+
+        scored: list[ScoredNode] = []
+        for source in sources:
+            fw = freshness_weight(source.freshness.ingested, 30)
+            scored.append(ScoredNode(
+                slug=source.slug,
+                content=source.content,
+                score=round(fw, 4),
+                similarity=0.0,
+                freshness_weight=round(fw, 4),
+                kind=source.kind,
+            ))
+
+        scored.sort(key=lambda n: n.score, reverse=True)
+        return scored

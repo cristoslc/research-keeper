@@ -365,6 +365,9 @@ def search(query: str, root: str, top_k: int | None, investigation: str | None) 
 
         click.echo(f"\n--- Query: {query} ---\n")
 
+        if result.fts_fallback:
+            click.echo("(FTS fallback — embedder unavailable, results ranked by freshness)\n")
+
         if result.scored_nodes:
             click.echo(f"Retrieved {len(result.scored_nodes)} sources:")
             for node in result.scored_nodes:
