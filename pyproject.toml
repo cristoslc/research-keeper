@@ -10,7 +10,7 @@ dependencies = [
 
 [project.optional-dependencies]
 web = ["trafilatura>=2.0"]
-media = ["yt-dlp"]
+media = ["yt-dlp", "faster-whisper>=1.0"]
 documents = ["pymupdf>=1.24"]
 ollama = ["httpx>=0.27"]
 mcp = ["mcp>=1.0"]

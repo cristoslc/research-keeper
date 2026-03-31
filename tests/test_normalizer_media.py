@@ -50,16 +50,20 @@ def test_youtube_normalization(mock_subs, mock_info, normalizer):
 
 @patch("research_keeper.adapters.normalizers.media._fetch_youtube_info")
 @patch("research_keeper.adapters.normalizers.media._fetch_youtube_subtitles")
-def test_youtube_no_subtitles(mock_subs, mock_info, normalizer):
+@patch("research_keeper.adapters.normalizers.media._download_youtube_audio")
+@patch("research_keeper.adapters.normalizers.media._transcribe_audio")
+def test_youtube_no_subtitles_or_transcript(mock_transcribe, mock_download, mock_subs, mock_info, normalizer):
     mock_info.return_value = _mock_yt_info()
     mock_subs.return_value = None
+    mock_download.return_value = None
+    mock_transcribe.return_value = None
 
     content, meta = normalizer.normalize(
         "https://www.youtube.com/watch?v=abc123",
         {},
     )
 
-    assert "(No subtitles available)" in content
+    assert "(No transcript available)" in content
     assert meta["title"] == "Understanding Agent Memory"
 
 

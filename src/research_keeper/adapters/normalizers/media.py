@@ -1,12 +1,17 @@
 # src/research_keeper/adapters/normalizers/media.py
 from __future__ import annotations
 
+import glob
 import json
+import logging
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 
 from research_keeper.ports.normalizer import NormalizationError
+
+logger = logging.getLogger(__name__)
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".webm", ".aac"}
 
@@ -25,27 +30,85 @@ def _fetch_youtube_info(url: str) -> dict:
 
 
 def _fetch_youtube_subtitles(url: str) -> str | None:
-    """Fetch subtitles/auto-captions using yt-dlp."""
+    """Fetch subtitles/auto-captions using yt-dlp, return clean text or None."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Try manual subs first, then auto-captions
+        for flag in ["--write-sub", "--write-auto-sub"]:
+            result = subprocess.run(
+                [
+                    "yt-dlp",
+                    flag,
+                    "--sub-lang", "en",
+                    "--skip-download",
+                    "--sub-format", "vtt",
+                    "-o", f"{tmpdir}/%(id)s",
+                    url,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+            vtt_files = glob.glob(f"{tmpdir}/*.vtt")
+            if vtt_files:
+                return _vtt_to_text(Path(vtt_files[0]))
+
+    return None
+
+
+def _vtt_to_text(vtt_path: Path) -> str:
+    """Convert a VTT subtitle file to clean deduplicated text."""
+    raw = vtt_path.read_text()
+    lines: list[str] = []
+    for line in raw.split("\n"):
+        # Skip header, timestamps, blank lines
+        if line.startswith("WEBVTT") or line.startswith("Kind:") or line.startswith("Language:"):
+            continue
+        if re.match(r"^\d{2}:\d{2}", line):
+            continue
+        if not line.strip():
+            continue
+        # Strip inline VTT tags like <00:00:19.760><c>
+        clean = re.sub(r"<[^>]+>", "", line).strip()
+        if clean and (not lines or clean != lines[-1]):
+            lines.append(clean)
+    return "\n".join(lines)
+
+
+def _transcribe_audio(audio_path: str) -> str | None:
+    """Transcribe audio using faster-whisper. Returns text or None."""
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        logger.info("faster-whisper not installed — skipping transcription")
+        return None
+
+    try:
+        model = WhisperModel("tiny", device="cpu", compute_type="int8")
+        segments, _info = model.transcribe(audio_path, language="en")
+        text = " ".join(seg.text.strip() for seg in segments)
+        return text if text.strip() else None
+    except Exception as exc:
+        logger.warning("Whisper transcription failed: %s", exc)
+        return None
+
+
+def _download_youtube_audio(url: str) -> str | None:
+    """Download audio from YouTube, return path or None."""
+    tmpdir = tempfile.mkdtemp()
     result = subprocess.run(
         [
-            "yt-dlp",
-            "--write-auto-sub",
-            "--sub-lang", "en",
-            "--skip-download",
-            "--sub-format", "vtt",
-            "-o", "-",
-            "--print", "%(subtitles)j",
+            "yt-dlp", "-x",
+            "--max-filesize", "50M",
+            "-o", f"{tmpdir}/audio.%(ext)s",
             url,
         ],
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=120,
     )
-    # Try to get subtitle content from stdout
-    if result.returncode == 0 and result.stdout.strip():
-        # yt-dlp may write subtitle file; try to read it
-        pass
-    return None
+    audio_files = glob.glob(f"{tmpdir}/audio.*")
+    return audio_files[0] if audio_files else None
 
 
 class MediaNormalizer:
@@ -72,7 +135,6 @@ class MediaNormalizer:
         self, url: str, metadata: dict
     ) -> tuple[str, dict]:
         info = _fetch_youtube_info(url)
-        subtitles = _fetch_youtube_subtitles(url)
 
         extracted: dict[str, str] = {
             "title": info.get("title", "Untitled Video"),
@@ -83,11 +145,22 @@ class MediaNormalizer:
         if info.get("webpage_url"):
             extracted["url"] = info["webpage_url"]
 
+        # Try subtitles first (manual then auto-captions)
+        subtitles = _fetch_youtube_subtitles(url)
         if subtitles:
-            content = subtitles
-        else:
-            content = f"# {extracted['title']}\n\n(No subtitles available)"
+            content = f"# {extracted['title']}\n\n{subtitles}"
+            return content, extracted
 
+        # No subtitles — try whisper transcription
+        audio_path = _download_youtube_audio(url)
+        if audio_path:
+            transcript = _transcribe_audio(audio_path)
+            if transcript:
+                content = f"# {extracted['title']}\n\n{transcript}"
+                return content, extracted
+
+        # Nothing worked
+        content = f"# {extracted['title']}\n\n(No transcript available)"
         return content, extracted
 
     def _normalize_audio(
@@ -102,6 +175,11 @@ class MediaNormalizer:
         if metadata.get("show_name"):
             extracted["show_name"] = metadata["show_name"]
 
-        content = f"# {title}\n\n(Audio transcription not available)"
+        # Try whisper transcription
+        transcript = _transcribe_audio(str(path))
+        if transcript:
+            content = f"# {title}\n\n{transcript}"
+            return content, extracted
 
+        content = f"# {title}\n\n(Audio transcription not available)"
         return content, extracted
