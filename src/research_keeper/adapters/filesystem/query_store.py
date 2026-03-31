@@ -79,6 +79,56 @@ class FilesystemQueryStore:
 
         return query_id
 
+    def create_pending(
+        self,
+        query_text: str,
+        retrieval: list[dict],
+        embedding: bytes | None = None,
+        investigation_id: str | None = None,
+    ) -> str:
+        """Create query directory with meta.yaml and embedding, but no synthesis.
+
+        The synthesis will be written later by rk resolve after the agent
+        fills the query.j2 sidecar.
+        """
+        today = datetime.date.today()
+        slug = slugify(query_text, max_length=50)
+        query_id = f"qry-{today.isoformat()}-{slug}"
+
+        # Ensure unique ID
+        query_dir = self._queries_dir / query_id
+        if query_dir.exists():
+            for i in range(2, 100):
+                candidate = f"{query_id}-{i}"
+                if not (self._queries_dir / candidate).exists():
+                    query_id = candidate
+                    query_dir = self._queries_dir / query_id
+                    break
+
+        query_dir.mkdir(parents=True)
+
+        # Write metadata with retrieval scores
+        meta = {
+            "query_id": query_id,
+            "query_text": query_text,
+            "kind": "query-synthesis",
+            "created": str(today),
+            "top_k": len(retrieval),
+            "retrieval": retrieval,
+            "cited_sources": [r["slug"] for r in retrieval if r.get("kind") == "source"],
+            "cited_tags": [r["slug"] for r in retrieval if r.get("kind") == "tag-synthesis"],
+            "investigation": investigation_id,
+        }
+        (query_dir / "meta.yaml").write_text(
+            yaml.dump(meta, default_flow_style=False, sort_keys=False)
+        )
+
+        # Write embedding
+        if embedding:
+            (query_dir / "embedding.bin").write_bytes(embedding)
+
+        return query_id
+
     def get(self, query_id: str) -> QueryNode | None:
         query_dir = self._queries_dir / query_id
         if not query_dir.is_dir():

@@ -116,3 +116,63 @@ class TestFilesystemQueryStore:
 
     def test_list_empty_returns_empty(self, query_store: FilesystemQueryStore):
         assert query_store.list() == []
+
+
+class TestCreatePending:
+    def test_creates_directory_and_meta(self, tmp_path: Path):
+        from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
+
+        store = FilesystemQueryStore(tmp_path)
+        retrieval = [
+            {"slug": "alpha-paper", "kind": "source", "score": 0.87, "similarity": 0.92, "freshness_weight": 0.95},
+        ]
+
+        query_id = store.create_pending(
+            query_text="What is alpha?",
+            retrieval=retrieval,
+            embedding=b"\x00" * 12,
+        )
+
+        assert query_id.startswith("qry-")
+        query_dir = tmp_path / "queries" / query_id
+        assert query_dir.is_dir()
+        assert (query_dir / "meta.yaml").exists()
+        assert (query_dir / "embedding.bin").exists()
+        assert not (query_dir / "synthesis.md").exists()
+
+    def test_meta_contains_retrieval_scores(self, tmp_path: Path):
+        import yaml
+        from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
+
+        store = FilesystemQueryStore(tmp_path)
+        retrieval = [
+            {"slug": "alpha-paper", "kind": "source", "score": 0.87, "similarity": 0.92, "freshness_weight": 0.95},
+            {"slug": "beta-paper", "kind": "source", "score": 0.74, "similarity": 0.82, "freshness_weight": 0.90},
+        ]
+
+        query_id = store.create_pending(
+            query_text="What is alpha?",
+            retrieval=retrieval,
+            embedding=b"\x00" * 12,
+        )
+
+        meta = yaml.safe_load((tmp_path / "queries" / query_id / "meta.yaml").read_text())
+        assert meta["query_text"] == "What is alpha?"
+        assert len(meta["retrieval"]) == 2
+        assert meta["retrieval"][0]["slug"] == "alpha-paper"
+        assert meta["retrieval"][0]["score"] == 0.87
+
+    def test_investigation_recorded(self, tmp_path: Path):
+        import yaml
+        from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
+
+        store = FilesystemQueryStore(tmp_path)
+        query_id = store.create_pending(
+            query_text="test",
+            retrieval=[],
+            embedding=b"\x00" * 12,
+            investigation_id="inv-20260330-test",
+        )
+
+        meta = yaml.safe_load((tmp_path / "queries" / query_id / "meta.yaml").read_text())
+        assert meta["investigation"] == "inv-20260330-test"
