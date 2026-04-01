@@ -1,11 +1,16 @@
 {
-  "session_id": "session-20260330-231812-5329",
-  "focus_lane": "INITIATIVE-001",
+  "session_id": "session-20260331-195709-5de0",
+  "focus_lane": "",
   "phase": "active",
-  "start_time": "2026-03-31T03:18:12Z",
+  "start_time": "2026-03-31T23:57:09Z",
   "end_time": null,
   "decision_budget": 5,
-  "decisions_made": 0,
-  "decisions": [],
-  "walkaway": "EPIC-007 spikes done (TW No-Go, SPA Conditional Go). Merged to trunk. Next: brainstorm IA then write interaction DESIGN."
+  "decisions_made": 1,
+  "decisions": [
+    {
+      "note": "Approved chunk embedding design: heading-based semantic chunking with paragraph-grouping fallback (Approach A)",
+      "timestamp": "2026-04-01T00:24:20Z"
+    }
+  ],
+  "walkaway": null
 }

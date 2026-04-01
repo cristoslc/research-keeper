@@ -1,7 +1,14 @@
 {
   "bookmark": {
-    "note": "Completed retro for viewer design session — 5 learnings captured, 3 new memories",
-    "timestamp": "2026-03-31T16:04:03Z"
+    "note": "SPEC-036 implementation complete — all 10 tasks done, 375 tests passing. Ready for merge.",
+    "files": [
+      "src/research_keeper/chunker.py",
+      "src/research_keeper/pipeline.py",
+      "src/research_keeper/adapters/retriever/semantic.py",
+      "src/research_keeper/adapters/sqlite/index.py",
+      "src/research_keeper/cli.py"
+    ],
+    "timestamp": "2026-04-01T00:53:55Z"
   },
-  "lastBranch": "worktree-session-20260330-231747-5382"
+  "lastBranch": "worktree-session-20260331-195649-60ba"
 }

@@ -1366,13 +1366,13 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "httpx" },
     { name = "pyyaml" },
 ]
 
 [package.optional-dependencies]
 all = [
     { name = "faster-whisper" },
-    { name = "httpx" },
     { name = "mcp" },
     { name = "pymupdf" },
     { name = "trafilatura" },
@@ -1392,9 +1392,6 @@ media = [
     { name = "faster-whisper" },
     { name = "yt-dlp" },
 ]
-ollama = [
-    { name = "httpx" },
-]
 web = [
     { name = "trafilatura" },
 ]
@@ -1403,17 +1400,17 @@ web = [
 requires-dist = [
     { name = "click", specifier = ">=8.0" },
     { name = "faster-whisper", marker = "extra == 'media'", specifier = ">=1.0" },
-    { name = "httpx", marker = "extra == 'ollama'", specifier = ">=0.27" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
     { name = "pymupdf", marker = "extra == 'documents'", specifier = ">=1.24" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-tmp-files", marker = "extra == 'dev'", specifier = ">=0.0.2" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "research-keeper", extras = ["web", "media", "documents", "ollama", "mcp"], marker = "extra == 'all'" },
+    { name = "research-keeper", extras = ["web", "media", "documents", "mcp"], marker = "extra == 'all'" },
     { name = "trafilatura", marker = "extra == 'web'", specifier = ">=2.0" },
     { name = "yt-dlp", marker = "extra == 'media'" },
 ]
-provides-extras = ["web", "media", "documents", "ollama", "mcp", "all", "dev"]
+provides-extras = ["web", "media", "documents", "mcp", "all", "dev"]
 
 [[package]]
 name = "rich"
