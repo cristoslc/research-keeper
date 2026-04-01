@@ -108,3 +108,68 @@ def test_upsert_embedding(tmp_path: Path):
     index.upsert_embedding("emb-test", "nomic-embed-text", embedding)
 
     # Verify it was stored (no crash = success for now; semantic search is Phase 3)
+
+
+class TestChunkAwareMissingEmbeddings:
+    def test_source_with_chunk_embeddings_not_missing(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        source = Source(
+            slug="chunked-source",
+            content_path="library/sources/chunked-source/source.md",
+            content="Content here",
+            freshness=Freshness(ingested=datetime.date.today()),
+            provenance=Provenance(origin="test"),
+        )
+        idx.upsert_source(source)
+        idx.upsert_embedding("chunked-source#chunk-0", "test-model", b"\x00" * 16)
+        missing = idx.nodes_missing_embeddings()
+        missing_ids = [m[0] for m in missing]
+        assert "chunked-source" not in missing_ids
+
+    def test_source_without_any_embedding_is_missing(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        source = Source(
+            slug="no-emb-source",
+            content_path="library/sources/no-emb-source/source.md",
+            content="Content here",
+            freshness=Freshness(ingested=datetime.date.today()),
+            provenance=Provenance(origin="test"),
+        )
+        idx.upsert_source(source)
+        missing = idx.nodes_missing_embeddings()
+        missing_ids = [m[0] for m in missing]
+        assert "no-emb-source" in missing_ids
+
+    def test_source_with_legacy_bare_slug_not_missing(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        source = Source(
+            slug="legacy-source",
+            content_path="library/sources/legacy-source/source.md",
+            content="Content here",
+            freshness=Freshness(ingested=datetime.date.today()),
+            provenance=Provenance(origin="test"),
+        )
+        idx.upsert_source(source)
+        idx.upsert_embedding("legacy-source", "test-model", b"\x00" * 16)
+        missing = idx.nodes_missing_embeddings()
+        missing_ids = [m[0] for m in missing]
+        assert "legacy-source" not in missing_ids
+
+
+class TestRemoveSourceChunkCleanup:
+    def test_remove_source_deletes_chunk_embeddings(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        source = Source(
+            slug="to-remove",
+            content_path="library/sources/to-remove/source.md",
+            content="Content",
+            freshness=Freshness(ingested=datetime.date.today()),
+            provenance=Provenance(origin="test"),
+        )
+        idx.upsert_source(source)
+        idx.upsert_embedding("to-remove#chunk-0", "model", b"\x00" * 16)
+        idx.upsert_embedding("to-remove#chunk-1", "model", b"\x00" * 16)
+        idx.remove_source("to-remove")
+        cur = idx._conn.cursor()
+        cur.execute("SELECT COUNT(*) as cnt FROM embeddings WHERE node_id LIKE ?", ("to-remove%",))
+        assert cur.fetchone()["cnt"] == 0

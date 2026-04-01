@@ -79,12 +79,13 @@ class TestRebuildEmbeddingBackfill:
 
         assert result.exit_code == 0, result.output
 
-        # Verify embedding was stored
+        # Verify chunk embeddings were stored for the source
         index = SqliteIndex(lib_root / "rk.db")
         cur = index._conn.cursor()
         cur.execute("SELECT node_id FROM embeddings")
         embedded_ids = {row["node_id"] for row in cur.fetchall()}
-        assert "test-source-one" in embedded_ids
+        chunk_ids = {i for i in embedded_ids if i.startswith("test-source-one#chunk-")}
+        assert len(chunk_ids) >= 1
 
         # Embedder should have been called
         assert mock_embedder.embed.call_count >= 1
@@ -146,3 +147,42 @@ class TestRebuildEmbeddingBackfill:
         cur = index._conn.cursor()
         cur.execute("SELECT COUNT(*) as cnt FROM embeddings")
         assert cur.fetchone()["cnt"] == 0
+
+
+class TestRebuildChunkMigration:
+    def test_rebuild_creates_chunk_embeddings(self, lib_root):
+        mock_embedder = MagicMock()
+        mock_embedder._model = "test-model"
+        mock_embedder.embed.return_value = _fake_embedding()
+
+        with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
+            runner = CliRunner()
+            result = runner.invoke(main, ["rebuild", "--root", str(lib_root)])
+
+        assert result.exit_code == 0, result.output
+        index = SqliteIndex(lib_root / "rk.db")
+        cur = index._conn.cursor()
+        cur.execute("SELECT node_id FROM embeddings")
+        ids = {row["node_id"] for row in cur.fetchall()}
+        chunk_ids = {i for i in ids if "#chunk-" in i}
+        assert len(chunk_ids) >= 1
+
+    def test_rebuild_cleans_up_legacy_bare_slug(self, lib_root):
+        # First create a legacy bare-slug embedding
+        index = SqliteIndex(lib_root / "rk.db")
+        index.upsert_embedding("test-source-one", "old-model", _fake_embedding())
+        index._conn.close()
+
+        mock_embedder = MagicMock()
+        mock_embedder._model = "test-model"
+        mock_embedder.embed.return_value = _fake_embedding()
+
+        with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
+            runner = CliRunner()
+            result = runner.invoke(main, ["rebuild", "--root", str(lib_root)])
+
+        assert result.exit_code == 0, result.output
+        index = SqliteIndex(lib_root / "rk.db")
+        cur = index._conn.cursor()
+        cur.execute("SELECT node_id FROM embeddings WHERE node_id = ?", ("test-source-one",))
+        assert cur.fetchone() is None  # bare slug should be gone

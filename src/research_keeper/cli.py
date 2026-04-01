@@ -264,11 +264,7 @@ def _rebuild_impl(root: str) -> None:
     sources = store.list()
     index.rebuild(sources)
 
-    # Reload embedding.bin files into the index
-    for source in sources:
-        emb_path = store.source_dir(source.slug) / "embedding.bin"
-        if emb_path.exists():
-            index.upsert_embedding(source.slug, "unknown", emb_path.read_bytes())
+    # Skip legacy embedding.bin reload — chunk backfill below handles all embeddings
 
     # Rebuild tag index entries from tags/ directory
     tag_count = 0
@@ -351,11 +347,23 @@ def _rebuild_impl(root: str) -> None:
         f"{query_count} query(s), {inv_count} investigation(s) indexed"
     )
 
-    # Embedding backfill phase: generate embeddings for nodes missing them
+    # Embedding backfill phase: generate chunk embeddings for sources missing them
+    from research_keeper.chunker import chunk_markdown
+
     embedder = _build_embedder(config)
     # Skip backfill if embedder is a stub
     if getattr(embedder, "_model", None) == "stub":
         return
+
+    # Clean up legacy bare-slug embeddings for sources
+    source_slugs = {s.slug for s in sources}
+    cur = index._conn.cursor()
+    cur.execute("SELECT node_id FROM embeddings")
+    for row in cur.fetchall():
+        node_id = row["node_id"]
+        if node_id in source_slugs:
+            cur.execute("DELETE FROM embeddings WHERE node_id = ?", (node_id,))
+    index._conn.commit()
 
     missing = index.nodes_missing_embeddings()
     if not missing:
@@ -364,11 +372,31 @@ def _rebuild_impl(root: str) -> None:
     backfilled = 0
     skipped = 0
     for node_id, content in missing:
+        if node_id not in source_slugs:
+            # Non-source node (tag, query, investigation) — embed whole content
+            try:
+                emb_bytes = embedder.embed(content)
+                if emb_bytes:
+                    index.upsert_embedding(node_id, getattr(embedder, "_model", "unknown"), emb_bytes)
+                    backfilled += 1
+            except Exception:
+                skipped += 1
+            continue
+
+        # Source node — derive chunks and embed each
+        source = next((s for s in sources if s.slug == node_id), None)
+        if source is None:
+            continue
+
         try:
-            emb_bytes = embedder.embed(content)
-            if emb_bytes:
-                index.upsert_embedding(node_id, getattr(embedder, "_model", "unknown"), emb_bytes)
-                backfilled += 1
+            chunks = chunk_markdown(source.content, title=source.title)
+            model_name = getattr(embedder, "_model", "unknown")
+            for chunk in chunks:
+                emb_bytes = embedder.embed(chunk.content)
+                if emb_bytes:
+                    chunk_id = f"{node_id}#chunk-{chunk.index}"
+                    index.upsert_embedding(chunk_id, model_name, emb_bytes)
+            backfilled += 1
         except Exception:
             skipped += 1
 

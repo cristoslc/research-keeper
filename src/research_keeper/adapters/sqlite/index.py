@@ -105,7 +105,8 @@ class SqliteIndex:
         cur = self._conn.cursor()
         cur.execute("DELETE FROM node_search WHERE id = ?", (slug,))
         cur.execute("DELETE FROM nodes WHERE id = ?", (slug,))
-        cur.execute("DELETE FROM embeddings WHERE node_id = ?", (slug,))
+        cur.execute("DELETE FROM embeddings WHERE node_id = ? OR node_id LIKE ?",
+                    (slug, f"{slug}#chunk-%"))
         cur.execute(
             "DELETE FROM edges WHERE source_id = ? OR target_id = ?",
             (slug, slug),
@@ -194,12 +195,20 @@ class SqliteIndex:
         self._conn.commit()
 
     def nodes_missing_embeddings(self) -> list[tuple[str, str]]:
-        """Return (node_id, content) pairs for nodes without embeddings."""
+        """Return (node_id, content) pairs for nodes without embeddings.
+
+        Chunk-aware: a node has embeddings if there is any row in the
+        embeddings table where node_id equals the node id (legacy bare-slug)
+        OR starts with '{node_id}#chunk-' (chunk-qualified).
+        """
         cur = self._conn.cursor()
         cur.execute(
             """SELECT n.id, n.content FROM nodes n
-            LEFT JOIN embeddings e ON n.id = e.node_id
-            WHERE e.node_id IS NULL"""
+            WHERE NOT EXISTS (
+                SELECT 1 FROM embeddings e
+                WHERE e.node_id = n.id
+                   OR e.node_id LIKE n.id || '#chunk-%'
+            )"""
         )
         return [(row["id"], row["content"]) for row in cur.fetchall()]
 

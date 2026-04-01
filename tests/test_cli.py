@@ -96,8 +96,12 @@ def test_add_url(mock_build, runner: CliRunner, tmp_path: Path):
     assert result.exit_code == 0
 
 
-def test_rebuild_loads_embeddings(runner: CliRunner, library_root: Path):
-    """Rebuild should load embedding.bin files into the index."""
+def test_rebuild_does_not_load_legacy_embedding_bin(runner: CliRunner, library_root: Path):
+    """Rebuild no longer loads embedding.bin files as bare-slug embeddings.
+
+    Chunk backfill via the embedder is now the only path for source embeddings.
+    When the embedder is a stub (no Ollama), no embeddings are stored.
+    """
     source_dir = library_root / "library" / "sources" / "test-source"
     source_dir.mkdir(parents=True, exist_ok=True)
     (source_dir / "source.md").write_text("# Test content about vectors")
@@ -114,12 +118,12 @@ def test_rebuild_loads_embeddings(runner: CliRunner, library_root: Path):
     result = runner.invoke(main, ["rebuild", "--root", str(library_root)])
     assert result.exit_code == 0
 
-    # Verify embedding was loaded into SQLite
+    # Verify bare-slug embedding is NOT loaded (legacy path removed)
     from research_keeper.adapters.sqlite.index import SqliteIndex
     index = SqliteIndex(library_root / "rk.db")
     cur = index._conn.cursor()
     cur.execute("SELECT count(*) FROM embeddings WHERE node_id = 'test-source'")
-    assert cur.fetchone()[0] == 1
+    assert cur.fetchone()[0] == 0
 
 
 def test_end_to_end_init_add_rebuild(runner: CliRunner, tmp_path: Path):
