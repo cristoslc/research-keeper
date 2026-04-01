@@ -48,6 +48,8 @@ class ScoredNode:
     similarity: float
     freshness_weight: float
     kind: str = "source"
+    chunk_index: int | None = None
+    chunk_heading: str | None = None
 
 
 @dataclass(frozen=True)
