@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+import struct
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -183,3 +184,44 @@ class TestChunkEmbedding:
         cur = chunk_pipeline["index"]._conn.cursor()
         cur.execute("SELECT COUNT(*) as cnt FROM embeddings WHERE node_id LIKE ?", (f"{source.slug}%",))
         assert cur.fetchone()["cnt"] == 0
+
+
+class TestChunkEmbeddingIntegration:
+    def test_add_long_source_then_search_returns_chunk(self, chunk_pipeline):
+        """Full flow: add a long source, search, get the relevant chunk back."""
+        content = (
+            "## Machine Learning Basics\n\n"
+            + "Machine learning is a subset of AI. " * 60 + "\n\n"
+            + "## Neural Architecture Search\n\n"
+            + "Neural architecture search automates model design. " * 60 + "\n\n"
+            + "## Conclusion\n\n"
+            + "This paper reviewed recent advances. " * 60
+        )
+
+        # Make embedder return different vectors per chunk
+        call_count = 0
+        vectors = [
+            struct.pack("4f", 0.1, 0.9, 0.0, 0.0),  # ML basics
+            struct.pack("4f", 0.9, 0.1, 0.0, 0.0),  # NAS section
+            struct.pack("4f", 0.0, 0.0, 0.1, 0.9),  # Conclusion
+        ]
+        def mock_embed(text):
+            nonlocal call_count
+            idx = min(call_count, len(vectors) - 1)
+            call_count += 1
+            return vectors[idx]
+
+        chunk_pipeline["embedder"].embed.side_effect = mock_embed
+
+        source = chunk_pipeline["pipeline"].add(content, metadata={"title": "ML Survey"})
+
+        # Now search with a query embedding similar to the NAS section
+        from research_keeper.adapters.retriever.semantic import SemanticRetriever
+        retriever = SemanticRetriever(index=chunk_pipeline["index"], half_life_days=30)
+        query_emb = struct.pack("4f", 0.9, 0.1, 0.0, 0.0)
+        results = retriever.search_by_embedding(query_emb, top_k=5)
+
+        assert len(results) >= 1
+        top = results[0]
+        assert top.slug == source.slug
+        assert top.chunk_index is not None
