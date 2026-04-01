@@ -1,4 +1,4 @@
-from research_keeper.chunker import Chunk, chunk_markdown
+from research_keeper.chunker import chunk_markdown
 
 
 class TestShortSourcePassthrough:

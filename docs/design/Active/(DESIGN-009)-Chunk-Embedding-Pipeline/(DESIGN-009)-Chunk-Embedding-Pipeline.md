@@ -155,7 +155,7 @@ Pure function: `(content: str, title: str | None) -> list[Chunk]`
 **Constants:**
 - `MIN_CHUNK_THRESHOLD = 800` words — sources under this produce a single chunk
 - `TARGET_CHUNK_WORDS = 600` — target size for paragraph-grouped chunks
-- `MAX_CHUNK_WORDS = 1500` — heading sections above this get sub-split
+- `MAX_CHUNK_WORDS = 1000` — heading sections above this get sub-split
 
 **Steps:**
 
