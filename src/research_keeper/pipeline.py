@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 
 from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+from research_keeper.chunker import chunk_markdown
 from research_keeper.adapters.normalizers.identifier import identify_content_type
 from research_keeper.adapters.sqlite.index import SqliteIndex
 from research_keeper.config import Config
@@ -82,15 +83,23 @@ class IntakePipeline:
         # Index (always -- source is searchable via FTS regardless of embedding)
         self._index.upsert_source(source)
 
-        # Embed -- graceful degradation if embedder fails
+        # Embed — chunk the content and embed each chunk
         try:
-            embedding = self._embedder.embed(content)
-            emb_dir = self._store.source_dir(source.slug)
-            (emb_dir / "embedding.bin").write_bytes(embedding)
+            chunks = chunk_markdown(content, title=merged.get("title"))
             model_name = getattr(self._embedder, "_model", "unknown")
             if not isinstance(model_name, str):
                 model_name = "unknown"
-            self._index.upsert_embedding(source.slug, model_name, embedding)
+            emb_dir = self._store.source_dir(source.slug)
+            first_embedding: bytes | None = None
+            for chunk in chunks:
+                embedding = self._embedder.embed(chunk.content)
+                chunk_id = f"{source.slug}#chunk-{chunk.index}"
+                self._index.upsert_embedding(chunk_id, model_name, embedding)
+                if chunk.index == 0:
+                    first_embedding = embedding
+            # Write first chunk embedding as embedding.bin for backward compat
+            if first_embedding:
+                (emb_dir / "embedding.bin").write_bytes(first_embedding)
         except Exception:
             self.embedding_failed = True
             logger.warning(
