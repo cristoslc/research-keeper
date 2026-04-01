@@ -1,7 +1,7 @@
 # src/research_keeper/skill_template.py
-"""Skill template content for rk skill install (SPEC-035)."""
+"""Skill template content for rk skill install."""
 
-SKILL_CONTENT = """\
+SKILL_BODY = """\
 # research-keeper
 
 Use this skill when the user wants to add sources, search their library, investigate topics, or interact with a research-keeper (rk) library.
@@ -108,7 +108,15 @@ Always check `rk resolve` output. If it says "pending" or generates new sidecars
 - `rk add` works without ollama — sources are filed and tagged normally, embeddings are backfilled on next `rk rebuild`
 """
 
-# Cursor uses .mdc format with frontmatter
+SKILL_CONTENT = f"""\
+---
+name: research-keeper
+description: Use for research-keeper sidecar workflows: add, search, investigate, and resolve pending rk intelligence tasks.
+---
+
+{SKILL_BODY}
+"""
+
 CURSOR_SKILL_CONTENT = f"""\
 ---
 description: research-keeper (rk) — personal research library with sidecar-based intelligence
@@ -120,5 +128,5 @@ globs:
   - "rk.yaml"
 ---
 
-{SKILL_CONTENT}
+{SKILL_BODY}
 """
