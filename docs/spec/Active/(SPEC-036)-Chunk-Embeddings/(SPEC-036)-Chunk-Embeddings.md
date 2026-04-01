@@ -129,4 +129,4 @@ Then both formats score and return correctly.
 
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
-| Active | 2026-03-31 | -- | Initial creation, user-requested |
+| Active | 2026-03-31 | 8fbd729 | Initial creation, user-requested |
