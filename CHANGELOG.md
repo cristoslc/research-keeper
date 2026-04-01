@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.1] - 2026-04-01
+
+### Features
+
+#### rk skill install — loadable skills and explicit runtime targets
+
+`rk skill install` now writes loadable skill files with the metadata/frontmatter expected by supported agent runtimes. It also adds explicit `--runtime` targeting for Claude Code, Codex, Crush, and Gemini, and switches the generic fallback to the project-local `.agents/skills/research-keeper/SKILL.md` path. Cursor is no longer treated as a first-class runtime target, so repositories with only `.cursor/` present now fall back to the open-standard project skill instead of receiving a runtime-specific install.
+
+### Planned
+
+- Resolve failure-path cleanup — recovery behavior for unmatched rendered files and failed resolve steps is being tightened so pending sidecar work leaves clearer cleanup and retry signals
+
+### Supporting Changes
+
+- Contract tests now verify loadable frontmatter, supported runtime detection, explicit override behavior, `.agents` fallback, Crush support, and unsupported runtime rejection for `rk skill install`
+
 ## [0.1.0] - 2026-03-31
 
 ### Features
