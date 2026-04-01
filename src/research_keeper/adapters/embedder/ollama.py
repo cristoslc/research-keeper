@@ -3,10 +3,7 @@ from __future__ import annotations
 
 import struct
 
-try:
-    import httpx
-except ImportError:
-    httpx = None  # type: ignore[assignment]
+import httpx
 
 
 class OllamaEmbedder:
@@ -21,11 +18,6 @@ class OllamaEmbedder:
         self._base_url = base_url
 
     def embed(self, content: str) -> bytes:
-        if httpx is None:
-            raise RuntimeError(
-                "httpx not installed. Install with: uv add research-keeper[ollama]"
-            )
-
         response = httpx.post(
             f"{self._base_url}/api/embeddings",
             json={"model": self._model, "prompt": content},

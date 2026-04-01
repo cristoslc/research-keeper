@@ -48,7 +48,8 @@ class SqliteIndex:
                 node_id TEXT PRIMARY KEY,
                 model TEXT NOT NULL,
                 embedding BLOB NOT NULL,
-                created_at TEXT
+                created_at TEXT,
+                content TEXT
             );
         """)
         # FTS5 table — created separately since CREATE IF NOT EXISTS
@@ -136,13 +137,16 @@ class SqliteIndex:
             self.upsert_source(source)
 
     def upsert_embedding(
-        self, node_id: str, model: str, embedding: bytes
+        self, node_id: str, model: str, embedding: bytes,
+        content: str | None = None,
     ) -> None:
         cur = self._conn.cursor()
         cur.execute(
-            """INSERT OR REPLACE INTO embeddings (node_id, model, embedding, created_at)
-            VALUES (?, ?, ?, ?)""",
-            (node_id, model, embedding, datetime.datetime.now(datetime.UTC).isoformat()),
+            """INSERT OR REPLACE INTO embeddings
+            (node_id, model, embedding, created_at, content)
+            VALUES (?, ?, ?, ?, ?)""",
+            (node_id, model, embedding,
+             datetime.datetime.now(datetime.UTC).isoformat(), content),
         )
         self._conn.commit()
 

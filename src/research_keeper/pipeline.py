@@ -94,7 +94,8 @@ class IntakePipeline:
             for chunk in chunks:
                 embedding = self._embedder.embed(chunk.content)
                 chunk_id = f"{source.slug}#chunk-{chunk.index}"
-                self._index.upsert_embedding(chunk_id, model_name, embedding)
+                self._index.upsert_embedding(chunk_id, model_name, embedding,
+                                             content=chunk.content)
                 if chunk.index == 0:
                     first_embedding = embedding
             # Write first chunk embedding as embedding.bin for backward compat

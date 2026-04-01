@@ -395,7 +395,8 @@ def _rebuild_impl(root: str) -> None:
                 emb_bytes = embedder.embed(chunk.content)
                 if emb_bytes:
                     chunk_id = f"{node_id}#chunk-{chunk.index}"
-                    index.upsert_embedding(chunk_id, model_name, emb_bytes)
+                    index.upsert_embedding(chunk_id, model_name, emb_bytes,
+                                           content=chunk.content)
             backfilled += 1
         except Exception:
             skipped += 1

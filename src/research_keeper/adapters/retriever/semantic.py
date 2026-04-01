@@ -35,7 +35,7 @@ class SemanticRetriever:
         # Get all embeddings (chunk and legacy)
         cur = self._index._conn.cursor()
         cur.execute(
-            """SELECT e.node_id, e.embedding
+            """SELECT e.node_id, e.embedding, e.content
             FROM embeddings e
             WHERE e.embedding IS NOT NULL AND length(e.embedding) > 0"""
         )
@@ -49,6 +49,7 @@ class SemanticRetriever:
                 continue
 
             node_id = row[0]
+            chunk_content = row[2]  # may be None for legacy embeddings
             slug, chunk_index = _parse_embedding_id(node_id)
 
             similarity = cosine_similarity(query_embedding, embedding)
@@ -71,7 +72,8 @@ class SemanticRetriever:
             fw = freshness_weight(ingested, self._half_life_days)
             score = similarity * fw
 
-            content = meta_row[1]
+            # Prefer chunk content from embeddings table; fall back to full doc
+            content = chunk_content if chunk_content else meta_row[1]
 
             node = ScoredNode(
                 slug=slug,
