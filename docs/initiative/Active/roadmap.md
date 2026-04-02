@@ -22,10 +22,10 @@
 
 | Initiative | Epic | Progress | Unblocks | Needs |
 |-----------|------|----------|----------|-------|
-| [Mechanism Layer](docs/initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Hexagonal Foundation](docs/epic/Active/(EPIC-001)-Hexagonal-Foundation.md) | 0/5 | 2 | — |
-|  | [Auto-Tagging & Synthesis](docs/epic/Active/(EPIC-002)-Auto-Tagging-And-Synthesis.md) | 0/4 | 1 | — |
-|  | [V1 Ready](docs/epic/Active/(EPIC-006)-V1-Ready.md) | 0/5 | 1 | — |
-|  | [Completion Config & Task Routing](docs/spec/Active/(SPEC-019)-Completion-Resolution-And-Config.md) | 0/0 | 1 | **needs decomposition** |
+| [Mechanism Layer]((INITIATIVE-001)-Mechanism-Layer.md) | [Hexagonal Foundation](../../epic/Active/(EPIC-001)-Hexagonal-Foundation.md) | 0/5 | 2 | — |
+|  | [Auto-Tagging & Synthesis](../../epic/Active/(EPIC-002)-Auto-Tagging-And-Synthesis.md) | 0/4 | 1 | — |
+|  | [V1 Ready](../../epic/Active/(EPIC-006)-V1-Ready.md) | 0/5 | 1 | — |
+|  | [Completion Config & Task Routing](../../spec/Active/(SPEC-019)-Completion-Resolution-And-Config.md) | 0/0 | 1 | **needs decomposition** |
 
 ### Schedule
 *High priority, not yet started*
@@ -37,18 +37,18 @@
 
 | Initiative | Epic | Progress | Unblocks | Needs |
 |-----------|------|----------|----------|-------|
-| [Mechanism Layer](docs/initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Query System](docs/epic/Active/(EPIC-003)-Query-System.md) | 0/3 | 1 | — |
-|  | [Investigations & MCP Server](docs/epic/Active/(EPIC-004)-Investigations-And-MCP.md) | 0/3 | 1 | — |
-|  | [Multi-Environment Access](docs/epic/Active/(EPIC-005)-Multi-Environment.md) | 0/3 | 0 | — |
-|  | [Knowledge Base Viewer](docs/epic/Active/(EPIC-007)-Knowledge-Base-Viewer.md) | 0/0 | 0 | **needs decomposition** |
+| [Mechanism Layer]((INITIATIVE-001)-Mechanism-Layer.md) | [Query System](../../epic/Active/(EPIC-003)-Query-System.md) | 0/3 | 1 | — |
+|  | [Investigations & MCP Server](../../epic/Active/(EPIC-004)-Investigations-And-MCP.md) | 0/3 | 1 | — |
+|  | [Multi-Environment Access](../../epic/Active/(EPIC-005)-Multi-Environment.md) | 0/3 | 0 | — |
+|  | [Knowledge Base Viewer](../../epic/Active/(EPIC-007)-Knowledge-Base-Viewer.md) | 0/0 | 0 | **needs decomposition** |
 
 ### Backlog
 *Not yet prioritized or started*
 
 | Initiative | Epic | Progress | Unblocks | Needs |
 |-----------|------|----------|----------|-------|
-| [Mechanism Layer](docs/initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Completion Fallback & Backfill](docs/spec/Proposed/(SPEC-020)-Completion-Fallback-And-Backfill.md) | 0/0 | 0 | **activate or drop** |
-|  | [Trove Manifest Import](docs/spec/Proposed/(SPEC-026)-Trove-Manifest-Import.md) | 0/0 | 0 | **activate or drop** |
+| [Mechanism Layer]((INITIATIVE-001)-Mechanism-Layer.md) | [Completion Fallback & Backfill](../../spec/Proposed/(SPEC-020)-Completion-Fallback-And-Backfill.md) | 0/0 | 0 | **activate or drop** |
+|  | [Trove Manifest Import](../../spec/Proposed/(SPEC-026)-Trove-Manifest-Import.md) | 0/0 | 0 | **activate or drop** |
 
 
 ## Children

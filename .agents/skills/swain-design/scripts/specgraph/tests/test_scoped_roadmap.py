@@ -133,6 +133,15 @@ def test_render_scoped_roadmap_children_table():
     assert "EPIC-002" in md
 
 
+def test_render_scoped_roadmap_uses_links_relative_to_slice_file():
+    nodes, edges = _make_scoped_graph()
+    md = render_scoped_roadmap("INITIATIVE-001", nodes, edges, repo_root="/tmp/test")
+    assert "[Auth System](i.md)" in md
+    assert "[Login Flow](../../../epic/Active/(EPIC-001)-Login/e.md)" in md
+    assert "](docs/initiative/" not in md
+    assert "](docs/epic/" not in md
+
+
 # --- _write_scoped_slice tests ---
 
 def test_write_scoped_slice_creates_file(tmp_path):

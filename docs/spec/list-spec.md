@@ -42,7 +42,9 @@
 | SPEC-032 | Embedding Backfill in Rebuild | 2026-03-31 | -- |
 | SPEC-033 | Doctor Embedding Coverage | 2026-03-31 | -- |
 | SPEC-034 | Investigation Rolling Synthesis | 2026-03-31 | -- |
-| SPEC-035 | rk skill install | 2026-03-31 | -- |
+| SPEC-035 | rk skill install | 2026-04-01 | -- |
+| SPEC-036 | Resolve Failure-Path Cleanup | 2026-03-31 | -- |
+| SPEC-037 | Explicit Runtime Targets For rk skill install | 2026-04-01 | -- |
 
 ## Abandoned
 

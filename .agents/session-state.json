@@ -1,16 +1,11 @@
 {
-  "session_id": "session-20260331-195709-5de0",
-  "focus_lane": "",
+  "session_id": "session-20260401-092250-0e49",
+  "focus_lane": "INITIATIVE-001",
   "phase": "active",
-  "start_time": "2026-03-31T23:57:09Z",
+  "start_time": "2026-04-01T13:22:50Z",
   "end_time": null,
   "decision_budget": 5,
-  "decisions_made": 1,
-  "decisions": [
-    {
-      "note": "Approved chunk embedding design: heading-based semantic chunking with paragraph-grouping fallback (Approach A)",
-      "timestamp": "2026-04-01T00:24:20Z"
-    }
-  ],
+  "decisions_made": 0,
+  "decisions": [],
   "walkaway": null
 }

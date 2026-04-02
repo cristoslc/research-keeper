@@ -50,7 +50,7 @@ If the SPA fails on build time or doesn't demonstrate clear advantage over Tiddl
 
 ### 1. Use shared sample dataset
 
-Same dataset as [SPIKE-001](../Active/(SPIKE-001)-TiddlyWiki-As-RK-Viewer/(SPIKE-001)-TiddlyWiki-As-RK-Viewer.md). Both spikes evaluate against identical content. Dataset generation happens in SPIKE-001 — this spike consumes it.
+Same dataset as [SPIKE-001](../(SPIKE-001)-TiddlyWiki-As-RK-Viewer/(SPIKE-001)-TiddlyWiki-As-RK-Viewer.md). Both spikes evaluate against identical content. Dataset generation happens in SPIKE-001 — this spike consumes it.
 
 ### 2. Build data layer
 

@@ -759,11 +759,20 @@ def render_dependency_graph(items: list[dict], nodes: dict) -> str | None:
 # Markdown helpers
 # ---------------------------------------------------------------------------
 
-def _md_link(artifact_id: str, title: str, nodes: dict) -> str:
+def _md_link(
+    artifact_id: str,
+    title: str,
+    nodes: dict,
+    relative_to_file: str = "",
+) -> str:
     node = nodes.get(artifact_id, {})
     filepath = node.get("file", "")
     if filepath:
-        return f"[{title}]({filepath})"
+        if relative_to_file:
+            target = os.path.relpath(filepath, os.path.dirname(relative_to_file))
+        else:
+            target = filepath
+        return f"[{title}]({target})"
     return title
 
 
@@ -771,7 +780,11 @@ def _md_link(artifact_id: str, title: str, nodes: dict) -> str:
 # 4. Eisenhower table — detail view with decision callouts
 # ---------------------------------------------------------------------------
 
-def render_eisenhower_table(items: list[dict], nodes: dict) -> str:
+def render_eisenhower_table(
+    items: list[dict],
+    nodes: dict,
+    relative_to_file: str = "",
+) -> str:
     """Render Eisenhower quadrant tables with initiative-first grouping.
 
     Initiative column only shows on the first row of each initiative group.
@@ -812,12 +825,12 @@ def render_eisenhower_table(items: list[dict], nodes: dict) -> str:
                 for idx, item in enumerate(group_items):
                     progress = f"{item['children_complete']}/{item['children_total']}"
                     unblocks = item["score"] // item["weight"] if item["weight"] else 0
-                    epic_link = _md_link(item["id"], item["title"], nodes)
+                    epic_link = _md_link(item["id"], item["title"], nodes, relative_to_file)
                     decision = item["operator_decision"]
                     needs = f"**{decision}**" if decision else "—"
 
                     if idx == 0 and item["group"] != item["id"]:
-                        init_cell = _md_link(item["group"], item["group_title"], nodes)
+                        init_cell = _md_link(item["group"], item["group_title"], nodes, relative_to_file)
                     elif idx == 0:
                         init_cell = "—"
                     else:
@@ -877,13 +890,13 @@ def render_eisenhower_table(items: list[dict], nodes: dict) -> str:
                 for idx, item in enumerate(group_items):
                     progress = f"{item['children_complete']}/{item['children_total']}"
                     unblocks = item["score"] // item["weight"] if item["weight"] else 0
-                    epic_link = _md_link(item["id"], item["title"], nodes)
+                    epic_link = _md_link(item["id"], item["title"], nodes, relative_to_file)
                     decision = item["operator_decision"]
                     needs = f"**{decision}**" if decision else "—"
 
                     # Only show initiative on first row of each group
                     if idx == 0 and item["group"] != item["id"]:
-                        init_link = _md_link(item["group"], item["group_title"], nodes)
+                        init_link = _md_link(item["group"], item["group_title"], nodes, relative_to_file)
                     elif idx == 0:
                         init_link = "—"
                     else:
@@ -1226,7 +1239,9 @@ def render_scoped_roadmap(
 
     # Eisenhower subset: collect items in scope and render
     scoped_items = collect_roadmap_items(nodes, edges, scope=artifact_id)
-    eisenhower_subset = render_eisenhower_table(scoped_items, nodes) if scoped_items else ""
+    eisenhower_subset = (
+        render_eisenhower_table(scoped_items, nodes, artifact_file) if scoped_items else ""
+    )
 
     if _HAS_JINJA:
         env = _jinja_env()

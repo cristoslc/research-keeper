@@ -16,4 +16,5 @@ credentials.*
 secrets.*
 node_modules/
 .claude/worktrees/
+.worktrees/
 .superpowers/

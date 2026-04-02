@@ -59,8 +59,8 @@ The viewer is read-only — rk's CLI and agent workflows remain the authoring pa
 - Interaction patterns (search-first landing, faceted navigation, contextual UpSet discovery)
 
 **Completed research:**
-- [SPIKE-001](../research/Complete/(SPIKE-001)-TiddlyWiki-As-RK-Viewer/(SPIKE-001)-TiddlyWiki-As-RK-Viewer.md) — TiddlyWiki as rk viewer (No-Go)
-- [SPIKE-002](../research/Complete/(SPIKE-002)-Custom-SPA-As-RK-Viewer/(SPIKE-002)-Custom-SPA-As-RK-Viewer.md) — Custom SPA as rk viewer (Conditional Go)
+- [SPIKE-001](../../research/Complete/(SPIKE-001)-TiddlyWiki-As-RK-Viewer/(SPIKE-001)-TiddlyWiki-As-RK-Viewer.md) — TiddlyWiki as rk viewer (No-Go)
+- [SPIKE-002](../../research/Complete/(SPIKE-002)-Custom-SPA-As-RK-Viewer/(SPIKE-002)-Custom-SPA-As-RK-Viewer.md) — Custom SPA as rk viewer (Conditional Go)
 
 **Next:** Create DESIGN artifact, then decompose into implementation specs.
 
@@ -72,7 +72,7 @@ The viewer is read-only — rk's CLI and agent workflows remain the authoring pa
 
 **Scope:** SPIKE-001 (TiddlyWiki) and SPIKE-002 (Custom SPA) — viewer prototype evaluation
 **Period:** 2026-03-30 (single session)
-**Related artifacts:** [SPIKE-001](../research/Complete/(SPIKE-001)-TiddlyWiki-As-RK-Viewer/(SPIKE-001)-TiddlyWiki-As-RK-Viewer.md), [SPIKE-002](../research/Complete/(SPIKE-002)-Custom-SPA-As-RK-Viewer/(SPIKE-002)-Custom-SPA-As-RK-Viewer.md)
+**Related artifacts:** [SPIKE-001](../../research/Complete/(SPIKE-001)-TiddlyWiki-As-RK-Viewer/(SPIKE-001)-TiddlyWiki-As-RK-Viewer.md), [SPIKE-002](../../research/Complete/(SPIKE-002)-Custom-SPA-As-RK-Viewer/(SPIKE-002)-Custom-SPA-As-RK-Viewer.md)
 **Trove:** git-repo-gui-frontends@1640143 (76 sources)
 
 ### Summary

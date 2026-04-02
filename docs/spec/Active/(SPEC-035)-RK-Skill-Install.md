@@ -5,13 +5,14 @@ track: implementable
 status: Active
 author: cristos
 created: 2026-03-31
-last-updated: 2026-03-31
+last-updated: 2026-04-01
 priority-weight: high
 type: feature
 parent-epic: ""
 parent-initiative: INITIATIVE-001
 linked-artifacts:
   - ADR-004
+  - SPEC-037
   - DESIGN-001
   - DESIGN-002
   - DESIGN-003
@@ -35,6 +36,8 @@ Agent runtimes (Claude Code, Cursor, Windsurf) support skill files that teach th
 After `rk skill install`, the agent runtime has a skill that teaches it the full rk workflow. The user says "add this article" and the agent handles the add→fill→resolve cycle automatically. The user says "what do I know about X?" and the agent handles search→fill→resolve automatically.
 
 ## External Behavior
+
+This spec defines the baseline `rk skill install` command. [SPEC-037]((SPEC-037)-Explicit-Runtime-Targets-For-RK-Skill-Install/(SPEC-037)-Explicit-Runtime-Targets-For-RK-Skill-Install.md) refines the supported runtime set and adds the authoritative `--runtime` override contract.
 
 ### `rk skill install`
 
@@ -99,6 +102,8 @@ The skill file is a single document with:
 - Generic: file read/write instructions
 
 ## Acceptance Criteria
+
+Runtime-target selection, supported runtime names, and generic fallback path are refined by [SPEC-037]((SPEC-037)-Explicit-Runtime-Targets-For-RK-Skill-Install/(SPEC-037)-Explicit-Runtime-Targets-For-RK-Skill-Install.md). The criteria below describe the original baseline behavior only.
 
 - Given a project with `.claude/` directory, when `rk skill install` runs, then `.claude/skills/research-keeper/SKILL.md` exists
 - Given a project with `.codex/` directory, when `rk skill install` runs, then `.codex/skills/research-keeper.md` exists
