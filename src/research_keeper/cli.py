@@ -578,33 +578,43 @@ def skill() -> None:
 
 
 @skill.command()
-def install() -> None:
+@click.option(
+    "--runtime",
+    "runtime_slugs",
+    multiple=True,
+    type=click.Choice(["claude-code", "codex", "crush", "gemini"]),
+    help="Install for an explicit runtime target. Repeat to install for multiple runtimes.",
+)
+def install(runtime_slugs: tuple[str, ...]) -> None:
     """Install agent skill for the current project."""
-    from research_keeper.skill_template import CURSOR_SKILL_CONTENT, SKILL_CONTENT
+    from research_keeper.skill_template import SKILL_CONTENT
 
     cwd = Path.cwd()
+    runtime_specs = {
+        "claude-code": ("Claude Code", cwd / ".claude", cwd / ".claude" / "skills" / "research-keeper" / "SKILL.md"),
+        "codex": ("Codex", cwd / ".codex", cwd / ".codex" / "skills" / "research-keeper.md"),
+        "crush": ("Crush", cwd / ".crush", cwd / ".crush" / "skills" / "research-keeper" / "SKILL.md"),
+        "gemini": ("Gemini", cwd / ".gemini", cwd / ".gemini" / "skills" / "research-keeper.md"),
+    }
+    install_order = ["claude-code", "codex", "crush", "gemini"]
+
+    if runtime_slugs:
+        target_slugs = list(dict.fromkeys(runtime_slugs))
+    else:
+        target_slugs = [slug for slug in install_order if runtime_specs[slug][1].is_dir()]
+
     installed: list[str] = []
-
-    runtimes = [
-        ("Claude Code", cwd / ".claude", cwd / ".claude" / "skills" / "research-keeper" / "SKILL.md", SKILL_CONTENT),
-        ("Cursor", cwd / ".cursor", cwd / ".cursor" / "rules" / "research-keeper.mdc", CURSOR_SKILL_CONTENT),
-        ("Codex", cwd / ".codex", cwd / ".codex" / "skills" / "research-keeper.md", SKILL_CONTENT),
-        ("Gemini", cwd / ".gemini", cwd / ".gemini" / "skills" / "research-keeper.md", SKILL_CONTENT),
-    ]
-
-    for name, detect_dir, skill_path, content in runtimes:
-        if detect_dir.is_dir():
-            skill_path.parent.mkdir(parents=True, exist_ok=True)
-            skill_path.write_text(content)
-            installed.append(name)
+    for slug in target_slugs:
+        name, _detect_dir, skill_path = runtime_specs[slug]
+        skill_path.parent.mkdir(parents=True, exist_ok=True)
+        skill_path.write_text(SKILL_CONTENT)
+        installed.append(name)
 
     if not installed:
-        # Generic fallback
-        generic_path = cwd / ".agent" / "skills" / "research-keeper" / "SKILL.md"
+        generic_path = cwd / ".agents" / "skills" / "research-keeper" / "SKILL.md"
         generic_path.parent.mkdir(parents=True, exist_ok=True)
         generic_path.write_text(SKILL_CONTENT)
-        click.echo(f"No agent runtime detected. Installed generic skill at {generic_path}")
-        click.echo("Copy this file to your agent runtime's skill directory.")
+        click.echo(f"No supported runtime detected. Installed generic skill at {generic_path}")
         return
 
     names = ", ".join(installed)
