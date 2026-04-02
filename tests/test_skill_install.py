@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from click.testing import CliRunner
+import yaml
 
 from research_keeper.cli import main
 
@@ -12,6 +13,14 @@ from research_keeper.cli import main
 def read_text(path: Path) -> str:
     assert path.exists()
     return path.read_text()
+
+
+def parse_frontmatter(text: str) -> dict:
+    assert text.startswith("---\n")
+    _prefix, frontmatter, _body = text.split("---", 2)
+    parsed = yaml.safe_load(frontmatter)
+    assert isinstance(parsed, dict)
+    return parsed
 
 
 class TestSkillInstall:
@@ -113,9 +122,12 @@ class TestSkillInstall:
 
         assert result.exit_code == 0
         content = read_text(tmp_path / ".claude" / "skills" / "research-keeper" / "SKILL.md")
-        assert content.startswith("---\n")
-        assert "name: research-keeper" in content
-        assert "description:" in content
+        frontmatter = parse_frontmatter(content)
+        assert frontmatter["name"] == "research-keeper"
+        assert (
+            frontmatter["description"]
+            == "Use for research-keeper sidecar workflows: add, search, investigate, and resolve pending rk intelligence tasks."
+        )
         assert "\n# research-keeper\n" in content
 
     def test_installed_skill_content_retains_sidecar_workflow_guidance(self, tmp_path: Path, monkeypatch):

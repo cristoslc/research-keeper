@@ -111,7 +111,7 @@ Always check `rk resolve` output. If it says "pending" or generates new sidecars
 SKILL_CONTENT = f"""\
 ---
 name: research-keeper
-description: Use for research-keeper sidecar workflows: add, search, investigate, and resolve pending rk intelligence tasks.
+description: "Use for research-keeper sidecar workflows: add, search, investigate, and resolve pending rk intelligence tasks."
 ---
 
 {SKILL_BODY}
