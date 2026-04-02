@@ -50,12 +50,12 @@ Researchers can say "research X" and get a broad evidence-gathering pass instead
 
 ## Child Specs
 
-To be decomposed from [DESIGN-010](../../../design/Active/(DESIGN-010)-Research-Flow-And-Investigation-Promotion/(DESIGN-010)-Research-Flow-And-Investigation-Promotion.md) and [DESIGN-011](../../../design/Active/(DESIGN-011)-Research-Orchestration-And-Query-Persistence/(DESIGN-011)-Research-Orchestration-And-Query-Persistence.md). Expected spec slices include:
-
-- research invocation and seed-source flow
-- exploratory branch planning and stopping budgets
-- persisted research-query model and provenance
-- investigation promotion and query attachment
+| ID | Title | Status |
+|----|-------|--------|
+| [SPEC-038](../../../spec/Active/(SPEC-038)-Research-Query-Persistence-And-Provenance/(SPEC-038)-Research-Query-Persistence-And-Provenance.md) | Research Query Persistence and Provenance | Active |
+| [SPEC-039](../../../spec/Active/(SPEC-039)-Research-Expansion-And-Budgeting/(SPEC-039)-Research-Expansion-And-Budgeting.md) | Research Expansion and Budgeting | Active |
+| [SPEC-040](../../../spec/Active/(SPEC-040)-Seeded-Research-Orchestration/(SPEC-040)-Seeded-Research-Orchestration.md) | Seeded Research Orchestration | Active |
+| [SPEC-041](../../../spec/Active/(SPEC-041)-Research-Investigation-Promotion/(SPEC-041)-Research-Investigation-Promotion.md) | Research Investigation Promotion | Active |
 
 ## Key Dependencies
 

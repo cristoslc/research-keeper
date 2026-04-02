@@ -45,10 +45,13 @@
 | SPEC-035 | rk skill install | 2026-04-01 | -- |
 | SPEC-036 | Resolve Failure-Path Cleanup | 2026-03-31 | -- |
 | SPEC-037 | Explicit Runtime Targets For rk skill install | 2026-04-01 | -- |
+| SPEC-038 | Research Query Persistence and Provenance | 2026-04-02 | -- |
+| SPEC-039 | Research Expansion and Budgeting | 2026-04-02 | -- |
+| SPEC-040 | Seeded Research Orchestration | 2026-04-02 | -- |
+| SPEC-041 | Research Investigation Promotion | 2026-04-02 | -- |
 
 ## Abandoned
 
 | Artifact | Title | Last Updated | Commit |
 |----------|-------|-------------|--------|
 | SPEC-031 | FTS Search Fallback | 2026-03-31 | -- |
-
