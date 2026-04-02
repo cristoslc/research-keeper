@@ -1,5 +1,8 @@
 # Initiatives
 
-| ID | Title | Status | Parent | Last Updated |
-|----|-------|--------|--------|-------------|
-| INITIATIVE-001 | Mechanism Layer | Active | VISION-001 | 2026-03-29 |
+## Active
+
+| Artifact | Title | Last Updated | Commit |
+|----------|-------|-------------|--------|
+| INITIATIVE-001 | Mechanism Layer | 2026-03-29 | -- |
+| INITIATIVE-002 | Knowledge Base Viewer | 2026-03-31 | -- |
