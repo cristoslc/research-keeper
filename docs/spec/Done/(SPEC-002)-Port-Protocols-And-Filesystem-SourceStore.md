@@ -2,7 +2,7 @@
 title: "Port Protocols & Filesystem SourceStore"
 artifact: SPEC-002
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-03-29
 last-updated: 2026-03-29

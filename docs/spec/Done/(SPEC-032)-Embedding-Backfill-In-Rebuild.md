@@ -2,7 +2,7 @@
 title: "Embedding Backfill in Rebuild"
 artifact: SPEC-032
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-03-31
 last-updated: 2026-03-31

@@ -2,7 +2,7 @@
 title: "Explicit Runtime Targets For rk skill install"
 artifact: SPEC-037
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-04-01
 last-updated: 2026-04-01

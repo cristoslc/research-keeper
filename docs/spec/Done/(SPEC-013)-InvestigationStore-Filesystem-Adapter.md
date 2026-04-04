@@ -2,7 +2,7 @@
 title: "InvestigationStore Filesystem Adapter"
 artifact: SPEC-013
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-03-30
 last-updated: 2026-03-30
