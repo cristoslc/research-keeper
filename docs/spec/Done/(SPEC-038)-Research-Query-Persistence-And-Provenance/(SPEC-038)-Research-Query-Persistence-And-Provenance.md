@@ -2,7 +2,7 @@
 title: "Research Query Persistence and Provenance"
 artifact: SPEC-038
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-04-02
 last-updated: 2026-04-02

@@ -2,7 +2,7 @@
 title: "Seeded Research Orchestration"
 artifact: SPEC-040
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-04-02
 last-updated: 2026-04-02

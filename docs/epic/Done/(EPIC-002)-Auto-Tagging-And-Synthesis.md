@@ -2,7 +2,7 @@
 title: "Auto-Tagging & Synthesis"
 artifact: EPIC-002
 track: container
-status: Active
+status: Done
 author: cristos
 created: 2026-03-29
 last-updated: 2026-03-29
@@ -53,10 +53,10 @@ Researchers add a source and immediately get it tagged and woven into existing t
 
 | ID | Title | Status |
 |----|-------|--------|
-| SPEC-006 | Tagger Port & LLM Adapter | Active |
-| SPEC-007 | Synthesizer Port & LLM Adapter | Active |
-| SPEC-008 | TagStore Filesystem Adapter | Active |
-| SPEC-009 | Pipeline Tagging & Synthesis Integration | Active |
+| SPEC-006 | Tagger Port & LLM Adapter | Abandoned |
+| SPEC-007 | Synthesizer Port & LLM Adapter | Abandoned |
+| SPEC-008 | TagStore Filesystem Adapter | Done |
+| SPEC-009 | Pipeline Tagging & Synthesis Integration | Abandoned |
 
 ## Key Dependencies
 

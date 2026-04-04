@@ -2,7 +2,7 @@
 title: "V1 Ready"
 artifact: EPIC-006
 track: container
-status: Active
+status: Done
 author: cristos
 created: 2026-03-30
 last-updated: 2026-03-30
@@ -53,12 +53,12 @@ A user installs rk, runs three commands, and it works. Sources get filed with cl
 
 | ID | Title | Status |
 |----|-------|--------|
-| SPEC-019 | Completion Config & Task Routing | Active |
-| SPEC-021 | Remove Anthropic SDK Remnants | Active |
-| SPEC-022 | Fix Slug Generation for CLI Input | Active |
-| SPEC-023 | Graceful Degradation & User Feedback | Active |
-| SPEC-024 | Fix Investigation Brief | Active |
-| SPEC-025 | Fix Investigation Source Symlinks | Active |
+| SPEC-019 | Completion Config & Task Routing | Done |
+| SPEC-021 | Remove Anthropic SDK Remnants | Done |
+| SPEC-022 | Fix Slug Generation for CLI Input | Done |
+| SPEC-023 | Graceful Degradation & User Feedback | Done |
+| SPEC-024 | Fix Investigation Brief | Done |
+| SPEC-025 | Fix Investigation Source Symlinks | Done |
 
 ## Key Dependencies
 

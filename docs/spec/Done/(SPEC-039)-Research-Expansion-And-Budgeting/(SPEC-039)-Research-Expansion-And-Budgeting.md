@@ -2,7 +2,7 @@
 title: "Research Expansion and Budgeting"
 artifact: SPEC-039
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-04-02
 last-updated: 2026-04-02

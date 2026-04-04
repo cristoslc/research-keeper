@@ -2,7 +2,7 @@
 title: "Sidecar Pipeline"
 artifact: EPIC-007
 track: container
-status: Active
+status: Done
 author: cristos
 created: 2026-03-30
 last-updated: 2026-03-30
@@ -60,9 +60,9 @@ An agent runs `rk add` with a list of sources. rk files them all and generates t
 
 | ID | Title | Status |
 |----|-------|--------|
-| SPEC-019 | Sidecar Generation in rk add | Active |
-| SPEC-027 | rk resolve — Pipeline State Machine | Active |
-| SPEC-028 | Jinja2 Sidecar Templates | Active |
+| SPEC-019 | Sidecar Generation in rk add | Done |
+| SPEC-027 | rk resolve — Pipeline State Machine | Done |
+| SPEC-028 | Jinja2 Sidecar Templates | Done |
 
 ## Key Dependencies
 

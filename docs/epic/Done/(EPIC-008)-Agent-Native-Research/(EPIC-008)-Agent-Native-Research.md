@@ -2,7 +2,7 @@
 title: "Agent-Native Research"
 artifact: EPIC-008
 track: container
-status: Active
+status: Done
 author: cristos
 created: 2026-04-02
 last-updated: 2026-04-02
@@ -52,10 +52,10 @@ Researchers can say "research X" and get a broad evidence-gathering pass instead
 
 | ID | Title | Status |
 |----|-------|--------|
-| [SPEC-038](../../../spec/Active/(SPEC-038)-Research-Query-Persistence-And-Provenance/(SPEC-038)-Research-Query-Persistence-And-Provenance.md) | Research Query Persistence and Provenance | Active |
-| [SPEC-039](../../../spec/Active/(SPEC-039)-Research-Expansion-And-Budgeting/(SPEC-039)-Research-Expansion-And-Budgeting.md) | Research Expansion and Budgeting | Active |
-| [SPEC-040](../../../spec/Active/(SPEC-040)-Seeded-Research-Orchestration/(SPEC-040)-Seeded-Research-Orchestration.md) | Seeded Research Orchestration | Active |
-| [SPEC-041](../../../spec/Active/(SPEC-041)-Research-Investigation-Promotion/(SPEC-041)-Research-Investigation-Promotion.md) | Research Investigation Promotion | Active |
+| [SPEC-038](../../../spec/Done/(SPEC-038)-Research-Query-Persistence-And-Provenance/(SPEC-038)-Research-Query-Persistence-And-Provenance.md) | Research Query Persistence and Provenance | Done |
+| [SPEC-039](../../../spec/Done/(SPEC-039)-Research-Expansion-And-Budgeting/(SPEC-039)-Research-Expansion-And-Budgeting.md) | Research Expansion and Budgeting | Done |
+| [SPEC-040](../../../spec/Done/(SPEC-040)-Seeded-Research-Orchestration/(SPEC-040)-Seeded-Research-Orchestration.md) | Seeded Research Orchestration | Done |
+| [SPEC-041](../../../spec/Done/(SPEC-041)-Research-Investigation-Promotion/(SPEC-041)-Research-Investigation-Promotion.md) | Research Investigation Promotion | Done |
 
 ## Key Dependencies
 
