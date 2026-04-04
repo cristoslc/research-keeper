@@ -1,7 +1,13 @@
 # src/research_keeper/skill_template.py
 """Skill template content for rk skill install."""
 
-SKILL_BODY = """\
+from jinja2 import Template
+
+_SKILL_TEMPLATE = Template("""\
+---
+{{ frontmatter }}
+---
+
 # research-keeper
 
 Use this skill when the user wants to add sources, search their library, investigate topics, or interact with a research-keeper (rk) library.
@@ -101,32 +107,33 @@ rk add → tag sidecars pending
 
 Always check `rk resolve` output. If it says "pending" or generates new sidecars, there's more work to do.
 
+## Commit and push
+
+After the final `rk resolve` reports "Done" (no more pending sidecars), commit all changes and push:
+
+1. Stage all modified/new files in the rk library
+2. Commit with a descriptive message (e.g., `rk: add <source-slug>`, `rk: search "<query>"`, `rk: investigate "<topic>"`)
+3. Push to the current branch
+
+This applies to every operation sequence — `rk add`, `rk search`, `rk investigate`, `rk rebuild`, etc.
+
 ## Requirements
 
 - **Ollama** must be running with `nomic-embed-text` for `rk search` to work
 - If search fails with an embedder error: start ollama (`ollama serve`) or run `rk rebuild` to backfill embeddings
 - `rk add` works without ollama — sources are filed and tagged normally, embeddings are backfilled on next `rk rebuild`
-"""
+""")
 
-SKILL_CONTENT = f"""\
----
-name: research-keeper
-description: "Use for research-keeper sidecar workflows: add, search, investigate, and resolve pending rk intelligence tasks."
----
+SKILL_CONTENT = _SKILL_TEMPLATE.render(
+    frontmatter='name: research-keeper\ndescription: "Use for research-keeper sidecar workflows: add, search, investigate, and resolve pending rk intelligence tasks."',
+)
 
-{SKILL_BODY}
-"""
-
-CURSOR_SKILL_CONTENT = f"""\
----
-description: research-keeper (rk) — personal research library with sidecar-based intelligence
+CURSOR_SKILL_CONTENT = _SKILL_TEMPLATE.render(
+    frontmatter='''description: research-keeper (rk) — personal research library with sidecar-based intelligence
 globs:
   - "library/**"
   - "tags/**"
   - "queries/**"
   - "investigations/**"
-  - "rk.yaml"
----
-
-{SKILL_BODY}
-"""
+  - "rk.yaml"''',
+)
