@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0] - 2026-04-03
+
+### Features
+
+#### Skill template — Jinja2 and auto-commit
+
+The `rk skill install` skill template is now a single Jinja2 template rendered with per-runtime frontmatter, replacing two duplicated Python f-strings. `jinja2>=3.1` is a new core dependency. The installed skill now instructs agents to commit and push after every completed rk operation sequence (add, search, investigate, rebuild).
+
+- Skill install metadata hardened to avoid edge-case frontmatter errors
+
+### Planned
+
+- Agent-native research — an `rk research` command is being designed for multi-step research workflows: seeded queries, expansion budgets, provenance tracking, and investigation promotion
+
 ## [0.1.2] - 2026-04-01
 
 ### Features
