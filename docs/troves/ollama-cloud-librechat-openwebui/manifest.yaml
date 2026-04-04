@@ -1,0 +1,68 @@
+id: ollama-cloud-librechat-openwebui
+created: 2026-04-03
+refreshed: 2026-04-03
+tags:
+  - ollama
+  - ollama-cloud
+  - librechat
+  - open-webui
+  - self-hosted-llm
+  - remote-access
+  - docker
+referenced-by: []
+
+sources:
+  - id: ollama-cloud-docs
+    type: web
+    url: "https://docs.ollama.com/cloud"
+    fetched: 2026-04-03
+    content-hash: 0f89cd812b070eb0be328ba621e45da69e21f6284ebeb440d7bd3e52ef351f39
+    freshness-ttl: 30d
+
+  - id: librechat-custom-endpoints
+    type: web
+    url: "https://www.librechat.ai/docs/quick_start/custom_endpoints"
+    fetched: 2026-04-03
+    content-hash: 65e404ce105bd2db8504a72976e519ca9a5cf66470f5f684d8149672a4a04462
+    freshness-ttl: 30d
+
+  - id: openwebui-ollama-setup
+    type: web
+    url: "https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-ollama/"
+    fetched: 2026-04-03
+    content-hash: 070a6a28b5cd12f7703a78fb18e45c9625b9e202baa013dc5537815adc02b8b1
+    freshness-ttl: 30d
+
+  - id: ollama-openwebui-cloudflare-remote
+    type: web
+    url: "https://dasroot.net/posts/2025/12/running-ai-models-locally-remote-access-ollama-open-webui-cloudflare/"
+    fetched: 2026-04-03
+    content-hash: 80ece9634d26e85a5688ba1f8a459a991187be21a8ea2a28271efc735267704d
+    freshness-ttl: 90d
+
+  - id: chat-uis-for-ollama
+    type: web
+    url: "https://medium.com/@rosgluk/chat-uis-for-local-ollama-instances-7472cbf54aba"
+    fetched: 2026-04-03
+    content-hash: 500e0403067edaf7faf65d246554df5cac5aa4ee43cb27c74992e28793c2d236
+    freshness-ttl: 90d
+
+  - id: librechat-ollama-discussion
+    type: forum
+    url: "https://github.com/danny-avila/LibreChat/discussions/3722"
+    fetched: 2026-04-03
+    content-hash: edc162a8bc84094c909ef8ef66081be7dfc614d5ed158877b8cb651d3d5db38f
+    freshness-ttl: 90d
+
+  - id: cloudron-secured-ollama
+    type: forum
+    url: "https://forum.cloudron.io/topic/14484/how-to-configure-librechat-to-discuss-with-secured-self-hosted-ollama"
+    fetched: 2026-04-03
+    content-hash: fe529544ad13ee18348695d15a5b59da4b6c680eb273b1e47e38f63b2d6aacb0
+    freshness-ttl: 90d
+
+history:
+  - event: created
+    date: 2026-04-03
+    commit: "--"
+    sources: 7
