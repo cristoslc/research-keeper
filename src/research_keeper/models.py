@@ -87,23 +87,6 @@ class QueryNode:
     branch_outcomes: dict = field(default_factory=dict)
 
 
-@dataclass
-class ResearchBranch:
-    """A single branch of exploration within a research run."""
-    name: str
-    status: Literal["active", "exhausted", "failed"] = "active"
-    source_count: int = 0
-    depth: int = 0
-
-
-@dataclass
-class ResearchBudget:
-    """Budget constraints for a research expansion run."""
-    source_count: int = 20
-    effort: int | None = None
-    time_seconds: float | None = None
-
-
 @dataclass(frozen=True)
 class Investigation:
     inv_id: str
