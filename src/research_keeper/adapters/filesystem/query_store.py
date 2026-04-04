@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from research_keeper.models import QueryNode
+from research_keeper.models import QueryNode, ResearchBranch, ResearchBudget
 from research_keeper.slugify import slugify
 
 
@@ -24,6 +24,7 @@ class FilesystemQueryStore:
         cited_sources: list[str],
         cited_tags: list[str],
         embedding: bytes | None = None,
+        query_type: str = "search",
     ) -> str:
         today = datetime.date.today()
         slug = slugify(query_text, max_length=50)
@@ -55,6 +56,8 @@ class FilesystemQueryStore:
             "cited_sources": cited_sources,
             "cited_tags": cited_tags,
         }
+        if query_type != "search":
+            meta["query_type"] = query_type
         (query_dir / "meta.yaml").write_text(
             yaml.dump(meta, default_flow_style=False, sort_keys=False)
         )
@@ -85,6 +88,7 @@ class FilesystemQueryStore:
         retrieval: list[dict],
         embedding: bytes | None = None,
         investigation_id: str | None = None,
+        query_type: str = "search",
     ) -> str:
         """Create query directory with meta.yaml and embedding, but no synthesis.
 
@@ -119,6 +123,8 @@ class FilesystemQueryStore:
             "cited_tags": [r["slug"] for r in retrieval if r.get("kind") == "tag-synthesis"],
             "investigation": investigation_id,
         }
+        if query_type != "search":
+            meta["query_type"] = query_type
         (query_dir / "meta.yaml").write_text(
             yaml.dump(meta, default_flow_style=False, sort_keys=False)
         )
@@ -151,6 +157,33 @@ class FilesystemQueryStore:
             cited_sources=meta.get("cited_sources", []),
             cited_tags=meta.get("cited_tags", []),
             created=datetime.date.fromisoformat(meta["created"]),
+            query_type=meta.get("query_type", "search"),
+            branches=meta.get("branches", []),
+            budgets=meta.get("budgets", {}),
+            branch_outcomes=meta.get("branch_outcomes", {}),
+        )
+
+    def update_research_metadata(
+        self,
+        query_id: str,
+        branches: list[dict],
+        budgets: dict,
+        branch_outcomes: dict,
+    ) -> None:
+        """Update research-specific metadata on an existing query."""
+        query_dir = self._queries_dir / query_id
+        meta_path = query_dir / "meta.yaml"
+        if not meta_path.exists():
+            msg = f"Query {query_id} not found"
+            raise FileNotFoundError(msg)
+
+        meta = yaml.safe_load(meta_path.read_text())
+        meta["query_type"] = "research"
+        meta["branches"] = branches
+        meta["budgets"] = budgets
+        meta["branch_outcomes"] = branch_outcomes
+        meta_path.write_text(
+            yaml.dump(meta, default_flow_style=False, sort_keys=False)
         )
 
     def list(self) -> list[str]:
