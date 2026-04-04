@@ -5,7 +5,6 @@
 | Artifact | Title | Last Updated | Commit |
 |----------|-------|-------------|--------|
 | SPEC-020 | Completion Fallback & Backfill | 2026-03-30 | -- |
-| SPEC-026 | Trove Manifest Import | 2026-03-30 | -- |
 
 ## Active
 
@@ -33,7 +32,6 @@
 | SPEC-021 | Remove Anthropic SDK Remnants | 2026-03-30 | -- |
 | SPEC-022 | Fix Slug Generation for CLI Input | 2026-03-30 | -- |
 | SPEC-023 | Graceful Degradation & User Feedback | 2026-03-30 | -- |
-| SPEC-025 | Fix Investigation Source Symlinks | 2026-03-30 | -- |
 | SPEC-028 | Jinja2 Sidecar Templates | 2026-03-30 | -- |
 | SPEC-029 | Query Sidecar Generation | 2026-03-30 | -- |
 | SPEC-030 | Resolve Query Sidecars | 2026-03-30 | -- |

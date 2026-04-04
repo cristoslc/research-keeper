@@ -2,7 +2,7 @@
 title: "Fix Investigation Source Symlinks"
 artifact: SPEC-025
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-03-30
 last-updated: 2026-03-30

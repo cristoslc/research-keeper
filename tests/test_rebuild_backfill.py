@@ -140,7 +140,7 @@ class TestRebuildEmbeddingBackfill:
             result = runner.invoke(main, ["rebuild", "--root", str(lib_root)])
 
         assert result.exit_code == 0, result.output
-        assert "skipped (embedder unavailable)" in result.output
+        assert "skipped (embedder error" in result.output
 
         # Verify no embeddings were stored
         index = SqliteIndex(lib_root / "rk.db")

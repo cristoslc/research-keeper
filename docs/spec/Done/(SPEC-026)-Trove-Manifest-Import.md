@@ -2,7 +2,7 @@
 title: "Trove Manifest Import"
 artifact: SPEC-026
 track: implementable
-status: Proposed
+status: Done
 author: cristos
 created: 2026-03-30
 last-updated: 2026-03-30

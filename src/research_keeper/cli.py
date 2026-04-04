@@ -373,12 +373,22 @@ def _rebuild_impl(root: str) -> None:
     skipped = 0
     for node_id, content in missing:
         if node_id not in source_slugs:
-            # Non-source node (tag, query, investigation) — embed whole content
+            # Non-source node (tag, query, investigation) — chunk if long, then embed
             try:
-                emb_bytes = embedder.embed(content)
-                if emb_bytes:
-                    index.upsert_embedding(node_id, getattr(embedder, "_model", "unknown"), emb_bytes)
-                    backfilled += 1
+                model_name = getattr(embedder, "_model", "unknown")
+                chunks = chunk_markdown(content)
+                if len(chunks) == 1:
+                    emb_bytes = embedder.embed(chunks[0].content)
+                    if emb_bytes:
+                        index.upsert_embedding(node_id, model_name, emb_bytes)
+                else:
+                    for chunk in chunks:
+                        emb_bytes = embedder.embed(chunk.content)
+                        if emb_bytes:
+                            chunk_id = f"{node_id}#chunk-{chunk.index}"
+                            index.upsert_embedding(chunk_id, model_name, emb_bytes,
+                                                   content=chunk.content)
+                backfilled += 1
             except Exception:
                 skipped += 1
             continue
@@ -403,7 +413,7 @@ def _rebuild_impl(root: str) -> None:
 
     parts = [f"Backfilled embeddings for {backfilled} source(s)"]
     if skipped:
-        parts.append(f"{skipped} skipped (embedder unavailable)")
+        parts.append(f"{skipped} skipped (embedder error — check Ollama status)")
     click.echo(". ".join(parts) + ".")
 
 
@@ -476,6 +486,96 @@ def investigate(topic: str | None, root: str, close_id: str | None, list_all: bo
         brief_text = brief if brief else f"Investigation into: {topic}"
         inv_id = pipeline.create(topic, brief=brief_text)
         click.echo(f"Created investigation: {inv_id}")
+    except Exception as exc:
+        _handle_error(exc)
+
+
+@main.command("import-trove")
+@click.argument("manifest_path", type=click.Path(exists=True))
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option("--investigation", default=None, help="Link to existing investigation ID")
+@click.option("--no-prompt", is_flag=True, default=False, help="Skip sidecar generation")
+def import_trove(
+    manifest_path: str,
+    root: str,
+    investigation: str | None,
+    no_prompt: bool,
+) -> None:
+    """Batch-import sources from a swain-search trove manifest."""
+    import yaml
+
+    try:
+        root_path = Path(root).resolve()
+        manifest = yaml.safe_load(Path(manifest_path).read_text())
+
+        trove_id = manifest.get("trove", "unknown-trove")
+        trove_tags = manifest.get("tags", [])
+        sources_list = manifest.get("sources", [])
+
+        if not sources_list:
+            click.echo("No sources in manifest.")
+            return
+
+        pipeline = _build_pipeline(root_path)
+
+        # Auto-create investigation from trove ID if none specified
+        inv_id = investigation
+        if inv_id is None:
+            inv_pipeline = _build_investigation_pipeline(root_path)
+            brief = f"Trove import: {trove_id}"
+            inv_id = inv_pipeline.create(trove_id, brief=brief)
+            click.echo(f"Created investigation: {inv_id}")
+
+        added = 0
+        skipped = 0
+        errors: list[tuple[str, str]] = []
+
+        for entry in sources_list:
+            source_id = entry.get("source-id", "unknown")
+            url = entry.get("url") or entry.get("path")
+            if not url:
+                errors.append((source_id, "no url or path"))
+                continue
+
+            metadata: dict = {}
+            if entry.get("title"):
+                metadata["title"] = entry["title"]
+            if url.startswith(("http://", "https://")):
+                metadata["origin"] = url
+            if entry.get("fetched"):
+                metadata["published"] = str(entry["fetched"])[:10]
+            if trove_tags:
+                metadata["tags"] = list(trove_tags)
+
+            try:
+                source = pipeline.add(
+                    url, metadata,
+                    investigation_id=inv_id,
+                    no_prompt=no_prompt,
+                )
+                added += 1
+            except ValueError as exc:
+                if "Duplicate" in str(exc) or "duplicate" in str(exc):
+                    skipped += 1
+                else:
+                    errors.append((source_id, str(exc)))
+            except Exception as exc:
+                errors.append((source_id, str(exc)))
+
+        click.echo(f"\nImported {added} source(s) from trove '{trove_id}'.")
+        if skipped:
+            click.echo(f"Skipped {skipped} duplicate(s).")
+        if errors:
+            click.echo(f"{len(errors)} error(s):")
+            for sid, msg in errors[:10]:
+                click.echo(f"  {sid}: {msg}", err=True)
+
+        if inv_id:
+            click.echo(f"Investigation: {inv_id}")
+
+        if added and not no_prompt:
+            click.echo(f"\n{added} tag sidecar(s) pending. Run: rk resolve")
+
     except Exception as exc:
         _handle_error(exc)
 
@@ -720,6 +820,9 @@ def _build_investigation_pipeline(root: Path):
 
 def _build_search_pipeline(root: Path):
     """Build a QueryPipeline from config at root."""
+    from research_keeper.adapters.filesystem.investigation_store import (
+        FilesystemInvestigationStore,
+    )
     from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
     from research_keeper.adapters.retriever.semantic import SemanticRetriever
     from research_keeper.adapters.sqlite.index import SqliteIndex
@@ -735,6 +838,7 @@ def _build_search_pipeline(root: Path):
     retriever = SemanticRetriever(index=index, half_life_days=half_life)
     embedder = _build_embedder(config)
     sidecar_gen = SidecarGenerator(root, config.completion)
+    inv_store = FilesystemInvestigationStore(root)
 
     return QueryPipeline(
         retriever=retriever,
@@ -743,6 +847,7 @@ def _build_search_pipeline(root: Path):
         embedder=embedder,
         index=index,
         top_k=config.retrieval.top_k,
+        investigation_store=inv_store,
     )
 
 
