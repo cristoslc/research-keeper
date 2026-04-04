@@ -53,6 +53,26 @@ class ScoredNode:
 
 
 @dataclass(frozen=True)
+class ResearchBranch:
+    """A single exploration branch in a research run."""
+
+    name: str
+    status: Literal["active", "exhausted", "failed"] = "active"
+    source_count: int = 0
+    depth: int = 0
+
+
+@dataclass(frozen=True)
+class ResearchBudget:
+    """Stop conditions for a research run."""
+
+    source_count: int = 50
+    effort: int | None = None  # max API calls
+    time_seconds: int | None = None
+    stop_reason: str | None = None
+
+
+@dataclass(frozen=True)
 class QueryNode:
     query_id: str
     query_text: str
@@ -61,6 +81,10 @@ class QueryNode:
     cited_tags: list[str] = field(default_factory=list)
     created: datetime.date = field(default_factory=datetime.date.today)
     kind: Literal["query-synthesis"] = "query-synthesis"
+    query_type: Literal["search", "research"] = "search"
+    branches: list[dict] = field(default_factory=list)
+    budgets: dict = field(default_factory=dict)
+    branch_outcomes: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
