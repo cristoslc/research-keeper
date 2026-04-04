@@ -2,7 +2,7 @@
 title: "Hexagonal Foundation"
 artifact: EPIC-001
 track: container
-status: Active
+status: Done
 author: cristos
 created: 2026-03-29
 last-updated: 2026-03-29

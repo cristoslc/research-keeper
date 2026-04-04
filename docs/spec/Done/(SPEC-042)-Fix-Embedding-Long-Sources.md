@@ -1,6 +1,6 @@
 ---
 title: "Fix Embedding Long Sources"
-artifact: SPEC-028
+artifact: SPEC-042
 track: implementable
 status: Done
 author: cristos

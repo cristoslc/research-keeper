@@ -2,7 +2,7 @@
 title: "Pipeline Tagging & Synthesis Integration"
 artifact: SPEC-009
 track: implementable
-status: Active
+status: Abandoned
 author: cristos
 created: 2026-03-29
 last-updated: 2026-03-29

@@ -2,7 +2,7 @@
 title: "Tagger Port & LLM Adapter"
 artifact: SPEC-006
 track: implementable
-status: Active
+status: Abandoned
 author: cristos
 created: 2026-03-29
 last-updated: 2026-03-29
