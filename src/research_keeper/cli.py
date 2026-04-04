@@ -490,6 +490,90 @@ def investigate(topic: str | None, root: str, close_id: str | None, list_all: bo
         _handle_error(exc)
 
 
+@main.command()
+@click.argument("topic")
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option("--source", "seed_sources", multiple=True, help="Seed source URL or path")
+@click.option("--source-budget", type=int, default=50, help="Max sources to gather")
+@click.option("--effort-budget", type=int, default=None, help="Max API calls")
+@click.option("--time-budget", type=int, default=None, help="Max seconds")
+@click.option("--no-prompt", is_flag=True, default=True, help="Skip sidecar generation for seeds")
+@click.option("--investigation", default=None, help="Link to existing investigation ID")
+def research(
+    topic: str,
+    root: str,
+    seed_sources: tuple[str, ...],
+    source_budget: int,
+    effort_budget: int | None,
+    time_budget: int | None,
+    no_prompt: bool,
+    investigation: str | None,
+) -> None:
+    """Run a seeded research exploration on a topic."""
+    try:
+        root_path = Path(root).resolve()
+
+        from research_keeper.research_pipeline import ResearchPipeline
+
+        pipeline = _build_pipeline(root_path)
+        query_pipeline = _build_search_pipeline(root_path)
+        query_store = query_pipeline._query_store
+
+        def show_progress(msg: str) -> None:
+            click.echo(f"  {msg}")
+
+        research_pipe = ResearchPipeline(
+            intake_pipeline=pipeline,
+            query_pipeline=query_pipeline,
+            query_store=query_store,
+        )
+
+        click.echo(f"Research: {topic}")
+        if seed_sources:
+            click.echo(f"Seeds: {len(seed_sources)} source(s)")
+        click.echo(f"Budget: {source_budget} sources")
+        click.echo()
+
+        result = research_pipe.run(
+            topic=topic,
+            seed_sources=list(seed_sources) if seed_sources else None,
+            source_budget=source_budget,
+            effort_budget=effort_budget,
+            time_budget=time_budget,
+            no_prompt=no_prompt,
+            on_progress=show_progress,
+        )
+
+        click.echo()
+        click.echo(f"Research complete: {len(result.branches)} branches explored")
+        click.echo(f"Sources/queries gathered: {len(result.sources_added)}")
+        if result.stop_reason:
+            click.echo(f"Stopped: {result.stop_reason}")
+        if result.query_id:
+            click.echo(f"Research query: {result.query_id}")
+
+        # Investigation promotion (SPEC-041)
+        inv_id = investigation
+        if result.query_id:
+            if inv_id is None:
+                inv_pipeline = _build_investigation_pipeline(root_path)
+                brief = f"Research run: {topic}"
+                inv_id = inv_pipeline.create(topic, brief=brief)
+                click.echo(f"Created investigation: {inv_id}")
+
+            if inv_id:
+                inv_store = _build_investigation_pipeline(root_path)._inv_store
+                inv_store.link(inv_id, result.query_id, "query")
+                click.echo(f"Linked research to investigation: {inv_id}")
+
+                for slug in result.sources_added:
+                    if not slug.startswith("qry-"):
+                        inv_store.link(inv_id, slug, "source")
+
+    except Exception as exc:
+        _handle_error(exc)
+
+
 @main.command("import-trove")
 @click.argument("manifest_path", type=click.Path(exists=True))
 @click.option("--root", type=click.Path(exists=True), default=".")
