@@ -35,7 +35,6 @@
 | SPEC-023 | Graceful Degradation & User Feedback | 2026-03-30 | -- |
 | SPEC-024 | Fix Investigation Brief | 2026-03-30 | -- |
 | SPEC-025 | Fix Investigation Source Symlinks | 2026-03-30 | -- |
-| SPEC-027 | rk resolve — Pipeline State Machine | 2026-03-30 | -- |
 | SPEC-028 | Jinja2 Sidecar Templates | 2026-03-30 | -- |
 | SPEC-029 | Query Sidecar Generation | 2026-03-30 | -- |
 | SPEC-030 | Resolve Query Sidecars | 2026-03-30 | -- |
@@ -43,7 +42,7 @@
 | SPEC-033 | Doctor Embedding Coverage | 2026-03-31 | -- |
 | SPEC-034 | Investigation Rolling Synthesis | 2026-03-31 | -- |
 | SPEC-035 | rk skill install | 2026-04-01 | -- |
-| SPEC-036 | Resolve Failure-Path Cleanup | 2026-03-31 | -- |
+| SPEC-036 | Chunk Embeddings for Long Sources | 2026-03-31 | 8fbd729 |
 | SPEC-037 | Explicit Runtime Targets For rk skill install | 2026-04-01 | -- |
 | SPEC-038 | Research Query Persistence and Provenance | 2026-04-02 | -- |
 | SPEC-039 | Research Expansion and Budgeting | 2026-04-02 | -- |
@@ -55,3 +54,4 @@
 | Artifact | Title | Last Updated | Commit |
 |----------|-------|-------------|--------|
 | SPEC-031 | FTS Search Fallback | 2026-03-31 | -- |
+
