@@ -44,3 +44,22 @@ No decisions needed — this focus area has no pending operator actions.
 > EPIC-007 spikes done (TW No-Go, SPA Conditional Go). Merged to trunk. Next: brainstorm IA then write interaction DESIGN.
 
 *Session closed: 2026-03-31T03:18:28Z*
+
+## Session session-20260403-140641-7a22 Handoff
+
+**Focus lane:** INITIATIVE-001
+**Closed:** 2026-04-03
+
+### What was done
+
+- Refactored `skill_template.py` from duplicated f-strings to Jinja2 `Template.render()`
+- Added `jinja2>=3.1` as a core dependency
+- Added "commit and push" step to the rk skill template for consumer agents
+- Created trove `ollama-cloud-librechat-openwebui` with 7 sources
+
+### Open items
+
+- 5 open GitHub issues (#1-#5), SPEC-024 and SPEC-025 linked and Active
+- `.claude/skills/research-keeper/SKILL.md` local copy may diverge from `src/` canonical
+
+*Session closed: 2026-04-03*
