@@ -34,7 +34,6 @@
 | SPEC-022 | Fix Slug Generation for CLI Input | 2026-03-30 | -- |
 | SPEC-023 | Graceful Degradation & User Feedback | 2026-03-30 | -- |
 | SPEC-025 | Fix Investigation Source Symlinks | 2026-03-30 | -- |
-| SPEC-027 | rk resolve — Pipeline State Machine | 2026-03-30 | -- |
 | SPEC-028 | Jinja2 Sidecar Templates | 2026-03-30 | -- |
 | SPEC-029 | Query Sidecar Generation | 2026-03-30 | -- |
 | SPEC-030 | Resolve Query Sidecars | 2026-03-30 | -- |

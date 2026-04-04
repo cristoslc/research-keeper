@@ -2,7 +2,7 @@
 title: "rk resolve — Pipeline State Machine"
 artifact: SPEC-027
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-03-30
 last-updated: 2026-03-30
