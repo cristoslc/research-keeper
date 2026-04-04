@@ -2,7 +2,7 @@
 title: "TagStore Filesystem Adapter"
 artifact: SPEC-008
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-03-29
 last-updated: 2026-03-29

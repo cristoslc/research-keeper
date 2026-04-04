@@ -2,7 +2,7 @@
 title: "rk skill install"
 artifact: SPEC-035
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-03-31
 last-updated: 2026-04-01

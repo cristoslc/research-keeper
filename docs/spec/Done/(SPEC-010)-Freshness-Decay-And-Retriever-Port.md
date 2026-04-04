@@ -2,7 +2,7 @@
 title: "Freshness Decay & Retriever Port"
 artifact: SPEC-010
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-03-30
 last-updated: 2026-03-30

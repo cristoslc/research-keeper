@@ -2,7 +2,7 @@
 title: "Query Sidecar Generation"
 artifact: SPEC-029
 track: implementable
-status: Active
+status: Done
 author: cristos
 created: 2026-03-30
 last-updated: 2026-03-30
