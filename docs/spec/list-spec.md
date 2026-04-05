@@ -13,6 +13,7 @@
 | SPEC-045 | Export as Zip Archive | 2026-04-04 | — |
 | SPEC-046 | Single-Source Version | 2026-04-04 | — |
 | SPEC-047 | Self-Update Command | 2026-04-04 | — |
+| SPEC-048 | Media-Summary Integration | 2026-04-04 | — |
 
 ## Abandoned
 
