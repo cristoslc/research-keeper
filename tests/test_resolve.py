@@ -227,6 +227,110 @@ class TestResolveSynthesisStage:
         assert "Key findings" in content
 
 
+class TestResolveStaleSynthesis:
+    """SPEC-043: resolve detects when existing tags gain new sources."""
+
+    def test_new_source_triggers_resynthesis(self, pipeline_and_root):
+        """Tag with existing synthesis.md should get synthesize.j2 when a new source is linked."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+
+        # Add first source and resolve through full cycle
+        src_a = pipeline.add("# Memory\n\nContent about memory.", {"title": "Memory"})
+        pending_a = root / "library" / "sources" / src_a.slug / ".pending"
+        (pending_a / "tag.yaml").write_text("tags:\n  - memory\n")
+
+        # Resolve: processes tags, generates synthesis sidecar
+        run_resolve(root)
+
+        # Fill synthesis sidecar
+        synth_pending = root / "tags" / "memory" / ".pending"
+        (synth_pending / "synthesize.md").write_text("# Memory\n\nSynthesis from one source.")
+
+        # Resolve: processes synthesis -> synthesis.md exists
+        run_resolve(root)
+        assert (root / "tags" / "memory" / "synthesis.md").exists()
+
+        # Now add a second source assigned to the same tag
+        src_b = pipeline.add("# New Memory Research\n\nFresh findings.", {"title": "New Memory"})
+        pending_b = root / "library" / "sources" / src_b.slug / ".pending"
+        (pending_b / "tag.yaml").write_text("tags:\n  - memory\n")
+
+        # Resolve: should process tag AND generate a new synthesize.j2
+        output = run_resolve(root)
+
+        synth_j2 = root / "tags" / "memory" / ".pending" / "synthesize.j2"
+        assert synth_j2.exists(), (
+            f"Expected synthesis sidecar for tag with new source. Output: {output}"
+        )
+        assert "synthesis" in output.lower()
+
+    def test_no_resynthesis_without_new_sources(self, pipeline_and_root):
+        """Tag with existing synthesis.md and no new sources should NOT get synthesize.j2."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+
+        # Add source, resolve through full cycle
+        src = pipeline.add("# Memory\n\nContent.", {"title": "Memory"})
+        pending = root / "library" / "sources" / src.slug / ".pending"
+        (pending / "tag.yaml").write_text("tags:\n  - memory\n")
+
+        run_resolve(root)
+
+        synth_pending = root / "tags" / "memory" / ".pending"
+        (synth_pending / "synthesize.md").write_text("# Memory\n\nSynthesis.")
+
+        run_resolve(root)
+        assert (root / "tags" / "memory" / "synthesis.md").exists()
+
+        # Run resolve again with NO new sources
+        output = run_resolve(root)
+
+        # Should NOT generate a synthesis sidecar
+        synth_j2 = root / "tags" / "memory" / ".pending" / "synthesize.j2"
+        assert not synth_j2.exists(), (
+            "Should not re-synthesize when no new sources were linked"
+        )
+        assert "Done" in output
+
+    def test_pending_sidecar_not_duplicated(self, pipeline_and_root):
+        """Tag with pending synthesize.j2 should not get a second one even with new sources."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+
+        # Set up a tag with sources but no synthesis yet
+        src_a = pipeline.add("# Memory\n\nContent A.", {"title": "A"})
+        src_b = pipeline.add("# Memory 2\n\nContent B.", {"title": "B"})
+
+        for src in [src_a, src_b]:
+            pending = root / "library" / "sources" / src.slug / ".pending"
+            (pending / "tag.yaml").write_text("tags:\n  - memory\n")
+
+        # Resolve: processes tags, generates synthesize.j2
+        run_resolve(root)
+        synth_j2 = root / "tags" / "memory" / ".pending" / "synthesize.j2"
+        assert synth_j2.exists()
+
+        # Record the content so we can check it wasn't regenerated
+        original_content = synth_j2.read_text()
+
+        # Add a third source to the same tag
+        src_c = pipeline.add("# Memory 3\n\nContent C.", {"title": "C"})
+        pending_c = root / "library" / "sources" / src_c.slug / ".pending"
+        (pending_c / "tag.yaml").write_text("tags:\n  - memory\n")
+
+        # Resolve again — should NOT duplicate the pending sidecar
+        run_resolve(root)
+
+        assert synth_j2.exists()
+        assert synth_j2.read_text() == original_content, (
+            "Pending sidecar should not be regenerated"
+        )
+
+
 class TestResolveIntakeLocks:
     def test_intake_lock_blocks_resolve(self, pipeline_and_root):
         """If intake.lock files exist, resolve should report intake in progress."""
