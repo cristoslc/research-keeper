@@ -7,6 +7,7 @@ import logging
 import re
 import subprocess
 import tempfile
+from collections import deque
 from pathlib import Path
 
 from research_keeper.ports.normalizer import NormalizationError
@@ -57,22 +58,66 @@ def _fetch_youtube_subtitles(url: str) -> str | None:
 
 
 def _vtt_to_text(vtt_path: Path) -> str:
-    """Convert a VTT subtitle file to clean deduplicated text."""
-    raw = vtt_path.read_text()
-    lines: list[str] = []
-    for line in raw.split("\n"):
-        # Skip header, timestamps, blank lines
-        if line.startswith("WEBVTT") or line.startswith("Kind:") or line.startswith("Language:"):
-            continue
-        if re.match(r"^\d{2}:\d{2}", line):
-            continue
-        if not line.strip():
-            continue
-        # Strip inline VTT tags like <00:00:19.760><c>
-        clean = re.sub(r"<[^>]+>", "", line).strip()
-        if clean and (not lines or clean != lines[-1]):
-            lines.append(clean)
-    return "\n".join(lines)
+    """Convert a VTT subtitle file to clean deduplicated text with timestamps.
+
+    Uses sliding window deduplication (50-word history) to handle overlapping
+    caption windows. Preserves timestamps in [HH:MM:SS] format for deep-linking.
+
+    Based on media-summary's parse_vtt.py algorithm.
+    """
+    content = vtt_path.read_text()
+
+    # Parse all cue blocks
+    cues = []
+    for block in re.split(r"\n\n+", content):
+        lines = [line.strip() for line in block.split("\n") if line.strip()]
+        timestamp_line = None
+        text_lines = []
+
+        for line in lines:
+            if "-->" in line:
+                # Extract start timestamp (HH:MM:SS format)
+                match = re.match(r"(\d{2}:\d{2}:\d{2})", line)
+                if match:
+                    timestamp_line = match.group(1)
+            elif (
+                not re.match(r"^\d+$", line)  # Skip cue numbers
+                and not line.startswith("WEBVTT")
+                and not line.startswith("Kind:")
+                and not line.startswith("Language:")
+            ):
+                # Strip inline VTT tags like <00:00:19.760><c>
+                clean = re.sub(r"<[^>]+>", "", line).strip()
+                if clean:
+                    text_lines.append(clean)
+
+        if timestamp_line and text_lines:
+            cues.append((timestamp_line, " ".join(text_lines)))
+
+    # Emit only new words per cue, preserving timestamp of first appearance.
+    # Keep a sliding window of recent words — caption overlaps are typically
+    # 5-20 words, so 50 is plenty.
+    WINDOW = 50
+    result_lines = []
+    recent_words = deque(maxlen=WINDOW)
+
+    for timestamp, text in cues:
+        words = text.split()
+        tail = list(recent_words)
+        overlap = 0
+
+        # Find longest matching suffix in recent words
+        for i in range(min(len(words), len(tail)), 0, -1):
+            if words[:i] == tail[-i:]:
+                overlap = i
+                break
+
+        new_words = words[overlap:]
+        if new_words:
+            result_lines.append(f"[{timestamp}] {' '.join(new_words)}")
+            recent_words.extend(new_words)
+
+    return "\n".join(result_lines)
 
 
 def _transcribe_audio(audio_path: str) -> str | None:
