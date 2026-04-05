@@ -76,6 +76,60 @@ def _fetch_youtube_info(url: str) -> dict:
     return json.loads(result.stdout)
 
 
+def _fetch_youtube_info_and_subs(url: str) -> tuple[str | None, dict]:
+    """Fetch YouTube video info and subtitles in a consolidated call.
+
+    Returns (subtitles_text_or_None, info_dict).
+    This consolidates the previous separate _fetch_youtube_info and
+    _fetch_youtube_subtitles calls into one yt-dlp invocation for efficiency.
+
+    The subtitle fallback chain:
+    1. Manual subtitles (--write-sub)
+    2. Auto-captions (--write-auto-sub)
+    3. Description (handled by caller if >100 non-hashtag chars)
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Consolidated call: subtitle + info in one invocation
+        for flag in ["--write-sub", "--write-auto-sub"]:
+            result = subprocess.run(
+                [
+                    "yt-dlp",
+                    flag,
+                    "--sub-lang", "en",
+                    "--write-info-json",
+                    "--skip-download",
+                    "--sub-format", "vtt",
+                    "-o", f"{tmpdir}/%(id)s",
+                    url,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+            vtt_files = glob.glob(f"{tmpdir}/*.vtt")
+            if vtt_files:
+                # Read info JSON
+                info_files = glob.glob(f"{tmpdir}/*.info.json")
+                info = {}
+                if info_files:
+                    try:
+                        info = json.loads(Path(info_files[0]).read_text())
+                    except (json.JSONDecodeError, OSError):
+                        pass
+                return _vtt_to_text(Path(vtt_files[0])), info
+
+    # No subtitles - return info only
+    result = subprocess.run(
+        ["yt-dlp", "--dump-json", "--no-download", url],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    info = json.loads(result.stdout) if result.returncode == 0 else {}
+    return None, info
+
+
 def _fetch_instagram_subtitles(url: str, browser: str | None) -> tuple[str | None, dict]:
     """Fetch Instagram subtitles/captions and metadata using yt-dlp with browser cookies.
 
@@ -277,7 +331,8 @@ class MediaNormalizer:
     def _normalize_youtube(
         self, url: str, metadata: dict
     ) -> tuple[str, dict]:
-        info = _fetch_youtube_info(url)
+        # Consolidated call: info + subtitles in one invocation
+        subtitles, info = _fetch_youtube_info_and_subs(url)
 
         extracted: dict[str, str] = {
             "title": info.get("title", "Untitled Video"),
@@ -289,10 +344,19 @@ class MediaNormalizer:
             extracted["url"] = info["webpage_url"]
 
         # Try subtitles first (manual then auto-captions)
-        subtitles = _fetch_youtube_subtitles(url)
         if subtitles:
             content = f"# {extracted['title']}\n\n{subtitles}"
             return content, extracted
+
+        # Caption fallback: use description if >100 non-hashtag chars
+        description = info.get("description", "") or info.get("description_html", "")
+        if description:
+            # Strip hashtags
+            clean_desc = re.sub(r"#\w+", "", description).strip()
+            if len(clean_desc) > 100:
+                content = f"# {extracted['title']}\n\n{clean_desc}"
+                extracted["transcript_source"] = "description"
+                return content, extracted
 
         # No subtitles — try whisper transcription
         audio_path = _download_youtube_audio(url)
