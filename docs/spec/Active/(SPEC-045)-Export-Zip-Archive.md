@@ -76,7 +76,7 @@ rk export <target> [<target>...] [--root <path>] [--output <path>]
 
 7. **Given** the export completes, **when** the zip is inspected, **then** it contains zero symlinks — every file is a regular file with real content.
 
-8. **Given** any exported directory contains `embedding.bin` files, **when** the zip is created, **then** those files are excluded from the archive.
+8. **Given** any exported directory contains `embedding.bin` or `*.embedding.bin` files, **when** the zip is created, **then** those files are excluded from the archive.
 
 ## Verification
 
@@ -88,7 +88,7 @@ rk export <target> [<target>...] [--root <path>] [--output <path>]
 - Uses Python's `zipfile` module (stdlib) — no new dependencies
 - Platform folder opening: `open` on macOS, `xdg-open` on Linux, `start` on Windows
 - No filtering within exported directories — the entire directory tree is included
-- Embedding files (`embedding.bin`) are excluded from the export — they are derived data, large, and can be regenerated with `rk rebuild`
+- Embedding files matching `embedding.bin` or `*.embedding.bin` are excluded from the export — they are derived data, large, and can be regenerated with `rk rebuild`
 - Does not export the SQLite index — only filesystem artifacts
 
 ## Lifecycle

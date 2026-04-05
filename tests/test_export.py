@@ -251,9 +251,11 @@ class TestCreateExportArchive:
         assert not output.exists()
 
     def test_embeddings_excluded(self, populated_library: Path, tmp_path: Path):
-        # Add embedding.bin files to tag and query dirs
+        # Add embedding.bin and chunk embedding files
         (populated_library / "tags" / "machine-learning" / "embedding.bin").write_bytes(b"\x00" * 128)
         (populated_library / "queries" / "qry-2026-04-01-test-query" / "embedding.bin").write_bytes(b"\x00" * 128)
+        (populated_library / "tags" / "machine-learning" / "chunk-0.embedding.bin").write_bytes(b"\x00" * 64)
+        (populated_library / "tags" / "machine-learning" / "chunk-1.embedding.bin").write_bytes(b"\x00" * 64)
 
         output = tmp_path / "export.zip"
         create_export_archive(

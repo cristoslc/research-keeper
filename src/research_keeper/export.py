@@ -7,10 +7,12 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import fnmatch
+
 VALID_KINDS = {"tag", "source", "investigation", "query"}
 
-# Files excluded from export — derived data that can be regenerated
-EXCLUDED_FILENAMES = {"embedding.bin"}
+# Glob patterns for files excluded from export — derived data that can be regenerated
+EXCLUDED_PATTERNS = ["embedding.bin", "*.embedding.bin"]
 
 KIND_TO_DIR = {
     "tag": "tags",
@@ -61,7 +63,7 @@ def _add_path_to_zip(
         fs_path = resolved
 
     if fs_path.is_file():
-        if fs_path.name in EXCLUDED_FILENAMES:
+        if any(fnmatch.fnmatch(fs_path.name, pat) for pat in EXCLUDED_PATTERNS):
             return
         zf.write(fs_path, archive_name)
     elif fs_path.is_dir():
