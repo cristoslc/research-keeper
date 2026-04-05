@@ -213,6 +213,65 @@ This points toward a **hybrid approach** not in the original pivot list:
 
 This preserves the "search Twitter" capability while accepting that extraction requires the operator's authenticated browser session.
 
+### Extended Testing: Other Thread Unrollers and Nitter Forks
+
+Tested additional services surfaced by web search. **None work for automated extraction.**
+
+#### Thread unrolling services
+
+| Service | Result | Notes |
+|---------|--------|-------|
+| UnrollNow (`unrollnow.com`) | FAIL | Returns empty JS shell. Content rendered client-side only. |
+| Thread Navigator (`threadnavigator.com`) | FAIL | 403 Forbidden on all requests. Blocks non-browser access. |
+| XBeast (`xbeast.io/tools/thread-unroller`) | FAIL | Returns Ant Design UI scaffold. No server-rendered content. |
+| TwitterShots (`twittershots.com`) | FAIL | 404 on thread paths. Primarily a screenshot API service. |
+| Threader.app | FAIL | Service appears defunct. |
+| Unroll Thread (`unrollthread.com`) | FAIL | No usable response. |
+
+All JS-rendered services share the same problem: they work in a browser but return empty HTML to HTTP clients like trafilatura. A headless browser (Playwright) would be needed.
+
+#### Nitter instances and forks (12 tested)
+
+| Instance | Status |
+|----------|--------|
+| nitter.privacydev.net | 403 |
+| nitter.1d4.us | 403 |
+| nitter.kavin.rocks | 502 |
+| nitter.unixfox.eu | 403 |
+| nitter.fdn.fr | 403 |
+| nitter.it | Repurposed (Italian news site) |
+| bird.trom.tf | 503 |
+| nitter.cz | Redirects to tiekoetter → Anubis bot wall |
+| nitter.woodland.cafe | 503 |
+| nitter.mint.lgbt | 403 |
+| xcancel.com | 503 |
+| twiiit.com | Redirects to tiekoetter → Anubis bot wall |
+
+**The Nitter ecosystem is dead.** Zero out of 12 instances serve content. Failure modes: 403 (Twitter IP blocking), 502/503 (servers down), domain repurposed, or bot protection walls.
+
+### Cheap API Alternative Discovered
+
+Third-party API proxies have emerged as a middle ground between free (dead) and official API ($200/mo+):
+
+| Service | Pricing | Auth | Thread support |
+|---------|---------|------|----------------|
+| [TwitterAPI.io](https://twitterapi.io) | $0.15/1K tweets, pay-as-you-go, no monthly fee | API key (free credits to start) | Yes — tweet lookup by ID |
+| [SociaVault](https://sociavault.com) | Credit-based, 50 free credits on signup | API key | Yes |
+
+At $0.15 per 1,000 tweets, a researcher ingesting 50 threads/month (~500 tweets) would pay under $0.10/month. This is a viable **Pivot E** — far cheaper than the official API and requires no approval process.
+
+### Revised Pivot Ranking
+
+| Pivot | Effort | Friction | Cost | Recommended? |
+|-------|--------|----------|------|-------------|
+| **E — Cheap third-party API** (TwitterAPI.io) | Low (~100 LOC) | Low — fully automated | ~$0.10/mo for light use | **Yes — best balance** |
+| **D — Google discovery + manual paste** | Low (~80 LOC) | Medium — manual copy-paste | Free | Yes — zero-cost fallback |
+| **C — Bookmarklet** | Medium (~150 LOC) | Medium — requires browser action | Free | Optional add-on to D |
+| **A — Manual paste only** | Minimal (~40 LOC) | High — no discovery help | Free | Bare minimum |
+| **B — Official Twitter API** | Low (~100 LOC) | Low | $200/mo | Only if heavy usage |
+
+**Recommended implementation: Pivot E as primary, Pivot D as free fallback.** The TwitterNormalizer checks for an API key; if present, fetches threads automatically via TwitterAPI.io. If absent, falls back to manual paste with Google discovery assistance.
+
 ## Lifecycle
 
 | Phase | Date | Commit | Notes |
