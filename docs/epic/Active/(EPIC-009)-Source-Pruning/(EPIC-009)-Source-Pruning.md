@@ -10,10 +10,11 @@ parent-vision: VISION-001
 parent-initiative: INITIATIVE-001
 priority-weight: medium
 success-criteria:
-  - "rk prune <slug> removes a source and all its downstream artifacts cleanly"
-  - "rk prune --expired removes all sources past their TTL in a single batch"
-  - "Tag syntheses that cited a pruned source are marked stale and re-synthesized on next pipeline run"
-  - "Query and investigation references to pruned sources degrade gracefully (tombstone, not crash)"
+  - "rk prune <slug> soft-deletes a source to library/.deleted/ and removes it from the index"
+  - "rk prune --expired soft-deletes all TTL-expired sources in a single batch"
+  - "rk resolve detects broken source symlinks in tags, queries, and investigations and cleans them automatically"
+  - "Tags that lose sources to pruning are marked stale; re-synthesis sidecars are generated on the next resolve cycle"
+  - "Soft-deleted sources are recoverable by moving them back and running rk rebuild"
   - "Dry-run mode shows what would be pruned without changing anything"
 depends-on-artifacts: []
 addresses: []
@@ -24,11 +25,13 @@ evidence-pool: ""
 
 ## Goal / Objective
 
-Make source removal a first-class operation in research-keeper. Today sources are append-only: they decay in search relevance via freshness weighting but physically persist forever. A growing library accumulates stale, irrelevant, or mistakenly-added sources with no way to clean them out. Pruning must handle the full cascade -- filesystem, index, tag links, syntheses, and downstream references -- so the library stays consistent after removal.
+Make source removal a first-class operation that fits the existing multi-turn resolve architecture. Today sources are append-only: they decay in search relevance via freshness weighting but persist forever. A growing library accumulates stale, irrelevant, or mistakenly-added sources with no way to clean them out.
+
+Pruning follows the same pattern as intake: `rk prune` changes the library state, and `rk resolve` detects and resolves downstream consequences across turns. Sources are soft-deleted (moved to `library/.deleted/`) so recovery is trivial without git gymnastics. Broken symlinks left behind by the move act as natural indicators for resolve to find and clean up.
 
 ## Desired Outcomes
 
-A researcher using rk can confidently remove sources that no longer serve their work. After pruning, the library is smaller, search results are cleaner, and syntheses reflect only current sources. No orphaned references or broken symlinks remain. Batch pruning of TTL-expired sources keeps the library healthy without manual slug-by-slug work.
+A researcher can remove sources that no longer serve their work and trust that `rk resolve` will bring the rest of the library back to a consistent state over subsequent cycles. Pruned sources are recoverable without git. Tag syntheses that cited removed sources get re-synthesized. Query and investigation references degrade gracefully.
 
 ## Progress
 
@@ -37,31 +40,34 @@ A researcher using rk can confidently remove sources that no longer serve their 
 ## Scope Boundaries
 
 **In scope:**
-- `SourceStore.remove()` port and filesystem adapter implementation
-- Cascade cleanup: index removal, tag symlink unlinking, synthesis staleness marking
-- Query and investigation reference cleanup (tombstone pattern)
-- CLI `rk prune` command with slug targeting, `--expired` batch mode, `--dry-run`, and confirmation prompt
-- Re-synthesis trigger for affected tags
+- `SourceStore.remove()` as soft-delete (move to `library/.deleted/sources/{slug}/`)
+- Index cleanup (nodes, FTS, embeddings, edges) at prune time
+- Resolve stage: detect broken source symlinks in tags, queries, investigations
+- Resolve stage: auto-clean broken symlinks, mark tags stale, tombstone query/investigation references
+- Lazy re-synthesis: stale tags get synthesis sidecars on the next resolve cycle (not the current one)
+- CLI `rk prune` with slug targeting, `--expired` batch mode, `--dry-run`, `--yes`
 
 **Out of scope:**
-- Undo/restore from git history (users can `git checkout` manually)
-- Scheduled/automatic pruning (cron-style) -- future enhancement
-- UI for pruning (EPIC-007 viewer is read-only)
-- Archive/soft-delete pattern -- pruning is hard delete
+- `rk restore` command (manual `mv` + `rk rebuild` is sufficient for v1)
+- Scheduled/automatic pruning (cron-style)
+- UI for pruning
+- Pruning tags, queries, or investigations directly (sources only for now)
+- Eager re-synthesis during the same resolve cycle that detects staleness
 
 ## Child Specs
 
 | Spec | Title | Status |
 |------|-------|--------|
-| SPEC-048 | SourceStore.remove port and filesystem adapter | Active |
-| SPEC-049 | Cascade cleanup on prune | Active |
+| SPEC-048 | Soft-delete source store | Active |
+| SPEC-049 | Resolve prune-resolution stage | Active |
 | SPEC-050 | CLI prune command | Active |
 
 ## Key Dependencies
 
 - SPEC-002 (Done): SourceStore filesystem adapter -- we extend this with `remove()`
-- SPEC-004 (Done): SqliteIndex -- `remove_source()` already exists, we wire it into the cascade
+- SPEC-004 (Done): SqliteIndex -- `remove_source()` already exists
 - SPEC-010 (Done): Freshness decay -- TTL values drive `--expired` batch mode
+- SPEC-027 (Done): Resolve pipeline -- we add a new prune-resolution stage
 
 ## Lifecycle
 
