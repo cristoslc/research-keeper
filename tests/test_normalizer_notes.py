@@ -48,3 +48,44 @@ def test_metadata_title_override():
     normalizer = NotesNormalizer()
     _, meta = normalizer.normalize("Content here.", {"title": "Custom Title"})
     assert meta["title"] == "Custom Title"
+
+
+def test_file_path_reads_content(tmp_path):
+    md_file = tmp_path / "my-research-notes.md"
+    md_file.write_text("# Research Notes\n\nImportant findings about agents.")
+
+    normalizer = NotesNormalizer()
+    content, meta = normalizer.normalize(str(md_file), {})
+
+    assert content == "# Research Notes\n\nImportant findings about agents."
+    assert meta["title"] == "Research Notes"
+    assert "tmp" not in content
+
+
+def test_file_path_reads_txt(tmp_path):
+    txt_file = tmp_path / "plain-notes.txt"
+    txt_file.write_text("Some plain text content here.")
+
+    normalizer = NotesNormalizer()
+    content, meta = normalizer.normalize(str(txt_file), {})
+
+    assert content == "Some plain text content here."
+    assert meta["title"] == "plain notes"
+
+
+def test_file_path_title_not_overridden(tmp_path):
+    md_file = tmp_path / "file.md"
+    md_file.write_text("# Heading\n\nBody text.")
+
+    normalizer = NotesNormalizer()
+    content, meta = normalizer.normalize(str(md_file), {"title": "Custom"})
+
+    assert content == "# Heading\n\nBody text."
+    assert meta["title"] == "Custom"
+
+
+def test_nonexistent_path_treated_as_inline():
+    normalizer = NotesNormalizer()
+    content, meta = normalizer.normalize("/tmp/does-not-exist.md", {})
+
+    assert content == "/tmp/does-not-exist.md"
