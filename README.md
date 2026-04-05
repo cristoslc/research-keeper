@@ -29,6 +29,7 @@ rk skill install
 - **Investigate** — Open persistent research threads that accumulate sources, queries, and a rolling synthesis over time.
 - **Research** — Run `rk research <topic>` for multi-step exploration with source, effort, and time budgets. rk expands outward from seed sources, tracks provenance, and promotes results into investigations.
 - **Export** — Share or archive any slice of your library. `rk export tag:machine-learning` produces a portable zip with all symlinks resolved to real files and opens the folder.
+- **Self-update** — Run `rk update` and it detects how you installed (uv tool vs dev clone) and runs the right update process. `rk update --check` shows your current version and install method.
 
 ## How it works
 
@@ -95,7 +96,7 @@ Everything is plain files. Sources are markdown with YAML sidecars. Tags, querie
 git clone https://github.com/cristoslc/research-keeper.git
 cd research-keeper
 uv sync --all-extras
-uv run pytest  # ~455 tests
+uv run pytest  # ~475 tests
 ```
 
 ## License

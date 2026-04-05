@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0] - 2026-04-04
+
+### Features
+
+#### Self-update command — `rk update` keeps your install current
+
+`rk update` detects how research-keeper was installed (uv tool vs dev clone) and runs the appropriate update process. Dev clones get `git pull` + `uv sync`; tool installs get `uv tool install --force` from upstream. `rk update --check` shows the current version and install method without changing anything. Error handling covers missing `uv`, network failures, and git conflicts.
+
+#### Single-source version
+
+`rk --version` now reports the installed version, read from package metadata at runtime. The duplicate version string in `__init__.py` has been removed — `pyproject.toml` is the single source of truth.
+
+### Planned
+- SPEC-046 and SPEC-047 formalized under INITIATIVE-001 (Mechanism Layer) for version management and self-update
+
 ## [0.4.0] - 2026-04-04
 
 ### Features
