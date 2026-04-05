@@ -665,6 +665,66 @@ def import_trove(
 
 
 @main.command()
+@click.argument("targets", nargs=-1, required=True)
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option("--output", "-o", default=None, help="Output zip path or directory")
+def export(targets: tuple[str, ...], root: str, output: str | None) -> None:
+    """Export tags, sources, investigations, or queries as a zip archive.
+
+    Targets use type:slug format, e.g. tag:python source:my-article
+    """
+    try:
+        from research_keeper.export import create_export_archive, open_folder
+
+        root_path = Path(root).resolve()
+
+        # Determine output path
+        if output:
+            out_path = Path(output).resolve()
+            if out_path.is_dir():
+                out_path = out_path / _export_filename(targets)
+        else:
+            out_path = Path.home() / "Downloads" / _export_filename(targets)
+
+        result = create_export_archive(
+            root=root_path,
+            targets=list(targets),
+            output_path=out_path,
+        )
+
+        for warning in result.warnings:
+            click.echo(f"  Warning: {warning}", err=True)
+
+        if result.target_count == 0:
+            click.echo("No valid targets found.", err=True)
+            raise SystemExit(1)
+
+        click.echo(f"Exported {result.target_count} target(s) to {result.path}")
+        _open_folder(result.path)
+
+    except SystemExit:
+        raise
+    except Exception as exc:
+        _handle_error(exc)
+
+
+def _export_filename(targets: tuple[str, ...]) -> str:
+    """Generate a zip filename from targets."""
+    if len(targets) == 1:
+        slug = targets[0].split(":", 1)[-1] if ":" in targets[0] else targets[0]
+        return f"rk-export-{slug}.zip"
+    import datetime
+    ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    return f"rk-export-{ts}.zip"
+
+
+def _open_folder(path: Path) -> None:
+    """Open the containing folder in the platform file manager."""
+    from research_keeper.export import open_folder
+    open_folder(path)
+
+
+@main.command()
 @click.option("--root", type=click.Path(exists=True), default=".")
 def sync(root: str) -> None:
     """Sync data from remote (git pull)."""

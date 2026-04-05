@@ -10,7 +10,7 @@ _SKILL_TEMPLATE = Template("""\
 
 # research-keeper
 
-Use this skill when the user wants to add sources, search their library, investigate topics, or interact with a research-keeper (rk) library.
+Use this skill when the user wants to add sources, search their library, investigate topics, export data, or interact with a research-keeper (rk) library.
 
 ## Trigger
 
@@ -18,6 +18,7 @@ Invoke when:
 - User asks to add an article, paper, video, note, or URL to their library
 - User asks "what do I know about X?" or wants to search their research
 - User asks to investigate a topic or manage investigations
+- User asks to export, share, or archive tags, sources, investigations, or queries
 - User asks about their tags, library health, or wants to rebuild the index
 - User runs any `rk` command
 
@@ -41,6 +42,7 @@ rk is a research library that never calls an LLM. It generates **sidecar templat
 | "what do I know about X?" | `rk search "<query>"` | Run search, fill query sidecar, resolve |
 | "investigate X" | `rk investigate "<topic>" --brief "<description>"` | Create investigation, then add/search as needed |
 | "show my tags" | `rk tags` | Run and display |
+| "export/share/archive this" | `rk export <type:slug> [...]` | Export as zip to ~/Downloads, opens folder. Targets: `tag:X`, `source:X`, `investigation:X`, `query:X`. Use `--output path` to override destination |
 | "check library health" | `rk doctor` | Run and display |
 | "rebuild index" | `rk rebuild` | Run and display — also backfills missing embeddings |
 
