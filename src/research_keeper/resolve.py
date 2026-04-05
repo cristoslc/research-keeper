@@ -102,6 +102,7 @@ def _resolve_impl(root: Path, config) -> str:
 
     # Process rendered tag.yaml files
     tag_results: dict[str, list[str]] = {}  # source_slug -> tags
+    tags_with_new_sources: set[str] = set()
     for source_dir in _iter_source_dirs(root):
         pending = source_dir / ".pending"
         tag_yaml = pending / "tag.yaml"
@@ -111,7 +112,8 @@ def _resolve_impl(root: Path, config) -> str:
                 tags = sidecar_gen.parse_tag_response(tag_yaml)
                 if tags:
                     tag_results[slug] = tags
-                    _apply_tags(root, store, tag_store, index, slug, tags)
+                    newly_linked = _apply_tags(root, store, tag_store, index, slug, tags)
+                    tags_with_new_sources.update(newly_linked)
                     resolved_count += 1
                 # Clean up the .pending directory
                 _cleanup_pending(pending)
@@ -217,7 +219,7 @@ def _resolve_impl(root: Path, config) -> str:
 
     # BATCH GATE: all tags resolved -> generate synthesis sidecars
     # Find tags that have sources but no synthesis.md (or have new sources since last synthesis)
-    tags_needing_synthesis = _find_tags_needing_synthesis(root, tag_store)
+    tags_needing_synthesis = _find_tags_needing_synthesis(root, tag_store, tags_with_new_sources)
     if tags_needing_synthesis:
         model_hint = config.completion.tasks.get("synthesis", "heavy")
         generated: list[tuple[str, Path, int]] = []
@@ -369,13 +371,19 @@ def _find_pending_syntheses(root: Path) -> list[Path]:
     return sorted(pending)
 
 
-def _find_tags_needing_synthesis(root: Path, tag_store: FilesystemTagStore) -> list[str]:
+def _find_tags_needing_synthesis(
+    root: Path,
+    tag_store: FilesystemTagStore,
+    tags_with_new_sources: set[str] | None = None,
+) -> list[str]:
     """Find tags that have sources but need (re-)synthesis.
 
     A tag needs synthesis if:
     - It has sources linked but no synthesis.md at all, OR
-    - It just had new sources added via tag resolution (checked by caller)
+    - It is in tags_with_new_sources (just had new sources added this cycle)
     """
+    if tags_with_new_sources is None:
+        tags_with_new_sources = set()
     tags_needing = []
     for tag_slug in tag_store.list():
         source_slugs = tag_store.sources_for_tag(tag_slug)
@@ -387,6 +395,8 @@ def _find_tags_needing_synthesis(root: Path, tag_store: FilesystemTagStore) -> l
             continue
         if not (tag_dir / "synthesis.md").exists():
             tags_needing.append(tag_slug)
+        elif tag_slug in tags_with_new_sources:
+            tags_needing.append(tag_slug)
     return tags_needing
 
 
@@ -397,11 +407,21 @@ def _apply_tags(
     index: SqliteIndex,
     source_slug: str,
     tags: list[str],
-) -> None:
-    """Create tag directories, symlinks, update manifest and index."""
+) -> set[str]:
+    """Create tag directories, symlinks, update manifest and index.
+
+    Returns the set of tag slugs that received a new source link
+    (symlink did not already exist).
+    """
+    newly_linked: set[str] = set()
     for tag_slug in tags:
         tag_store.ensure(tag_slug)
+        # Check if this link is new before creating it
+        symlink = tag_store.tag_dir(tag_slug) / "sources" / source_slug
+        is_new = not (symlink.exists() or symlink.is_symlink())
         tag_store.link_source(tag_slug, source_slug)
+        if is_new:
+            newly_linked.add(tag_slug)
         index.upsert_edge(source_slug, tag_slug, "tagged")
 
     # Update manifest with tags
@@ -412,6 +432,8 @@ def _apply_tags(
         manifest_path.write_text(
             yaml.dump(manifest, default_flow_style=False, sort_keys=False)
         )
+
+    return newly_linked
 
 
 def _apply_synthesis(
