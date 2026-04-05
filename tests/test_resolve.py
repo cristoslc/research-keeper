@@ -330,6 +330,46 @@ class TestResolveStaleSynthesis:
             "Pending sidecar should not be regenerated"
         )
 
+    def test_doctor_clean_after_resolve_with_new_source(self, pipeline_and_root):
+        """After resolve processes a new source on an existing tag, doctor should not flag divergent synthesis."""
+        from research_keeper.doctor import check_divergent_syntheses
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+
+        # Build a tag through full cycle
+        src_a = pipeline.add("# Memory\n\nContent A.", {"title": "A"})
+        pending_a = root / "library" / "sources" / src_a.slug / ".pending"
+        (pending_a / "tag.yaml").write_text("tags:\n  - memory\n")
+        run_resolve(root)
+
+        synth_pending = root / "tags" / "memory" / ".pending"
+        (synth_pending / "synthesize.md").write_text("# Memory\n\nSynthesis v1.")
+        run_resolve(root)
+
+        # Add new source to same tag
+        src_b = pipeline.add("# Memory 2\n\nContent B.", {"title": "B"})
+        pending_b = root / "library" / "sources" / src_b.slug / ".pending"
+        (pending_b / "tag.yaml").write_text("tags:\n  - memory\n")
+
+        # Resolve processes tags and generates re-synthesis sidecar
+        run_resolve(root)
+
+        # Fill the re-synthesis sidecar
+        synth_pending = root / "tags" / "memory" / ".pending"
+        assert synth_pending.exists(), "Re-synthesis sidecar should have been generated"
+        (synth_pending / "synthesize.md").write_text("# Memory\n\nSynthesis v2 with both sources.")
+
+        # Final resolve: processes re-synthesis
+        run_resolve(root)
+
+        # Doctor should report no divergent syntheses
+        results = check_divergent_syntheses(root)
+        divergent = [r for r in results if r.check == "divergent_syntheses"]
+        assert len(divergent) == 0, (
+            f"Doctor should not flag divergent synthesis after re-synthesis. Got: {divergent}"
+        )
+
 
 class TestResolveIntakeLocks:
     def test_intake_lock_blocks_resolve(self, pipeline_and_root):
