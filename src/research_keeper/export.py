@@ -9,6 +9,9 @@ from pathlib import Path
 
 VALID_KINDS = {"tag", "source", "investigation", "query"}
 
+# Files excluded from export — derived data that can be regenerated
+EXCLUDED_FILENAMES = {"embedding.bin"}
+
 KIND_TO_DIR = {
     "tag": "tags",
     "source": "library/sources",
@@ -58,6 +61,8 @@ def _add_path_to_zip(
         fs_path = resolved
 
     if fs_path.is_file():
+        if fs_path.name in EXCLUDED_FILENAMES:
+            return
         zf.write(fs_path, archive_name)
     elif fs_path.is_dir():
         for child in sorted(fs_path.iterdir()):

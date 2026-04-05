@@ -250,6 +250,23 @@ class TestCreateExportArchive:
         assert result.target_count == 0
         assert not output.exists()
 
+    def test_embeddings_excluded(self, populated_library: Path, tmp_path: Path):
+        # Add embedding.bin files to tag and query dirs
+        (populated_library / "tags" / "machine-learning" / "embedding.bin").write_bytes(b"\x00" * 128)
+        (populated_library / "queries" / "qry-2026-04-01-test-query" / "embedding.bin").write_bytes(b"\x00" * 128)
+
+        output = tmp_path / "export.zip"
+        create_export_archive(
+            root=populated_library,
+            targets=["tag:machine-learning", "query:qry-2026-04-01-test-query"],
+            output_path=output,
+        )
+        with zipfile.ZipFile(output) as zf:
+            names = zf.namelist()
+            assert not any("embedding.bin" in n for n in names), f"embedding.bin found in archive: {names}"
+            # But other files are still present
+            assert "machine-learning/synthesis.md" in names
+
     def test_query_export(self, populated_library: Path, tmp_path: Path):
         output = tmp_path / "export.zip"
         result = create_export_archive(
