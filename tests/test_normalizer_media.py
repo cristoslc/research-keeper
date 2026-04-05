@@ -14,28 +14,23 @@ def normalizer():
     return MediaNormalizer()
 
 
-def _mock_yt_info() -> dict:
-    return {
-        "title": "Understanding Agent Memory",
-        "channel": "AI Research Lab",
-        "duration": 1800,
-        "webpage_url": "https://www.youtube.com/watch?v=abc123",
-    }
-
-
-def _mock_yt_subtitles() -> str:
+def _mock_yt_info_and_subs() -> tuple[str | None, dict]:
     return (
         "00:00 Welcome to this talk on agent memory.\n"
         "01:30 We'll cover three main topics.\n"
-        "15:00 In conclusion, memory is essential."
+        "15:00 In conclusion, memory is essential.",
+        {
+            "title": "Understanding Agent Memory",
+            "channel": "AI Research Lab",
+            "duration": 1800,
+            "webpage_url": "https://www.youtube.com/watch?v=abc123",
+        },
     )
 
 
-@patch("research_keeper.adapters.normalizers.media._fetch_youtube_info")
-@patch("research_keeper.adapters.normalizers.media._fetch_youtube_subtitles")
-def test_youtube_normalization(mock_subs, mock_info, normalizer):
-    mock_info.return_value = _mock_yt_info()
-    mock_subs.return_value = _mock_yt_subtitles()
+@patch("research_keeper.adapters.normalizers.media._fetch_youtube_info_and_subs")
+def test_youtube_normalization(mock_fetch, normalizer):
+    mock_fetch.return_value = _mock_yt_info_and_subs()
 
     content, meta = normalizer.normalize(
         "https://www.youtube.com/watch?v=abc123",
@@ -48,13 +43,20 @@ def test_youtube_normalization(mock_subs, mock_info, normalizer):
     assert meta["duration"] == "1800"
 
 
-@patch("research_keeper.adapters.normalizers.media._fetch_youtube_info")
-@patch("research_keeper.adapters.normalizers.media._fetch_youtube_subtitles")
+@patch("research_keeper.adapters.normalizers.media._fetch_youtube_info_and_subs")
 @patch("research_keeper.adapters.normalizers.media._download_youtube_audio")
 @patch("research_keeper.adapters.normalizers.media._transcribe_audio")
-def test_youtube_no_subtitles_or_transcript(mock_transcribe, mock_download, mock_subs, mock_info, normalizer):
-    mock_info.return_value = _mock_yt_info()
-    mock_subs.return_value = None
+def test_youtube_no_subtitles_or_transcript(mock_transcribe, mock_download, mock_fetch, normalizer):
+    mock_fetch.return_value = (
+        None,  # No subtitles
+        {
+            "title": "Understanding Agent Memory",
+            "channel": "AI Research Lab",
+            "duration": 1800,
+            "webpage_url": "https://www.youtube.com/watch?v=abc123",
+            "description": "Short",  # Too short for fallback
+        },
+    )
     mock_download.return_value = None
     mock_transcribe.return_value = None
 
@@ -220,3 +222,78 @@ def test_instagram_url_routing(mock_browser, mock_ig_subs, normalizer):
     assert meta["title"] == "Instagram Reel"
     assert meta["source"] == "Instagram"
     mock_ig_subs.assert_called_once()
+
+
+# === SPEC-048: Caption Fallback Chain Tests ===
+
+
+@patch("research_keeper.adapters.normalizers.media._fetch_youtube_info_and_subs")
+def test_caption_fallback_uses_description(mock_fetch, normalizer):
+    """When no subtitles, should fall back to description if >100 non-hashtag chars."""
+    mock_fetch.return_value = (
+        None,  # No subtitles
+        {
+            "title": "Video Without Subs",
+            "channel": "Test Channel",
+            "duration": 120,
+            "webpage_url": "https://www.youtube.com/watch?v=test123",
+            "description": "This is a really long video description that has more than one hundred "
+            "characters without counting hashtags. It should be used as the transcript fallback. "
+            "Here are some more words to make it long enough. #hashtag1 #hashtag2 should be stripped.",
+        },
+    )
+
+    content, meta = normalizer.normalize(
+        "https://www.youtube.com/watch?v=test123",
+        {},
+    )
+
+    assert "video description" in content.lower() or "transcript" in content.lower()
+    assert meta.get("transcript_source") == "description"
+
+
+@patch("research_keeper.adapters.normalizers.media._fetch_youtube_info_and_subs")
+def test_caption_fallback_short_description(mock_fetch, normalizer):
+    """Short descriptions (<=100 non-hashtag chars) should not be used as fallback."""
+    mock_fetch.return_value = (
+        None,  # No subtitles
+        {
+            "title": "Video",
+            "channel": "Test",
+            "duration": 60,
+            "webpage_url": "https://www.youtube.com/watch?v=short",
+            "description": "Short description #tag",  # Only ~20 non-hashtag chars
+        },
+    )
+
+    content, meta = normalizer.normalize(
+        "https://www.youtube.com/watch?v=short",
+        {},
+    )
+
+    assert "No transcript available" in content
+    assert "transcript_source" not in meta
+
+
+@patch("research_keeper.adapters.normalizers.media._fetch_youtube_info_and_subs")
+def test_consolidated_ytdlp_call(mock_fetch, normalizer):
+    """YouTube normalization should use consolidated yt-dlp call for info + subs."""
+    mock_fetch.return_value = (
+        "[00:00:00] First line\n[00:00:05] Second line",
+        {
+            "title": "Consolidated Video",
+            "channel": "Test",
+            "duration": 10,
+            "webpage_url": "https://www.youtube.com/watch?v=consolidated",
+        },
+    )
+
+    normalizer.normalize(
+        "https://www.youtube.com/watch?v=consolidated",
+        {},
+    )
+
+    # Should be called once with the URL
+    mock_fetch.assert_called_once()
+    call_url = mock_fetch.call_args[0][0]
+    assert "consolidated" in call_url or "youtube.com" in call_url
