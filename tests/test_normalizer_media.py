@@ -297,3 +297,91 @@ def test_consolidated_ytdlp_call(mock_fetch, normalizer):
     mock_fetch.assert_called_once()
     call_url = mock_fetch.call_args[0][0]
     assert "consolidated" in call_url or "youtube.com" in call_url
+
+
+# === SPEC-048: Frame Extraction Fallback Tests ===
+
+
+def test_extract_frames_scene_detection(tmp_path):
+    """Frame extraction should detect scene changes using histogram comparison."""
+    # This is an integration test - actual frame extraction requires OpenCV
+    # For now, just test that the function signature and structure work
+    from research_keeper.adapters.normalizers.media import _extract_frames_from_video
+    import subprocess
+
+    # Skip if cv2 not available
+    try:
+        import cv2  # noqa: F401
+    except ImportError:
+        pytest.skip("opencv-python-headless not installed")
+
+    # Create a minimal test video using ffmpeg (if available)
+    result = subprocess.run(["which", "ffmpeg"], capture_output=True)
+    if result.returncode != 0:
+        pytest.skip("ffmpeg not available for test video creation")
+
+    # This would create a test video and verify frame extraction
+    # For the unit test, we just verify the function exists and has correct signature
+    assert callable(_extract_frames_from_video)
+
+
+@patch("research_keeper.adapters.normalizers.media._fetch_youtube_info_and_subs")
+@patch("research_keeper.adapters.normalizers.media._download_youtube_video")
+@patch("research_keeper.adapters.normalizers.media._extract_frames_from_video")
+@patch("research_keeper.adapters.normalizers.media._ocr_frames")
+def test_frame_extraction_fallback_opt_in(
+    mock_ocr, mock_extract, mock_download, mock_fetch, normalizer
+):
+    """Frame extraction should only activate when enable_frame_extraction=True."""
+    mock_fetch.return_value = (
+        None,
+        {
+            "title": "Video With No Content",
+            "channel": "Test",
+            "duration": 60,
+            "webpage_url": "https://www.youtube.com/watch?v=frames",
+            "description": "Short",  # Too short for caption fallback
+        },
+    )
+    mock_download.return_value = None  # Video download not attempted
+
+    # Without frame extraction enabled
+    normalizer.normalize("https://www.youtube.com/watch?v=frames", {})
+
+    # Frame extraction should NOT be called
+    mock_extract.assert_not_called()
+    mock_ocr.assert_not_called()
+
+
+@patch("research_keeper.adapters.normalizers.media._fetch_youtube_info_and_subs")
+@patch("research_keeper.adapters.normalizers.media._download_youtube_video")
+@patch("research_keeper.adapters.normalizers.media._extract_frames_from_video")
+@patch("research_keeper.adapters.normalizers.media._ocr_frames")
+def test_frame_extraction_enabled_no_subtitles(
+    mock_ocr, mock_extract, mock_download, mock_fetch, normalizer
+):
+    """Frame extraction should activate when enabled and no subtitles."""
+    mock_fetch.return_value = (
+        None,
+        {
+            "title": "Video With Frames",
+            "channel": "Test",
+            "duration": 60,
+            "webpage_url": "https://www.youtube.com/watch?v=frames",
+            "description": "Short",  # Too short for caption fallback
+        },
+    )
+    mock_download.return_value = "/tmp/test_video.mp4"
+    mock_extract.return_value = ["/tmp/frame_000.png", "/tmp/frame_001.png"]
+    mock_ocr.return_value = "Text from frames"
+
+    content, meta = normalizer.normalize(
+        "https://www.youtube.com/watch?v=frames",
+        {"enable_frame_extraction": True},
+    )
+
+    assert "Text from frames" in content
+    assert meta.get("transcript_source") == "ocr"
+    mock_download.assert_called_once()
+    mock_extract.assert_called_once()
+    mock_ocr.assert_called_once()

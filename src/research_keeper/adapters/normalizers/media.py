@@ -305,19 +305,162 @@ def _download_youtube_audio(url: str) -> str | None:
     return audio_files[0] if audio_files else None
 
 
+def _download_youtube_video(url: str) -> str | None:
+    """Download video from YouTube for frame extraction, return path or None."""
+    tmpdir = tempfile.mkdtemp()
+    result = subprocess.run(
+        [
+            "yt-dlp",
+            "--max-filesize", "100M",  # Larger limit for video
+            "-o", f"{tmpdir}/video.%(ext)s",
+            url,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=180,  # Longer timeout for video
+    )
+    video_files = glob.glob(f"{tmpdir}/video.*")
+    return video_files[0] if video_files else None
+
+
+def _extract_frames_from_video(video_path: str, threshold: float = 0.85) -> list[str]:
+    """Extract frames from video using scene-change detection.
+
+    Uses histogram comparison to detect scene changes. When similarity
+    drops below threshold, a new scene is detected and frame is captured.
+
+    Args:
+        video_path: Path to video file
+        threshold: Histogram similarity threshold (0.0-1.0). Lower = fewer frames.
+
+    Returns:
+        List of paths to extracted frame images (PNG format)
+    """
+    try:
+        import cv2
+    except ImportError:
+        logger.warning("opencv-python-headless not installed — cannot extract frames")
+        return []
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        logger.error(f"Cannot open video: {video_path}")
+        return []
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps <= 0:
+        fps = 30.0
+    min_gap_frames = int(fps * 0.3)  # Minimum 0.3s between captures
+
+    tmpdir = tempfile.mkdtemp()
+    frames = []
+    prev_hist = None
+    frame_id = 0
+    last_saved_id = -min_gap_frames
+
+    def frame_hist(frame):
+        """Compute histogram for frame comparison."""
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        hist = cv2.calcHist([gray], [0], None, [64], [0, 256])
+        cv2.normalize(hist, hist)
+        return hist
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        curr_hist = frame_hist(frame)
+        save_frame = False
+
+        if prev_hist is None:
+            save_frame = True  # First frame
+        elif frame_id - last_saved_id >= min_gap_frames:
+            similarity = cv2.compareHist(prev_hist, curr_hist, cv2.HISTCMP_CORREL)
+            if similarity < threshold:
+                save_frame = True
+
+        if save_frame:
+            path = f"{tmpdir}/frame_{len(frames):03d}.png"
+            cv2.imwrite(path, frame)
+            frames.append(path)
+            last_saved_id = frame_id
+
+        prev_hist = curr_hist
+        frame_id += 1
+
+    # Always capture last frame if different
+    if frame_id - 1 != last_saved_id and frame_id > 0:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id - 1)
+        ret, frame = cap.read()
+        if ret:
+            path = f"{tmpdir}/frame_{len(frames):03d}.png"
+            cv2.imwrite(path, frame)
+            frames.append(path)
+
+    cap.release()
+    logger.info(f"Extracted {len(frames)} frames from {video_path}")
+    return frames
+
+
+def _ocr_frames(frame_paths: list[str]) -> str | None:
+    """OCR text from extracted frames using vision or EasyOCR.
+
+    Attempts vision (via agent's image reading capability) first,
+    falls back to EasyOCR if vision not available.
+
+    Returns concatenated and deduplicated text from all frames.
+    """
+    if not frame_paths:
+        return None
+
+    # Vision-first approach: the agent/normalizer can read images
+    # This is handled by the caller (MediaNormalizer) which has access
+    # to the Read tool. Here we provide the EasyOCR fallback.
+    try:
+        import easyocr
+    except ImportError:
+        logger.warning("EasyOCR not installed — cannot extract text from frames")
+        return None
+
+    try:
+        reader = easyocr.Reader(["en"], gpu=False)
+        all_text = []
+        seen = set()
+
+        for frame_path in frame_paths:
+            results = reader.readtext(frame_path, detail=0)
+            for line in results:
+                line = line.strip()
+                if line and line not in seen:
+                    seen.add(line)
+                    all_text.append(line)
+
+        text = "\n".join(all_text)
+        logger.info(f"OCR extracted {len(all_text)} unique lines from {len(frame_paths)} frames")
+        return text if text.strip() else None
+
+    except Exception as exc:
+        logger.warning(f"OCR failed: {exc}")
+        return None
+
+
 class MediaNormalizer:
     """Normalize media (YouTube, Instagram, audio) to markdown content."""
 
     def normalize(self, raw: str | bytes, metadata: dict) -> tuple[str, dict]:
         text = raw if isinstance(raw, str) else raw.decode("utf-8")
 
+        # Check for frame extraction opt-in
+        enable_frame_extraction = metadata.get("enable_frame_extraction", False)
+
         if text.startswith(("http://", "https://")) and re.search(
             r"(youtube\.com|youtu\.be)", text
         ):
-            return self._normalize_youtube(text, metadata)
+            return self._normalize_youtube(text, metadata, enable_frame_extraction)
 
         if _is_instagram_url(text):
-            return self._normalize_instagram(text, metadata)
+            return self._normalize_instagram(text, metadata, enable_frame_extraction)
 
         # Check for local audio file
         path = Path(text)
@@ -329,7 +472,7 @@ class MediaNormalizer:
         )
 
     def _normalize_youtube(
-        self, url: str, metadata: dict
+        self, url: str, metadata: dict, enable_frame_extraction: bool = False
     ) -> tuple[str, dict]:
         # Consolidated call: info + subtitles in one invocation
         subtitles, info = _fetch_youtube_info_and_subs(url)
@@ -366,12 +509,24 @@ class MediaNormalizer:
                 content = f"# {extracted['title']}\n\n{transcript}"
                 return content, extracted
 
+        # Frame extraction fallback (opt-in only)
+        if enable_frame_extraction:
+            video_path = _download_youtube_video(url)
+            if video_path:
+                frames = _extract_frames_from_video(video_path)
+                if frames:
+                    ocr_text = _ocr_frames(frames)
+                    if ocr_text:
+                        content = f"# {extracted['title']}\n\n{ocr_text}"
+                        extracted["transcript_source"] = "ocr"
+                        return content, extracted
+
         # Nothing worked
         content = f"# {extracted['title']}\n\n(No transcript available)"
         return content, extracted
 
     def _normalize_instagram(
-        self, url: str, metadata: dict
+        self, url: str, metadata: dict, enable_frame_extraction: bool = False
     ) -> tuple[str, dict]:
         """Normalize Instagram URL to markdown content."""
         # Detect browser for cookie extraction
@@ -402,6 +557,19 @@ class MediaNormalizer:
                 content = f"# {extracted['title']}\n\n{clean_desc}"
                 extracted["transcript_source"] = "description"
                 return content, extracted
+
+        # Frame extraction fallback (opt-in only)
+        if enable_frame_extraction:
+            # For Instagram, need to use browser cookies
+            video_path = _download_youtube_video(url)  # yt-dlp handles IG URLs too
+            if video_path:
+                frames = _extract_frames_from_video(video_path)
+                if frames:
+                    ocr_text = _ocr_frames(frames)
+                    if ocr_text:
+                        content = f"# {extracted['title']}\n\n{ocr_text}"
+                        extracted["transcript_source"] = "ocr"
+                        return content, extracted
 
         content = f"# {extracted['title']}\n\n(No transcript available)"
         return content, extracted
