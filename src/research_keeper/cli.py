@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import traceback
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
 import click
@@ -14,6 +15,7 @@ _verbose = False
 
 
 @click.group()
+@click.version_option(version=_pkg_version("research-keeper"), prog_name="rk")
 @click.option("--verbose", is_flag=True, default=False, help="Show full tracebacks on error")
 def main(verbose: bool) -> None:
     """rk -- research keeper CLI."""
@@ -813,6 +815,43 @@ def serve(root: str) -> None:
 
     click.echo(f"Starting MCP server for {root_path}...", err=True)
     run_server(root_path)
+
+
+@main.command()
+@click.option("--check", is_flag=True, default=False, help="Show version and install method without updating")
+def update(check: bool) -> None:
+    """Update research-keeper to the latest version."""
+    from research_keeper.updater import (
+        detect_install_method,
+        get_version,
+        run_update,
+    )
+
+    method = detect_install_method()
+    current = get_version()
+
+    if check:
+        label = "dev (git clone)" if method == "dev-clone" else "uv tool install"
+        click.echo(f"research-keeper {current}")
+        click.echo(f"Install method: {label}")
+        return
+
+    label = "dev (git clone)" if method == "dev-clone" else "uv tool install"
+    click.echo(f"Detected: {label}")
+    click.echo("Updating research-keeper...")
+
+    success, message = run_update(method)
+    if not success:
+        click.echo(message, err=True)
+        raise SystemExit(1)
+
+    new_version = get_version()
+    if new_version != current:
+        click.echo(f"Updated: {current} → {new_version}")
+    else:
+        click.echo(f"research-keeper {current} is already the latest version.")
+
+    click.echo("\nNote: If you have agent skills installed, run 'rk skill install' to update them.")
 
 
 @main.group()
