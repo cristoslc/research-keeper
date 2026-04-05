@@ -137,6 +137,26 @@ def chunk_pipeline(library_root: Path):
     return {"pipeline": pipe, "index": index, "embedder": embedder, "store": store}
 
 
+def test_add_file_path_reads_content(pipeline: IntakePipeline, library_root: Path, tmp_path: Path):
+    """SPEC-044: file paths should be read, not stored as content."""
+    md_file = tmp_path / "bot-free-transcription.md"
+    md_file.write_text("# Bot-Free Transcription\n\nApproaches to meeting transcription without bots.")
+
+    source = pipeline.add(str(md_file))
+
+    # Content is the file's text, not the path
+    assert "Bot-Free Transcription" in source.content
+    assert "/tmp" not in source.content
+    assert str(md_file) not in source.content
+
+    # Slug derives from content title, not path
+    assert "tmp" not in source.slug
+
+    # On-disk source.md has real content
+    stored = (library_root / "library" / "sources" / source.slug / "source.md").read_text()
+    assert "meeting transcription" in stored
+
+
 class TestChunkEmbedding:
     def test_short_source_creates_single_chunk_embedding(self, chunk_pipeline):
         source = chunk_pipeline["pipeline"].add("# Short\n\nShort content about testing.")
