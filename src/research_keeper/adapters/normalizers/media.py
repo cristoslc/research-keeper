@@ -445,6 +445,118 @@ def _ocr_frames(frame_paths: list[str]) -> str | None:
         return None
 
 
+# Content type detection heuristics
+RECIPE_SIGNALS = [
+    "ingredients",
+    "recipe",
+    "cook",
+    "bake",
+    "preheat",
+    "tablespoon",
+    "teaspoon",
+    "cup",
+    "sauté",
+    "chop",
+    "dice",
+    "mix",
+    "stir",
+    "fold",
+    "recipe yields",
+    "serves",
+    "servings",
+]
+
+RECIPE_TIME_PATTERNS = [
+    r"\b\d+\s*(minutes?|mins?|hours?|hrs?)\b",  # "30 minutes", "2 hours"
+    r"preheat\s+to\s+\d+",  # "preheat to 350"
+    r"bake\s+(for\s+)?\d+",  # "bake for 25"
+    r"cook\s+(for\s+)?\d+",  # "cook for 10"
+]
+
+
+def _detect_content_type(transcript: str) -> str:
+    """Detect content type from transcript text.
+
+    Returns 'recipe' if cooking signals detected, 'general' otherwise.
+    """
+    if not transcript:
+        return "general"
+
+    text_lower = transcript.lower()
+    score = 0
+
+    # Count recipe signal words
+    for signal in RECIPE_SIGNALS:
+        if signal in text_lower:
+            score += 1
+
+    # Check for time patterns
+    import re
+
+    for pattern in RECIPE_TIME_PATTERNS:
+        if re.search(pattern, text_lower):
+            score += 2
+
+    # Check for measurement patterns (e.g., "1/2 cup", "2 tablespoons")
+    if re.search(r"\b\d+(/\d+)?\s*(cup|tablespoon|teaspoon|pound|oz|gram|kg)\b", text_lower):
+        score += 3
+
+    # Recipe threshold: 5 or more signals
+    return "recipe" if score >= 5 else "general"
+
+
+def _extract_recipe_metadata(transcript: str) -> dict:
+    """Extract structured metadata from recipe transcript.
+
+    Returns dict with optional: chef, cuisine, servings, prep_time, cook_time, ingredients.
+    """
+    import re
+
+    metadata = {}
+    text_lower = transcript.lower()
+
+    # Extract chef/host (look for "chef X here" or "I'm chef X")
+    chef_match = re.search(
+        r"(?:chef|host|cook|baker)\s+(\w+)|i'm\s+(?:chef\s+)?(\w+)", text_lower
+    )
+    if chef_match:
+        metadata["chef"] = chef_match.group(1) or chef_match.group(2)
+
+    # Extract servings (e.g., "serves 4", "4 servings")
+    servings_match = re.search(r"(?:serves?|servings?)\s*(\d+)", text_lower)
+    if servings_match:
+        metadata["servings"] = servings_match.group(1)
+
+    # Extract times
+    time_patterns = [
+        (r"(?:prep(?:aration)?|prep\s+time)[^\d]*(\d+)\s*(?:minutes?|mins?)", "prep_time"),
+        (r"(?:cook(?:ing)?|bake|baking)[^\d]*(\d+)\s*(?:minutes?|mins?)", "cook_time"),
+        (r"(\d+)\s*(?:minutes?|mins?)(?:\s+(?:to|and)\s+(\d+))?", "time"),
+    ]
+
+    for pattern, key in time_patterns:
+        match = re.search(pattern, text_lower)
+        if match:
+            metadata[key] = match.group(1)
+            if match.group(2):  # Range like "20 to 30 minutes"
+                metadata[key] = f"{match.group(1)}-{match.group(2)}"
+
+    # Extract ingredients (rough extraction)
+    ingredient_patterns = [
+        r"(\d+\s*(?:cup|tablespoon|teaspoon|pound|oz|gram|kg)s?(?:\s+\w+)?\s+(?:of\s+)?\w+)",
+    ]
+
+    ingredients = []
+    for pattern in ingredient_patterns:
+        for match in re.finditer(pattern, text_lower):
+            ingredients.append(match.group(1))
+
+    if ingredients:
+        metadata["ingredient_count"] = str(len(ingredients))
+
+    return metadata
+
+
 class MediaNormalizer:
     """Normalize media (YouTube, Instagram, audio) to markdown content."""
 

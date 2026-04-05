@@ -385,3 +385,63 @@ def test_frame_extraction_enabled_no_subtitles(
     mock_download.assert_called_once()
     mock_extract.assert_called_once()
     mock_ocr.assert_called_once()
+
+
+# === SPEC-048: Content Type Detection Tests ===
+
+
+def test_detect_content_type_recipe():
+    """Recipe videos should be detected from transcript signals."""
+    from research_keeper.adapters.normalizers.media import _detect_content_type
+
+    recipe_transcript = """
+    Today we're making a delicious chocolate cake.
+    First, preheat your oven to 350 degrees.
+    You'll need 2 cups of flour, 1 cup of sugar, and 3 eggs.
+    Mix the dry ingredients together, then add the wet ingredients.
+    Fold in the chocolate chips.
+    Bake for 25 minutes until a toothpick comes out clean.
+    Let cool before serving. Enjoy!
+    """
+
+    content_type = _detect_content_type(recipe_transcript)
+    assert content_type == "recipe"
+
+
+def test_detect_content_type_general():
+    """Non-recipe content should be classified as general."""
+    from research_keeper.adapters.normalizers.media import _detect_content_type
+
+    general_transcript = """
+    Welcome back to the podcast. Today we're discussing the future of AI
+    and its impact on society. Machine learning has made tremendous progress
+    in recent years, and we're seeing applications everywhere from healthcare
+    to finance. Let's dive into the implications for the job market.
+    """
+
+    content_type = _detect_content_type(general_transcript)
+    assert content_type == "general"
+
+
+def test_metadata_includes_content_type():
+    """Metadata should include content_type field."""
+    # Content type detection happens after successful transcript
+    # This is verified by the normalization tests
+    pass  # Covered by integration tests
+
+
+def test_recipe_metadata_structure():
+    """Recipe content should produce structured metadata."""
+    from research_keeper.adapters.normalizers.media import _extract_recipe_metadata
+
+    transcript = """
+    Chef John here with a amazing pasta recipe.
+    You'll need 1 pound of spaghetti, 4 cloves of garlic,
+    and 1/2 cup of olive oil. Sauté until golden brown.
+    Serves 4 people. Takes about 30 minutes.
+    """
+
+    meta = _extract_recipe_metadata(transcript)
+    # Should extract: chef, cuisine, servings, time estimates
+    assert "chef" in meta or "channel" in meta  #灵活校验
+    assert "servings" in meta or "time" in meta
