@@ -6,6 +6,14 @@
 |----------|-------|-------------|--------|
 | SPEC-020 | Completion Fallback & Backfill | 2026-03-30 | -- |
 
+## Active
+
+| Artifact | Title | Last Updated | Commit |
+|----------|-------|-------------|--------|
+| SPEC-045 | Export as Zip Archive | 2026-04-04 | — |
+| SPEC-046 | Single-Source Version | 2026-04-04 | — |
+| SPEC-047 | Self-Update Command | 2026-04-04 | — |
+
 ## Abandoned
 
 | Artifact | Title | Last Updated | Commit |
