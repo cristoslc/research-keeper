@@ -2,7 +2,7 @@
 title: "Media-Summary Integration"
 artifact: SPEC-048
 track: implementable
-status: Active
+status: NeedsManualTest
 author: cristos
 created: 2026-04-04
 last-updated: 2026-04-04
@@ -119,12 +119,12 @@ These improvements should be ported to the normalizer to benefit all media inges
 
 | Criterion | Evidence | Result |
 |-----------|----------|--------|
-| AC1: VTT Parser | `test_vtt_parser_sliding_window` in `test_normalizer_media.py` | |
-| AC2: Instagram URL | `test_instagram_url_extraction` in `test_normalizer_media.py` | |
-| AC3: Caption Fallback | `test_caption_fallback` in `test_normalizer_media.py` | |
-| AC4: Frame Extraction | `test_frame_extraction` in `test_normalizer_media.py` (mocked) | |
-| AC5: Content Type | `test_content_type_detection` in `test_normalizer_media.py` | |
-| AC6: Backward Compat | `test_youtube_normalization` unchanged | |
+| AC1: VTT Parser | `test_vtt_parser_sliding_window_dedup`, `test_vtt_parser_preserves_timestamps` in `test_normalizer_media.py` | PASS |
+| AC2: Instagram URL | `test_is_instagram_url`, `test_instagram_url_routing` in `test_normalizer_media.py` | PASS |
+| AC3: Caption Fallback | `test_caption_fallback_uses_description`, `test_caption_fallback_short_description` in `test_normalizer_media.py` | PASS |
+| AC4: Frame Extraction | `test_frame_extraction_fallback_opt_in`, `test_frame_extraction_enabled_no_subtitles` in `test_normalizer_media.py` | PASS |
+| AC5: Content Type | `test_detect_content_type_recipe`, `test_detect_content_type_general` in `test_normalizer_media.py` | PASS |
+| AC6: Backward Compat | `test_youtube_normalization` unchanged, all existing tests pass | PASS |
 
 ## Scope & Constraints
 
@@ -193,3 +193,4 @@ This is an enhancement to the existing `MediaNormalizer` class. Implementation f
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
 | Active | 2026-04-04 | | Initial creation |
+| NeedsManualTest | 2026-04-05 | a378ff1, 986da6b | All 6 tasks completed: VTT parser (rk-nmv6), Instagram (rk-1z29), Caption fallback (rk-hro3), Frame extraction (rk-y30f), Content detection (rk-0y50), Refactor (rk-1r51) |
