@@ -101,6 +101,219 @@ class TestResolveLocking:
         lock.release()
 
 
+class TestResolvePrunedSources:
+    """SPEC-049: resolve detects and cleans broken symlinks from pruned sources."""
+
+    def test_detects_broken_tag_symlink(self, resolve_root: Path):
+        """Broken symlink in tags/{tag}/sources/ should be removed and tag marked stale."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+
+        store = FilesystemSourceStore(resolve_root)
+        tag_store = FilesystemTagStore(resolve_root)
+
+        # Add source and tag it
+        source = store.add("# Test content", {"title": "Test", "origin": "inline"})
+        tag_store.ensure("ml")
+        tag_store.link_source("ml", source.slug)
+
+        # Soft-delete the source (create broken symlink)
+        store.remove(source.slug)
+
+        # Verify symlink is now broken
+        symlink = resolve_root / "tags" / "ml" / "sources" / source.slug
+        assert symlink.is_symlink()
+        assert not symlink.exists()  # Target gone
+
+        # Run resolve
+        output = run_resolve(resolve_root)
+
+        # Symlink should be removed
+        assert not symlink.exists(), "Broken symlink should be removed"
+
+        # Tag should be marked stale
+        meta = tag_store.get_meta("ml")
+        assert meta.get("stale") is True, "Tag should be marked stale"
+
+    def test_tombstones_query_reference(self, resolve_root: Path):
+        """Broken symlink in queries/{query}/sources/ should be tombstoned with :pruned suffix."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        import yaml
+
+        store = FilesystemSourceStore(resolve_root)
+
+        # Add source
+        source = store.add("# Test content", {"title": "Test", "origin": "inline"})
+
+        # Create a query with symlink to source
+        queries_dir = resolve_root / "queries" / "Q1"
+        queries_dir.mkdir(parents=True)
+        (queries_dir / "sources").mkdir()
+        (queries_dir / "tags").mkdir()
+
+        symlink = queries_dir / "sources" / source.slug
+        target = Path("..") / ".." / ".." / "library" / "sources" / source.slug
+        symlink.symlink_to(target)
+
+        # Create meta.yaml with cited_sources
+        meta = {
+            "query_id": "Q1",
+            "query_text": "What is test?",
+            "kind": "query-synthesis",
+            "created": "2026-04-04",
+            "cited_sources": [source.slug],
+            "cited_tags": [],
+        }
+        (queries_dir / "meta.yaml").write_text(yaml.dump(meta, default_flow_style=False))
+
+        # Soft-delete the source
+        store.remove(source.slug)
+
+        # Run resolve
+        output = run_resolve(resolve_root)
+
+        # Symlink should be removed
+        assert not symlink.exists(), "Broken symlink should be removed"
+
+        # cited_sources should have :pruned suffix
+        updated_meta = yaml.safe_load((queries_dir / "meta.yaml").read_text())
+        assert f"{source.slug}:pruned" in updated_meta["cited_sources"]
+        assert source.slug not in updated_meta["cited_sources"]
+
+    def test_tombstones_investigation_reference(self, resolve_root: Path):
+        """Broken symlink in investigations/{inv}/sources/ should be tombstoned."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        import yaml
+
+        store = FilesystemSourceStore(resolve_root)
+
+        # Add source
+        source = store.add("# Test content", {"title": "Test", "origin": "inline"})
+
+        # Create an investigation with symlink to source
+        inv_dir = resolve_root / "investigations" / "I1"
+        inv_dir.mkdir(parents=True)
+        (inv_dir / "sources").mkdir()
+
+        symlink = inv_dir / "sources" / source.slug
+        target = Path("..") / ".." / ".." / "library" / "sources" / source.slug
+        symlink.symlink_to(target)
+
+        # Create meta.yaml with linked_sources
+        meta = {
+            "inv_id": "I1",
+            "topic": "Test investigation",
+            "kind": "investigation",
+            "status": "open",
+            "created": "2026-04-04",
+            "linked_sources": [source.slug],
+            "linked_queries": [],
+        }
+        (inv_dir / "meta.yaml").write_text(yaml.dump(meta, default_flow_style=False))
+
+        # Soft-delete the source
+        store.remove(source.slug)
+
+        # Run resolve
+        output = run_resolve(resolve_root)
+
+        # Symlink should be removed
+        assert not symlink.exists(), "Broken symlink should be removed"
+
+        # linked_sources should have :pruned suffix
+        updated_meta = yaml.safe_load((inv_dir / "meta.yaml").read_text())
+        assert f"{source.slug}:pruned" in updated_meta["linked_sources"]
+
+    def test_stale_tag_triggers_resynthesis(self, resolve_root: Path):
+        """Tag with stale: true should get synthesis sidecar on next resolve cycle."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        import yaml
+
+        store = FilesystemSourceStore(resolve_root)
+        tag_store = FilesystemTagStore(resolve_root)
+
+        # Add source and create tag with synthesis
+        source = store.add("# ML content", {"title": "ML", "origin": "inline"})
+        tag_store.ensure("ml")
+        tag_store.link_source("ml", source.slug)
+        (resolve_root / "tags" / "ml" / "synthesis.md").write_text("# ML\n\nOriginal synthesis.")
+
+        # Mark tag as stale (simulating prior prune)
+        meta_path = resolve_root / "tags" / "ml" / "meta.yaml"
+        meta = yaml.safe_load(meta_path.read_text())
+        meta["stale"] = True
+        meta_path.write_text(yaml.dump(meta, default_flow_style=False))
+
+        # Run resolve - should generate synthesis sidecar
+        output = run_resolve(resolve_root)
+
+        # Synthesis sidecar should be generated
+        sidecar = resolve_root / "tags" / "ml" / ".pending" / "synthesize.j2"
+        assert sidecar.exists(), "Stale tag should trigger synthesis sidecar generation"
+
+    def test_stale_removed_after_synthesis(self, resolve_root: Path):
+        """After successful synthesis, stale key should be removed from meta.yaml."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        import yaml
+
+        store = FilesystemSourceStore(resolve_root)
+        tag_store = FilesystemTagStore(resolve_root)
+
+        # Add source and create tag
+        source = store.add("# ML content", {"title": "ML", "origin": "inline"})
+        tag_store.ensure("ml")
+        tag_store.link_source("ml", source.slug)
+
+        # Mark tag as stale
+        meta_path = resolve_root / "tags" / "ml" / "meta.yaml"
+        meta = yaml.safe_load(meta_path.read_text())
+        meta["stale"] = True
+        meta_path.write_text(yaml.dump(meta, default_flow_style=False))
+
+        # Generate synthesis sidecar
+        synth_pending = resolve_root / "tags" / "ml" / ".pending"
+        synth_pending.mkdir(parents=True, exist_ok=True)
+        (synth_pending / "synthesize.j2").write_text("Template")
+        (synth_pending / "synthesize.md").write_text("# ML\n\nNew synthesis.")
+
+        # Run resolve to apply synthesis
+        run_resolve(resolve_root)
+
+        # Stale key should be removed
+        updated_meta = yaml.safe_load(meta_path.read_text())
+        assert "stale" not in updated_meta, "stale key should be removed after synthesis"
+
+    def test_idempotent_prune_resolution(self, resolve_root: Path):
+        """Running resolve after broken symlinks are cleaned should be no-op."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+
+        store = FilesystemSourceStore(resolve_root)
+        tag_store = FilesystemTagStore(resolve_root)
+
+        # Add and prune source
+        source = store.add("# Test", {"title": "Test", "origin": "inline"})
+        tag_store.ensure("test")
+        tag_store.link_source("test", source.slug)
+        store.remove(source.slug)
+
+        # First resolve cleans up
+        output1 = run_resolve(resolve_root)
+        assert "pruned" in output1.lower() or "stale" in output1.lower()
+
+        # Second resolve should be clean
+        output2 = run_resolve(resolve_root)
+        assert "Done" in output2 or "nothing pending" in output2.lower()
+
+
 class TestResolveNoWork:
     def test_nothing_pending(self, resolve_root: Path):
         from research_keeper.resolve import run_resolve

@@ -216,6 +216,205 @@ def resolve(root: str) -> None:
 
 
 @main.command()
+@click.argument("slug", required=False)
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option("--expired", is_flag=True, default=False, help="Prune all TTL-expired sources")
+@click.option("--dry-run", is_flag=True, default=False, help="Show what would be pruned without changing anything")
+@click.option("--yes", is_flag=True, default=False, help="Skip confirmation prompt")
+def prune(slug: str | None, root: str, expired: bool, dry_run: bool, yes: bool) -> None:
+    """Soft-delete a source from the library.
+
+    Moves source to library/.deleted/sources/{slug}/ and removes from index.
+    Run 'rk resolve' afterward to clean up downstream references.
+    """
+    try:
+        root_path = Path(root).resolve()
+
+        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        store = FilesystemSourceStore(root_path)
+        tag_store = FilesystemTagStore(root_path)
+        index = SqliteIndex(root_path / "rk.db")
+
+        if expired:
+            _prune_expired(store, index, tag_store, root_path, dry_run, yes)
+            return
+
+        if not slug:
+            click.echo("Error: SLUG argument required when not using --expired", err=True)
+            raise SystemExit(2)
+
+        _prune_single(slug, store, index, tag_store, root_path, dry_run, yes)
+
+    except SystemExit:
+        raise
+    except Exception as exc:
+        _handle_error(exc)
+
+
+def _prune_single(
+    slug: str,
+    store: FilesystemSourceStore,
+    index: SqliteIndex,
+    tag_store: FilesystemTagStore,
+    root_path: Path,
+    dry_run: bool,
+    yes: bool,
+) -> None:
+    """Prune a single source by slug."""
+    source = store.get(slug)
+    if source is None:
+        click.echo(f"Source '{slug}' not found.", err=True)
+        raise SystemExit(1)
+
+    # Calculate impact
+    tag_links = 0
+    for tag_slug in tag_store.list():
+        if slug in tag_store.sources_for_tag(tag_slug):
+            tag_links += 1
+
+    query_citations = _count_query_citations(root_path, slug)
+    investigation_links = _count_investigation_links(root_path, slug)
+
+    # Show impact
+    if dry_run:
+        click.echo(f"[dry-run] Would prune: {slug}")
+    else:
+        click.echo(f"Source: {slug}")
+        click.echo(f"  Title: {source.title or slug}")
+        click.echo(f"  Origin: {source.provenance.origin}")
+        click.echo(f"  Ingested: {source.freshness.ingested}")
+        click.echo(f"  Tag links: {tag_links}")
+        click.echo(f"  Query citations: {query_citations}")
+        click.echo(f"  Investigation links: {investigation_links}")
+
+    # Confirm
+    if not yes and not dry_run:
+        import sys
+        if not sys.stdin.isatty():
+            click.echo("Use --yes for non-interactive pruning.", err=True)
+            raise SystemExit(1)
+        if not click.confirm(f"Prune this source?"):
+            click.echo("Aborted.")
+            raise SystemExit(0)
+
+    if dry_run:
+        click.echo(f"[dry-run] Would move to: library/.deleted/sources/{slug}")
+        click.echo(f"[dry-run] Would remove from index.")
+        click.echo(f"[dry-run] Run: rk resolve")
+        return
+
+    # Index cleanup before soft-delete
+    index.remove_source(slug)
+
+    # Soft-delete
+    store.remove(slug)
+
+    click.echo(f"Pruned: {slug} -> library/.deleted/sources/{slug}")
+    click.echo(f"{tag_links} tag link(s), {query_citations} query citation(s), {investigation_links} investigation link(s) now broken.")
+    click.echo("Run: rk resolve")
+
+
+def _prune_expired(
+    store: FilesystemSourceStore,
+    index: SqliteIndex,
+    tag_store: FilesystemTagStore,
+    root_path: Path,
+    dry_run: bool,
+    yes: bool,
+) -> None:
+    """Prune all sources past their TTL."""
+    import datetime as dt
+
+    sources = store.list()
+    expired = []
+
+    for source in sources:
+        ttl_str = source.freshness.ttl or "30d"
+        ttl_days = int(ttl_str.rstrip("d"))
+        ingested = source.freshness.ingested
+        expires = ingested + dt.timedelta(days=ttl_days)
+        if dt.date.today() > expires:
+            expired.append(source)
+
+    if not expired:
+        click.echo("No expired sources found.")
+        return
+
+    # Calculate total impact
+    total_tag_links = 0
+    total_query_citations = 0
+    total_investigation_links = 0
+
+    for source in expired:
+        for tag_slug in tag_store.list():
+            if source.slug in tag_store.sources_for_tag(tag_slug):
+                total_tag_links += 1
+        total_query_citations += _count_query_citations(root_path, source.slug)
+        total_investigation_links += _count_investigation_links(root_path, source.slug)
+
+    if dry_run:
+        click.echo(f"[dry-run] Would prune {len(expired)} expired source(s):")
+        for source in expired:
+            click.echo(f"  {source.slug}")
+        click.echo(f"[dry-run] {total_tag_links} tag link(s), {total_query_citations} query citation(s), {total_investigation_links} investigation link(s) would be broken.")
+        return
+
+    click.echo(f"Found {len(expired)} expired source(s).")
+
+    # Confirm
+    if not yes:
+        import sys
+        if not sys.stdin.isatty():
+            click.echo("Use --yes for non-interactive pruning.", err=True)
+            raise SystemExit(1)
+        if not click.confirm(f"Prune {len(expired)} expired sources?"):
+            click.echo("Aborted.")
+            raise SystemExit(0)
+
+    # Prune each
+    for source in expired:
+        index.remove_source(source.slug)
+        store.remove(source.slug)
+
+    click.echo(f"Pruned {len(expired)} expired sources to library/.deleted/sources/")
+    click.echo(f"{total_tag_links} tag link(s), {total_query_citations} query citation(s), {total_investigation_links} investigation link(s) now broken.")
+    click.echo("Run: rk resolve")
+
+
+def _count_query_citations(root_path: Path, slug: str) -> int:
+    """Count query citations for a source slug."""
+    count = 0
+    queries_dir = root_path / "queries"
+    if not queries_dir.exists():
+        return 0
+    for query_dir in queries_dir.iterdir():
+        if not query_dir.is_dir():
+            continue
+        symlink = query_dir / "sources" / slug
+        if symlink.is_symlink():
+            count += 1
+    return count
+
+
+def _count_investigation_links(root_path: Path, slug: str) -> int:
+    """Count investigation links for a source slug."""
+    count = 0
+    inv_dir = root_path / "investigations"
+    if not inv_dir.exists():
+        return 0
+    for investigation_dir in inv_dir.iterdir():
+        if not investigation_dir.is_dir():
+            continue
+        symlink = investigation_dir / "sources" / slug
+        if symlink.is_symlink():
+            count += 1
+    return count
+
+
+@main.command()
 @click.option("--root", type=click.Path(exists=True), default=".")
 def tags(root: str) -> None:
     """List all tags with source counts."""

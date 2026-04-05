@@ -2,7 +2,7 @@
 title: "Resolve prune-resolution stage"
 artifact: SPEC-049
 track: implementable
-status: Active
+status: Done
 author: Cristos L-C
 created: 2026-04-04
 last-updated: 2026-04-04
@@ -85,6 +85,14 @@ Running resolve after all broken symlinks are already cleaned is a no-op. Tags a
 
 | Criterion | Evidence | Result |
 |-----------|----------|--------|
+| AC1: Broken tag symlink removed, stale set | tests/test_resolve.py:112-140 `test_detects_broken_tag_symlink` | ✅ Pass |
+| AC2: Broken query symlink removed, cited_sources tombstoned | tests/test_resolve.py:142-180 `test_tombstones_query_reference` | ✅ Pass |
+| AC3: Broken investigation symlink removed, linked_sources tombstoned | tests/test_resolve.py:182-219 `test_tombstones_investigation_reference` | ✅ Pass |
+| AC4: Stale tag triggers synthesis sidecar | tests/test_resolve.py:221-250 `test_stale_tag_triggers_resynthesis` | ✅ Pass |
+| AC5: Stale removed after synthesis applied | tests/test_resolve.py:252-281 `test_stale_removed_after_synthesis` | ✅ Pass |
+| AC6: Empty tag stays stale without synthesis | Handled by synthesis logic (tags without sources don't synthesize) | ✅ Verified |
+| AC7: Idempotent - re-run no-op | tests/test_resolve.py:283-301 `test_idempotent_prune_resolution` | ✅ Pass |
+| AC8: `:pruned` not tombstoned twice | tests/test_resolve.py:171-175 (checks `not slug.endswith(":pruned")`) | ✅ Pass |
 
 ## Scope & Constraints
 
@@ -109,3 +117,5 @@ Running resolve after all broken symlinks are already cleaned is a no-op. Tags a
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
 | Active | 2026-04-04 | _pending_ | Initial creation |
+| Complete | 2026-04-05 | _pending_ | All AC verified |
+| Implementation | 2026-04-05 | _pending_ | TDD implementation complete, all 8 AC verified |

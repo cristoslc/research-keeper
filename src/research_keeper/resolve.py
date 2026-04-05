@@ -98,6 +98,17 @@ def _resolve_impl(root: Path, config) -> str:
     lines: list[str] = []
     resolved_count = 0
 
+    # --- Phase 0: Prune resolution (SPEC-049) ---
+    pruned = _resolve_pruned_sources(root, tag_store)
+    if pruned["tags"] or pruned["queries"] or pruned["investigations"]:
+        if pruned["tags"]:
+            lines.append(f"Pruned sources unlinked from {len(pruned['tags'])} tag(s) (marked stale)")
+        if pruned["queries"]:
+            lines.append(f"Pruned sources tombstoned in {len(pruned['queries'])} quer(y/ies)")
+        if pruned["investigations"]:
+            lines.append(f"Pruned sources tombstoned in {len(pruned['investigations'])} investigation(s)")
+        lines.append("")
+
     # --- Phase 1: Process any rendered output files ---
 
     # Process rendered tag.yaml files
@@ -380,7 +391,8 @@ def _find_tags_needing_synthesis(
 
     A tag needs synthesis if:
     - It has sources linked but no synthesis.md at all, OR
-    - It is in tags_with_new_sources (just had new sources added this cycle)
+    - It is in tags_with_new_sources (just had new sources added this cycle), OR
+    - It has stale: true in meta.yaml (needs re-synthesis after prune)
     """
     if tags_with_new_sources is None:
         tags_with_new_sources = set()
@@ -393,9 +405,15 @@ def _find_tags_needing_synthesis(
         # Already has a pending synthesis sidecar? Skip.
         if (tag_dir / ".pending" / "synthesize.j2").exists():
             continue
+        # Check for stale flag in meta.yaml
+        meta = tag_store.get_meta(tag_slug) or {}
+        is_stale = meta.get("stale", False)
+
         if not (tag_dir / "synthesis.md").exists():
             tags_needing.append(tag_slug)
         elif tag_slug in tags_with_new_sources:
+            tags_needing.append(tag_slug)
+        elif is_stale:
             tags_needing.append(tag_slug)
     return tags_needing
 
@@ -444,10 +462,19 @@ def _apply_synthesis(
     synthesis: str,
     config,
 ) -> None:
-    """Write synthesis.md and update tag metadata."""
+    """Write synthesis.md, update tag metadata, and clear stale flag."""
     model_hint = config.completion.tasks.get("synthesis", "heavy")
     tag_store.write_synthesis(tag_slug, synthesis, model=model_hint, tier="frontier")
     index.upsert_tag_node(tag_slug, synthesis, model=model_hint, tier="frontier")
+
+    # Clear stale flag after successful synthesis (SPEC-049)
+    tag_dir = tag_store.tag_dir(tag_slug)
+    meta_path = tag_dir / "meta.yaml"
+    if meta_path.exists():
+        meta = yaml.safe_load(meta_path.read_text()) or {}
+        if "stale" in meta:
+            del meta["stale"]
+            meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))
 
 
 def _iter_query_dirs(root: Path):
@@ -599,3 +626,129 @@ def _cleanup_pending(pending_dir: Path) -> None:
     """Remove contents of a .pending/ directory after processing."""
     if pending_dir.exists():
         shutil.rmtree(pending_dir)
+
+
+def _resolve_pruned_sources(
+    root: Path,
+    tag_store: FilesystemTagStore,
+) -> dict[str, list[str]]:
+    """Detect and clean broken symlinks from pruned sources (SPEC-049).
+
+    Scans tags, queries, and investigations for broken source symlinks.
+    For tags: removes symlink, sets stale: true in meta.yaml.
+    For queries: removes symlink, tombstones cited_sources with :pruned.
+    For investigations: removes symlink, tombstones linked_sources with :pruned.
+
+    Returns dict with counts of affected artifacts per type.
+    """
+    result: dict[str, list[str]] = {"tags": [], "queries": [], "investigations": []}
+
+    # Check tags for broken symlinks
+    tags_dir = root / "tags"
+    if tags_dir.exists():
+        for tag_dir in tags_dir.iterdir():
+            if not tag_dir.is_dir():
+                continue
+            tag_slug = tag_dir.name
+            sources_dir = tag_dir / "sources"
+            if not sources_dir.exists():
+                continue
+            for symlink in sources_dir.iterdir():
+                if symlink.is_symlink() and not symlink.exists():
+                    # Broken symlink - remove it
+                    symlink.unlink()
+                    result["tags"].append(tag_slug)
+
+            # If any broken symlinks were removed, mark tag stale
+            if result["tags"] and tag_slug in result["tags"]:
+                _mark_tag_stale(tag_store, tag_slug)
+
+    # Deduplicate tags list
+    result["tags"] = list(set(result["tags"]))
+
+    # Check queries for broken symlinks
+    queries_dir = root / "queries"
+    if queries_dir.exists():
+        for query_dir in queries_dir.iterdir():
+            if not query_dir.is_dir():
+                continue
+            query_id = query_dir.name
+            sources_dir = query_dir / "sources"
+            if not sources_dir.exists():
+                continue
+            for symlink in sources_dir.iterdir():
+                if symlink.is_symlink() and not symlink.exists():
+                    # Broken symlink - remove and tombstone
+                    source_slug = symlink.name
+                    symlink.unlink()
+                    _tombstone_query_source(query_dir, source_slug)
+                    result["queries"].append(query_id)
+
+    # Check investigations for broken symlinks
+    inv_dir = root / "investigations"
+    if inv_dir.exists():
+        for investigation_dir in inv_dir.iterdir():
+            if not investigation_dir.is_dir():
+                continue
+            inv_id = investigation_dir.name
+            sources_dir = investigation_dir / "sources"
+            if not sources_dir.exists():
+                continue
+            for symlink in sources_dir.iterdir():
+                if symlink.is_symlink() and not symlink.exists():
+                    # Broken symlink - remove and tombstone
+                    source_slug = symlink.name
+                    symlink.unlink()
+                    _tombstone_investigation_source(investigation_dir, source_slug)
+                    result["investigations"].append(inv_id)
+
+    return result
+
+
+def _mark_tag_stale(tag_store: FilesystemTagStore, tag_slug: str) -> None:
+    """Set stale: true in tag meta.yaml."""
+    tag_dir = tag_store.tag_dir(tag_slug)
+    meta_path = tag_dir / "meta.yaml"
+    if not meta_path.exists():
+        return
+    meta = yaml.safe_load(meta_path.read_text()) or {}
+    meta["stale"] = True
+    meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))
+
+
+def _tombstone_query_source(query_dir: Path, source_slug: str) -> None:
+    """Replace source_slug with source_slug:pruned in query's cited_sources."""
+    meta_path = query_dir / "meta.yaml"
+    if not meta_path.exists():
+        return
+    meta = yaml.safe_load(meta_path.read_text()) or {}
+    cited = meta.get("cited_sources", [])
+    # Replace matching source with :pruned version
+    updated = []
+    for slug in cited:
+        if slug == source_slug and not slug.endswith(":pruned"):
+            updated.append(f"{source_slug}:pruned")
+        else:
+            updated.append(slug)
+    if updated != cited:
+        meta["cited_sources"] = updated
+        meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))
+
+
+def _tombstone_investigation_source(inv_dir: Path, source_slug: str) -> None:
+    """Replace source_slug with source_slug:pruned in investigation's linked_sources."""
+    meta_path = inv_dir / "meta.yaml"
+    if not meta_path.exists():
+        return
+    meta = yaml.safe_load(meta_path.read_text()) or {}
+    linked = meta.get("linked_sources", [])
+    # Replace matching source with :pruned version
+    updated = []
+    for slug in linked:
+        if slug == source_slug and not slug.endswith(":pruned"):
+            updated.append(f"{source_slug}:pruned")
+        else:
+            updated.append(slug)
+    if updated != linked:
+        meta["linked_sources"] = updated
+        meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))

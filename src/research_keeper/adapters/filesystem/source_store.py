@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import hashlib
+import shutil
 from pathlib import Path
 
 import yaml
@@ -133,6 +134,50 @@ class FilesystemSourceStore:
                 if manifest and "hash" in manifest:
                     self._hash_cache.add(manifest["hash"])
         self._hash_cache_loaded = True
+
+    def remove(self, slug: str) -> None:
+        """Soft-delete a source by moving it to .deleted/sources/.
+
+        Raises KeyError if slug not found.
+        Does not touch tag symlinks - they become broken for resolve to find.
+        Does not touch SQLite index - caller handles that separately.
+        """
+        source_dir = self._sources_dir / slug
+        if not source_dir.is_dir():
+            raise KeyError(f"Source '{slug}' not found")
+
+        # Read manifest to get hash before moving
+        manifest_path = source_dir / "manifest.yaml"
+        manifest = yaml.safe_load(manifest_path.read_text())
+        content_hash = manifest.get("hash")
+
+        # Create .deleted/sources/ directory
+        deleted_dir = self._root / "library" / ".deleted" / "sources"
+        deleted_dir.mkdir(parents=True, exist_ok=True)
+
+        # Move source directory (overwrite if exists)
+        deleted_target = deleted_dir / slug
+        if deleted_target.exists():
+            import shutil
+            shutil.rmtree(deleted_target)
+        import shutil
+        shutil.move(str(source_dir), str(deleted_target))
+
+        # Remove ingestion-date symlinks
+        if self._ingestion_dir.exists():
+            for year_dir in self._ingestion_dir.iterdir():
+                if not year_dir.is_dir():
+                    continue
+                for month_dir in year_dir.iterdir():
+                    if not month_dir.is_dir():
+                        continue
+                    symlink = month_dir / slug
+                    if symlink.is_symlink():
+                        symlink.unlink()
+
+        # Evict hash from cache
+        if content_hash and content_hash in self._hash_cache:
+            self._hash_cache.discard(content_hash)
 
     def _unique_slug(self, title: str) -> str:
         base = slugify(title)

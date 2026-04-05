@@ -2,7 +2,7 @@
 title: "Soft-delete source store"
 artifact: SPEC-048
 track: implementable
-status: Active
+status: Done
 author: Cristos L-C
 created: 2026-04-04
 last-updated: 2026-04-04
@@ -68,6 +68,12 @@ rk rebuild
 
 | Criterion | Evidence | Result |
 |-----------|----------|--------|
+| AC1: Source moved to .deleted/ | tests/test_source_store.py:103-135 `test_remove_soft_deletes_source` | ✅ Pass |
+| AC2: Hash evicted from cache | tests/test_source_store.py:137-146 `test_remove_evicts_hash_from_cache` | ✅ Pass |
+| AC3: Ingestion symlink removed | tests/test_source_store.py:148-160 `test_remove_cleans_ingestion_symlink` | ✅ Pass |
+| AC4: Tag symlinks left broken | tests/test_source_store.py:162-177 `test_remove_leaves_tag_symlinks_broken` | ✅ Pass |
+| AC5: KeyError for nonexistent | tests/test_source_store.py:179-185 `test_remove_nonexistent_raises_keyerror` | ✅ Pass |
+| AC6: Overwrites existing deleted | tests/test_source_store.py:187-205 `test_remove_overwrites_existing_deleted_entry` | ✅ Pass |
 
 ## Scope & Constraints
 
@@ -93,3 +99,5 @@ rk rebuild
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
 | Active | 2026-04-04 | _pending_ | Initial creation |
+| Complete | 2026-04-05 | _pending_ | All AC verified |
+| Implementation | 2026-04-04 | _pending_ | TDD implementation complete, all 6 AC verified |

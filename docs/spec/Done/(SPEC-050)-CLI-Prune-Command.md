@@ -2,7 +2,7 @@
 title: "CLI prune command"
 artifact: SPEC-050
 track: implementable
-status: Active
+status: Done
 author: Cristos L-C
 created: 2026-04-04
 last-updated: 2026-04-04
@@ -102,6 +102,14 @@ Index cleanup happens **before** soft-delete. If the soft-delete fails after ind
 
 | Criterion | Evidence | Result |
 |-----------|----------|--------|
+| AC1: Single prune moves to .deleted/ | tests/test_cli_prune.py:67-87 `test_prune_existing_source` | ✅ Pass |
+| AC2: --dry-run shows plan without changes | tests/test_cli_prune.py:117-134 `test_prune_dry_run` | ✅ Pass |
+| AC3: --expired prunes all TTL-expired | tests/test_cli_prune.py:137-165 `test_prune_expired_batch` | ✅ Pass |
+| AC4: No expired sources message | tests/test_cli_prune.py:167-178 `test_prune_no_expired` | ✅ Pass |
+| AC5: Unknown slug error | tests/test_cli_prune.py:89-95 `test_prune_nonexistent_exits_1` | ✅ Pass |
+| AC6: Non-interactive requires --yes | tests/test_cli_prune.py:97-113 `test_prune_non_interactive_requires_yes` | ✅ Pass |
+| AC7: Index cleanup before soft-delete | tests/test_cli_prune.py:136-150 `test_prune_cleans_index` | ✅ Pass |
+| AC8: Manual recovery via mv + rebuild | tests/test_cli_prune.py:181-209 `test_manual_recovery` | ✅ Pass |
 
 ## Scope & Constraints
 
@@ -124,3 +132,5 @@ Index cleanup happens **before** soft-delete. If the soft-delete fails after ind
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
 | Active | 2026-04-04 | _pending_ | Initial creation |
+| Complete | 2026-04-05 | _pending_ | All AC verified |
+| Implementation | 2026-04-05 | _pending_ | TDD implementation complete, all 8 AC verified |
