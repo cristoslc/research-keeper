@@ -1,10 +1,7 @@
 {
   "bookmark": {
-    "note": "Created SPEC-043 (bug) from issue #6 — resolve stale synthesis detection",
-    "files": [
-      "docs/spec/Active/(SPEC-043)-Resolve-Stale-Synthesis-Detection.md"
-    ],
-    "timestamp": "2026-04-04T23:53:54Z"
+    "note": "Pushed commits to trunk",
+    "timestamp": "2026-04-05T05:22:23Z"
   },
   "lastBranch": "trunk",
   "focus_lane": "INITIATIVE-001"

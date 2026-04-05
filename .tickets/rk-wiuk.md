@@ -1,6 +1,6 @@
 ---
 id: rk-wiuk
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-05T03:12:27Z
@@ -13,3 +13,9 @@ external-ref: EPIC-009
 
 Soft-delete sources with downstream resolution. Make source removal first-class, recoverable without git.
 
+
+## Notes
+
+**2026-04-05T05:11:42Z**
+
+Completed: All child SPECs (048, 049, 050) verified and done. 21 tests added, 22 acceptance criteria verified. Retrospective written.

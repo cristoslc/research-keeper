@@ -1,5 +1,8 @@
 # Visions
 
-| ID | Title | Status | Last Updated |
-|----|-------|--------|-------------|
-| VISION-001 | Research Keeper | Active | 2026-03-29 |
+## Active
+
+| Artifact | Title | Last Updated | Commit |
+|----------|-------|-------------|--------|
+| VISION-001 | Research Keeper | 2026-03-30 | -- |
+
