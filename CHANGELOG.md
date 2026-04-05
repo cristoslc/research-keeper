@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0] - 2026-04-04
+
+### Features
+
+#### Export as zip archive — share any slice of your library
+
+`rk export tag:machine-learning` produces a portable zip with all symlinks resolved to real file copies. Export tags, sources, investigations, or queries — combine multiple targets in one command. Archives land in `~/Downloads` by default and the containing folder opens automatically. Embedding files are excluded to keep exports lean; they regenerate on `rk rebuild`.
+
+#### Stale synthesis detection
+
+`rk resolve` now detects when a tag gains new sources after its synthesis was written. Previously, adding a source to an already-synthesized tag produced no sidecar — the synthesis silently went stale. Now resolve regenerates the synthesis sidecar so the tag's understanding stays current.
+
+### Supporting Changes
+- README updated with export feature documentation and current test count
+
 ## [0.3.0] - 2026-04-04
 
 ### Features
