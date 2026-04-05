@@ -19,7 +19,7 @@ AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".webm", ".aac"}
 
 def _is_instagram_url(url: str) -> bool:
     """Check if URL is an Instagram URL."""
-    return "instagram.com" in url or "instagram.com" in url
+    return "instagram.com" in url or "instagr.am" in url
 
 
 def _detect_browser_for_cookies() -> str | None:
@@ -61,19 +61,6 @@ def _detect_browser_for_cookies() -> str | None:
     }
 
     return browser_map.get(bundle_id, "chrome")
-
-
-def _fetch_youtube_info(url: str) -> dict:
-    """Fetch video metadata using yt-dlp."""
-    result = subprocess.run(
-        ["yt-dlp", "--dump-json", "--no-download", url],
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    if result.returncode != 0:
-        raise NormalizationError(f"yt-dlp failed: {result.stderr}", stage="media-info")
-    return json.loads(result.stdout)
 
 
 def _fetch_youtube_info_and_subs(url: str) -> tuple[str | None, dict]:
@@ -137,73 +124,48 @@ def _fetch_instagram_subtitles(url: str, browser: str | None) -> tuple[str | Non
     the user's browser via --cookies-from-browser.
 
     Returns (subtitles_text, info_dict) tuple.
+    Uses TemporaryDirectory for cleanup.
     """
-    output_base = f"{tempfile.gettempdir()}/ig_%(id)s"
-    args = [
-        "yt-dlp",
-        "--write-auto-sub",
-        "--sub-lang", "en",
-        "--skip-download",
-        "--sub-format", "vtt",
-        "--write-info-json",
-        "-o", output_base,
-    ]
-
-    if browser:
-        args.extend(["--cookies-from-browser", browser])
-
-    args.append(url)
-
-    result = subprocess.run(
-        args,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-
-    # Look for VTT files and info JSON
-    vtt_files = glob.glob(f"{tempfile.gettempdir()}/ig_*.vtt")
-    subtitles = None
-    if vtt_files:
-        subtitles = _vtt_to_text(Path(vtt_files[0]))
-
-    # Read info JSON
-    info_files = glob.glob(f"{tempfile.gettempdir()}/ig_*.info.json")
-    info = {}
-    if info_files:
-        try:
-            info = json.loads(Path(info_files[0]).read_text())
-        except (json.JSONDecodeError, OSError):
-            pass
-
-    return subtitles, info
-
-
-def _fetch_youtube_subtitles(url: str) -> str | None:
-    """Fetch subtitles/auto-captions using yt-dlp, return clean text or None."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Try manual subs first, then auto-captions
-        for flag in ["--write-sub", "--write-auto-sub"]:
-            result = subprocess.run(
-                [
-                    "yt-dlp",
-                    flag,
-                    "--sub-lang", "en",
-                    "--skip-download",
-                    "--sub-format", "vtt",
-                    "-o", f"{tmpdir}/%(id)s",
-                    url,
-                ],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
+        output_base = f"{tmpdir}/ig_%(id)s"
+        args = [
+            "yt-dlp",
+            "--write-auto-sub",
+            "--sub-lang", "en",
+            "--skip-download",
+            "--sub-format", "vtt",
+            "--write-info-json",
+            "-o", output_base,
+        ]
 
-            vtt_files = glob.glob(f"{tmpdir}/*.vtt")
-            if vtt_files:
-                return _vtt_to_text(Path(vtt_files[0]))
+        if browser:
+            args.extend(["--cookies-from-browser", browser])
 
-    return None
+        args.append(url)
+
+        subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        # Look for VTT files and info JSON
+        vtt_files = glob.glob(f"{tmpdir}/ig_*.vtt")
+        subtitles = None
+        if vtt_files:
+            subtitles = _vtt_to_text(Path(vtt_files[0]))
+
+        # Read info JSON
+        info_files = glob.glob(f"{tmpdir}/ig_*.info.json")
+        info = {}
+        if info_files:
+            try:
+                info = json.loads(Path(info_files[0]).read_text())
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        return subtitles, info
 
 
 def _vtt_to_text(vtt_path: Path) -> str:
@@ -287,8 +249,12 @@ def _transcribe_audio(audio_path: str) -> str | None:
         return None
 
 
-def _download_youtube_audio(url: str) -> str | None:
-    """Download audio from YouTube, return path or None."""
+def _download_youtube_audio(url: str) -> tuple[str | None, str | None]:
+    """Download audio from YouTube, return (path, tmpdir) or (None, None).
+
+    Returns tmpdir so caller can clean up. Caller is responsible for
+    removing tmpdir when done with the audio file.
+    """
     tmpdir = tempfile.mkdtemp()
     result = subprocess.run(
         [
@@ -302,11 +268,15 @@ def _download_youtube_audio(url: str) -> str | None:
         timeout=120,
     )
     audio_files = glob.glob(f"{tmpdir}/audio.*")
-    return audio_files[0] if audio_files else None
+    return (audio_files[0], tmpdir) if audio_files else (None, None)
 
 
-def _download_youtube_video(url: str) -> str | None:
-    """Download video from YouTube for frame extraction, return path or None."""
+def _download_youtube_video(url: str) -> tuple[str | None, str | None]:
+    """Download video from YouTube for frame extraction, return (path, tmpdir) or (None, None).
+
+    Returns tmpdir so caller can clean up. Caller is responsible for
+    removing tmpdir when done with the video file.
+    """
     tmpdir = tempfile.mkdtemp()
     result = subprocess.run(
         [
@@ -320,7 +290,7 @@ def _download_youtube_video(url: str) -> str | None:
         timeout=180,  # Longer timeout for video
     )
     video_files = glob.glob(f"{tmpdir}/video.*")
-    return video_files[0] if video_files else None
+    return (video_files[0], tmpdir) if video_files else (None, None)
 
 
 def _extract_frames_from_video(video_path: str, threshold: float = 0.85) -> list[str]:
@@ -614,24 +584,36 @@ class MediaNormalizer:
                 return content, extracted
 
         # No subtitles — try whisper transcription
-        audio_path = _download_youtube_audio(url)
+        audio_path, audio_tmpdir = _download_youtube_audio(url)
         if audio_path:
-            transcript = _transcribe_audio(audio_path)
-            if transcript:
-                content = f"# {extracted['title']}\n\n{transcript}"
-                return content, extracted
+            try:
+                transcript = _transcribe_audio(audio_path)
+                if transcript:
+                    content = f"# {extracted['title']}\n\n{transcript}"
+                    return content, extracted
+            finally:
+                # Cleanup temp directory
+                if audio_tmpdir:
+                    import shutil
+                    shutil.rmtree(audio_tmpdir, ignore_errors=True)
 
         # Frame extraction fallback (opt-in only)
         if enable_frame_extraction:
-            video_path = _download_youtube_video(url)
+            video_path, video_tmpdir = _download_youtube_video(url)
             if video_path:
-                frames = _extract_frames_from_video(video_path)
-                if frames:
-                    ocr_text = _ocr_frames(frames)
-                    if ocr_text:
-                        content = f"# {extracted['title']}\n\n{ocr_text}"
-                        extracted["transcript_source"] = "ocr"
-                        return content, extracted
+                try:
+                    frames = _extract_frames_from_video(video_path)
+                    if frames:
+                        ocr_text = _ocr_frames(frames)
+                        if ocr_text:
+                            content = f"# {extracted['title']}\n\n{ocr_text}"
+                            extracted["transcript_source"] = "ocr"
+                            return content, extracted
+                finally:
+                    # Cleanup temp directory
+                    if video_tmpdir:
+                        import shutil
+                        shutil.rmtree(video_tmpdir, ignore_errors=True)
 
         # Nothing worked
         content = f"# {extracted['title']}\n\n(No transcript available)"
@@ -673,15 +655,21 @@ class MediaNormalizer:
         # Frame extraction fallback (opt-in only)
         if enable_frame_extraction:
             # For Instagram, need to use browser cookies
-            video_path = _download_youtube_video(url)  # yt-dlp handles IG URLs too
+            video_path, video_tmpdir = _download_youtube_video(url)  # yt-dlp handles IG URLs too
             if video_path:
-                frames = _extract_frames_from_video(video_path)
-                if frames:
-                    ocr_text = _ocr_frames(frames)
-                    if ocr_text:
-                        content = f"# {extracted['title']}\n\n{ocr_text}"
-                        extracted["transcript_source"] = "ocr"
-                        return content, extracted
+                try:
+                    frames = _extract_frames_from_video(video_path)
+                    if frames:
+                        ocr_text = _ocr_frames(frames)
+                        if ocr_text:
+                            content = f"# {extracted['title']}\n\n{ocr_text}"
+                            extracted["transcript_source"] = "ocr"
+                            return content, extracted
+                finally:
+                    # Cleanup temp directory
+                    if video_tmpdir:
+                        import shutil
+                        shutil.rmtree(video_tmpdir, ignore_errors=True)
 
         content = f"# {extracted['title']}\n\n(No transcript available)"
         return content, extracted

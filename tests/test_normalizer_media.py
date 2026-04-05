@@ -57,7 +57,7 @@ def test_youtube_no_subtitles_or_transcript(mock_transcribe, mock_download, mock
             "description": "Short",  # Too short for fallback
         },
     )
-    mock_download.return_value = None
+    mock_download.return_value = (None, None)  # Tuple (path, tmpdir)
     mock_transcribe.return_value = None
 
     content, meta = normalizer.normalize(
@@ -371,7 +371,7 @@ def test_frame_extraction_enabled_no_subtitles(
             "description": "Short",  # Too short for caption fallback
         },
     )
-    mock_download.return_value = "/tmp/test_video.mp4"
+    mock_download.return_value = ("/tmp/test_video.mp4", "/tmp/video_tmpdir")
     mock_extract.return_value = ["/tmp/frame_000.png", "/tmp/frame_001.png"]
     mock_ocr.return_value = "Text from frames"
 
