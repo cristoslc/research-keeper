@@ -17,6 +17,52 @@ logger = logging.getLogger(__name__)
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".webm", ".aac"}
 
 
+def _is_instagram_url(url: str) -> bool:
+    """Check if URL is an Instagram URL."""
+    return "instagram.com" in url or "instagram.com" in url
+
+
+def _detect_browser_for_cookies() -> str | None:
+    """Detect default browser on macOS for Instagram cookie extraction.
+
+    Returns browser name for yt-dlp --cookies-from-browser flag, or None.
+    Maps bundle IDs to browser names.
+    """
+    import platform
+
+    if platform.system() != "Darwin":
+        return None
+
+    result = subprocess.run(
+        [
+            "sh",
+            "-c",
+            (
+                "defaults read ~/Library/Preferences/com.apple.LaunchServices/"
+                "com.apple.launchservices.secure LSHandlers 2>/dev/null | "
+                "grep -B1 'https' | grep -o '\"com\\..*\"' | head -1"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        return "chrome"  # Default fallback
+
+    bundle_id = result.stdout.strip().strip('"')
+
+    # Map bundle IDs to browser names
+    browser_map = {
+        "com.google.Chrome": "chrome",
+        "com.apple.Safari": "safari",
+        "org.mozilla.firefox": "firefox",
+        "com.brave.Browser": "brave",
+    }
+
+    return browser_map.get(bundle_id, "chrome")
+
+
 def _fetch_youtube_info(url: str) -> dict:
     """Fetch video metadata using yt-dlp."""
     result = subprocess.run(
@@ -28,6 +74,55 @@ def _fetch_youtube_info(url: str) -> dict:
     if result.returncode != 0:
         raise NormalizationError(f"yt-dlp failed: {result.stderr}", stage="media-info")
     return json.loads(result.stdout)
+
+
+def _fetch_instagram_subtitles(url: str, browser: str | None) -> tuple[str | None, dict]:
+    """Fetch Instagram subtitles/captions and metadata using yt-dlp with browser cookies.
+
+    Instagram requires authentication cookies. yt-dlp can extract these from
+    the user's browser via --cookies-from-browser.
+
+    Returns (subtitles_text, info_dict) tuple.
+    """
+    output_base = f"{tempfile.gettempdir()}/ig_%(id)s"
+    args = [
+        "yt-dlp",
+        "--write-auto-sub",
+        "--sub-lang", "en",
+        "--skip-download",
+        "--sub-format", "vtt",
+        "--write-info-json",
+        "-o", output_base,
+    ]
+
+    if browser:
+        args.extend(["--cookies-from-browser", browser])
+
+    args.append(url)
+
+    result = subprocess.run(
+        args,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    # Look for VTT files and info JSON
+    vtt_files = glob.glob(f"{tempfile.gettempdir()}/ig_*.vtt")
+    subtitles = None
+    if vtt_files:
+        subtitles = _vtt_to_text(Path(vtt_files[0]))
+
+    # Read info JSON
+    info_files = glob.glob(f"{tempfile.gettempdir()}/ig_*.info.json")
+    info = {}
+    if info_files:
+        try:
+            info = json.loads(Path(info_files[0]).read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    return subtitles, info
 
 
 def _fetch_youtube_subtitles(url: str) -> str | None:
@@ -157,7 +252,7 @@ def _download_youtube_audio(url: str) -> str | None:
 
 
 class MediaNormalizer:
-    """Normalize media (YouTube, audio) to markdown content."""
+    """Normalize media (YouTube, Instagram, audio) to markdown content."""
 
     def normalize(self, raw: str | bytes, metadata: dict) -> tuple[str, dict]:
         text = raw if isinstance(raw, str) else raw.decode("utf-8")
@@ -166,6 +261,9 @@ class MediaNormalizer:
             r"(youtube\.com|youtu\.be)", text
         ):
             return self._normalize_youtube(text, metadata)
+
+        if _is_instagram_url(text):
+            return self._normalize_instagram(text, metadata)
 
         # Check for local audio file
         path = Path(text)
@@ -205,6 +303,42 @@ class MediaNormalizer:
                 return content, extracted
 
         # Nothing worked
+        content = f"# {extracted['title']}\n\n(No transcript available)"
+        return content, extracted
+
+    def _normalize_instagram(
+        self, url: str, metadata: dict
+    ) -> tuple[str, dict]:
+        """Normalize Instagram URL to markdown content."""
+        # Detect browser for cookie extraction
+        browser = _detect_browser_for_cookies()
+
+        # Fetch info and subtitles with cookies (consolidated call)
+        subtitles, info = _fetch_instagram_subtitles(url, browser)
+
+        extracted: dict[str, str] = {
+            "title": info.get("title") or info.get("description", "Instagram Post"),
+            "source": "Instagram",
+        }
+        if info.get("uploader"):
+            extracted["channel"] = info["uploader"]
+        if info.get("webpage_url"):
+            extracted["url"] = info["webpage_url"]
+
+        if subtitles:
+            content = f"# {extracted['title']}\n\n{subtitles}"
+            return content, extracted
+
+        # No subtitles — try description fallback
+        description = info.get("description", "")
+        if description:
+            # Strip hashtags
+            clean_desc = re.sub(r"#\w+", "", description).strip()
+            if len(clean_desc) > 100:
+                content = f"# {extracted['title']}\n\n{clean_desc}"
+                extracted["transcript_source"] = "description"
+                return content, extracted
+
         content = f"# {extracted['title']}\n\n(No transcript available)"
         return content, extracted
 

@@ -181,3 +181,42 @@ def test_vtt_parser_size_improvement(tmp_path):
     # Each unique new phrase should appear once
     # With sliding window, deduplication happens
     assert len(result_lines) < 100  # Much smaller than 50 windows * original text
+
+
+# === SPEC-048: Instagram URL Support Tests ===
+
+
+def test_is_instagram_url():
+    """Instagram URLs should be detected correctly."""
+    from research_keeper.adapters.normalizers.media import _is_instagram_url
+
+    assert _is_instagram_url("https://www.instagram.com/reel/abc123/") is True
+    assert _is_instagram_url("https://instagram.com/p/xyz789") is True
+    assert _is_instagram_url("https://www.youtube.com/watch?v=abc") is False
+    assert _is_instagram_url("https://youtu.be/abc") is False
+
+
+@patch("research_keeper.adapters.normalizers.media._fetch_instagram_subtitles")
+@patch("research_keeper.adapters.normalizers.media._detect_browser_for_cookies")
+def test_instagram_url_routing(mock_browser, mock_ig_subs, normalizer):
+    """Instagram URLs should use Instagram-specific fetch path."""
+    mock_browser.return_value = "chrome"
+    mock_ig_subs.return_value = (
+        "This is an Instagram caption",
+        {
+            "title": "Instagram Reel",
+            "uploader": "user123",
+            "duration": 30,
+            "webpage_url": "https://www.instagram.com/reel/abc/",
+        },
+    )
+
+    content, meta = normalizer.normalize(
+        "https://www.instagram.com/reel/abc/",
+        {},
+    )
+
+    assert "instagram caption" in content.lower()
+    assert meta["title"] == "Instagram Reel"
+    assert meta["source"] == "Instagram"
+    mock_ig_subs.assert_called_once()
