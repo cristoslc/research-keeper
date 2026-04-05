@@ -12,7 +12,47 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT"
 
+# Portable path resolution — works whether installed at skills/ or .agents/skills/
+_src="${BASH_SOURCE[0]}"
+while [[ -L "$_src" ]]; do
+  _dir="$(cd "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  [[ "$_src" != /* ]] && _src="$_dir/$_src"
+done
+SCRIPT_DIR="$(cd "$(dirname "$_src")" && pwd)"
+SKILL_DIR="$(dirname "$SCRIPT_DIR")"
+SKILLS_ROOT="$(dirname "$SKILL_DIR")"
+LEGACY_SKILLS_LIB="$SKILL_DIR/references/legacy-skills-lib.sh"
+
+if [[ -f "$LEGACY_SKILLS_LIB" ]]; then
+  # shellcheck disable=SC1090
+  source "$LEGACY_SKILLS_LIB"
+fi
+
 issues=()
+
+check_legacy_skill_dirs() {
+  local legacy_json="$SKILL_DIR/references/legacy-skills.json"
+  [[ -f "$legacy_json" ]] || return
+  declare -F legacy_skill_entries >/dev/null 2>&1 || return
+
+  local found=()
+  local kind old_name replacement base_dir skill_dir
+  while IFS=$'\t' read -r kind old_name replacement; do
+    [[ -n "$old_name" ]] || continue
+    for base_dir in "$REPO_ROOT/.agents/skills" "$REPO_ROOT/.claude/skills"; do
+      skill_dir="$base_dir/$old_name"
+      [[ -d "$skill_dir" ]] || continue
+      if legacy_skill_matches_fingerprint "$skill_dir" "$legacy_json"; then
+        found+=("${skill_dir#$REPO_ROOT/}")
+      fi
+    done
+  done < <(legacy_skill_entries "$legacy_json")
+
+  if [[ ${#found[@]} -gt 0 ]]; then
+    issues+=("legacy skill directories detected: ${found[*]} (run swain-doctor to remove them)")
+  fi
+}
 
 # 1. Governance files exist
 if [[ ! -f AGENTS.md ]] && [[ ! -f CLAUDE.md ]]; then
@@ -25,7 +65,7 @@ if ! grep -q "swain governance" AGENTS.md CLAUDE.md 2>/dev/null; then
 fi
 
 # 2b. Governance freshness — compare installed block against canonical
-CANONICAL="skills/swain-doctor/references/AGENTS.content.md"
+CANONICAL="$SKILL_DIR/references/AGENTS.content.md"
 if [[ -f "$CANONICAL" ]] && grep -q "swain governance" AGENTS.md CLAUDE.md 2>/dev/null; then
   GOV_FILE=$(grep -l "swain governance" AGENTS.md CLAUDE.md 2>/dev/null | head -1 || true)
   if [[ -n "$GOV_FILE" ]]; then
@@ -39,9 +79,10 @@ if [[ -f "$CANONICAL" ]] && grep -q "swain governance" AGENTS.md CLAUDE.md 2>/de
   fi
 fi
 
-# 3. .agents directory exists
+# 3. .agents directory exists (ADR-020: self-heal)
 if [[ ! -d .agents ]]; then
-  issues+=(".agents directory missing")
+  mkdir -p .agents
+  echo "advisory: created .agents/ directory"
 fi
 
 # 4. .tickets/ directory is valid (if it exists)
@@ -66,11 +107,15 @@ if [[ -d "$REPO_ROOT/docs/evidence-pools" ]]; then
   issues+=("docs/evidence-pools/ detected — trove migration needed")
 fi
 
-# 6. No stale tk lock files (older than 1 hour)
+# Legacy swain skill directories
+check_legacy_skill_dirs
+
+# 6. Stale tk lock files (older than 1 hour) (ADR-020: self-heal)
 if [[ -d .tickets/.locks ]]; then
-  stale_locks=$(find .tickets/.locks -type f -mmin +60 2>/dev/null | head -1)
-  if [[ -n "$stale_locks" ]]; then
-    issues+=("stale tk lock files in .tickets/.locks/")
+  _stale_lock_count=$(find .tickets/.locks -type d -mmin +60 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "$_stale_lock_count" -gt 0 ]]; then
+    find .tickets/.locks -type d -mmin +60 -exec rm -rf {} + 2>/dev/null
+    echo "advisory: removed $_stale_lock_count stale tk lock(s)"
   fi
 fi
 
@@ -95,13 +140,16 @@ if [[ "$(git config --local commit.gpgsign 2>/dev/null)" != "true" ]]; then
   issues+=("commit signing not configured (run swain-keys --provision)")
 fi
 
-# 9. Script permissions (spot check)
-if find .claude/skills/*/scripts/ -type f \( -name '*.sh' -o -name '*.py' \) ! -perm -u+x 2>/dev/null | grep -q .; then
-  issues+=("scripts missing executable permission")
+# 9. Script permissions (spot check) (ADR-020: self-heal)
+_bad_perms=$(find "$SKILLS_ROOT" -type f \( -path '*/scripts/*.sh' -o -path '*/scripts/*.py' \) ! -perm -u+x 2>/dev/null || true)
+if [[ -n "$_bad_perms" ]]; then
+  _fix_count=$(echo "$_bad_perms" | wc -l | tr -d ' ')
+  echo "$_bad_perms" | xargs chmod +x
+  echo "advisory: fixed executable permissions on $_fix_count script(s)"
 fi
 
 # 9b. SSH alias readiness for repos using swain-keys host aliases
-SSH_HELPER="skills/swain-doctor/scripts/ssh-readiness.sh"
+SSH_HELPER="$SCRIPT_DIR/ssh-readiness.sh"
 if [[ -x "$SSH_HELPER" ]]; then
   ssh_output="$(bash "$SSH_HELPER" --check 2>/dev/null || true)"
   if [[ -n "$ssh_output" ]]; then
@@ -140,7 +188,7 @@ if [[ $sp_missing -gt 0 ]]; then
 fi
 
 # 11. Security scanner availability (INFO — advisory, non-blocking) (SPEC-059)
-SCANNER_SCRIPT="skills/swain-security-check/scripts/scanner_availability.py"
+SCANNER_SCRIPT="$SKILLS_ROOT/swain-security-check/scripts/scanner_availability.py"
 if [[ -x "$SCANNER_SCRIPT" ]]; then
   scanner_output=$(python3 "$SCANNER_SCRIPT" 2>/dev/null || true)
   # Extract the summary line (first line: "Scanner availability: N/4 scanners found")
@@ -160,7 +208,7 @@ if ! command -v mmdc >/dev/null 2>&1; then
 fi
 
 # 12. Lightweight security diagnostic (advisory, non-blocking) (SPEC-061)
-DOCTOR_SECURITY_SCRIPT="skills/swain-security-check/scripts/doctor_security_check.py"
+DOCTOR_SECURITY_SCRIPT="$SKILLS_ROOT/swain-security-check/scripts/doctor_security_check.py"
 if [[ -x "$DOCTOR_SECURITY_SCRIPT" ]]; then
   security_output=$(python3 "$DOCTOR_SECURITY_SCRIPT" 2>/dev/null || true)
   if [[ -n "$security_output" ]]; then
@@ -169,7 +217,7 @@ if [[ -x "$DOCTOR_SECURITY_SCRIPT" ]]; then
 fi
 
 # 13. Skill change discipline (SPEC-148) — advisory, triggers doctor
-SKILL_CHECK_SCRIPT="skills/swain-doctor/scripts/check-skill-changes.sh"
+SKILL_CHECK_SCRIPT="$SCRIPT_DIR/check-skill-changes.sh"
 if [[ -x "$SKILL_CHECK_SCRIPT" ]]; then
   skill_output=$(bash "$SKILL_CHECK_SCRIPT" 2>/dev/null || true)
   skill_status=$?
@@ -180,11 +228,11 @@ if [[ -x "$SKILL_CHECK_SCRIPT" ]]; then
 fi
 
 # Auto-repair .agents/bin/ symlinks (ADR-019, SPEC-186)
-# Agent-facing scripts live in skills/*/scripts/ and are symlinked to .agents/bin/
+# Agent-facing scripts live in the installed skill tree and are symlinked to .agents/bin/
 AGENTS_BIN="$REPO_ROOT/.agents/bin"
 OPERATOR_SCRIPTS="swain swain-box"  # operator-facing — skip for .agents/bin/
 _agents_bin_repaired=0
-for skill_scripts_dir in "$REPO_ROOT"/skills/*/scripts; do
+for skill_scripts_dir in "$SKILLS_ROOT"/*/scripts; do
   [[ -d "$skill_scripts_dir" ]] || continue
   for script in "$skill_scripts_dir"/*; do
     [[ -f "$script" && -x "$script" ]] || continue
@@ -215,8 +263,15 @@ fi
 BIN_DIR="$REPO_ROOT/bin"
 _bin_repaired=0
 for op_script in $OPERATOR_SCRIPTS; do
-  # Find canonical location in skill tree
-  canonical="$(find "$REPO_ROOT/skills" -name "$op_script" -path '*/scripts/*' ! -name 'test-*' -print -quit 2>/dev/null)"
+  # Find canonical location from installed usr/bin manifests
+  canonical=""
+  for manifest_dir in "$SKILLS_ROOT"/*/usr/bin; do
+    [[ -d "$manifest_dir" ]] || continue
+    if [[ -L "$manifest_dir/$op_script" || -e "$manifest_dir/$op_script" ]]; then
+      canonical="$(cd "$manifest_dir" && readlink -f "$op_script" 2>/dev/null || true)"
+      break
+    fi
+  done
   [[ -n "$canonical" && -x "$canonical" ]] || continue
   target="$BIN_DIR/$op_script"
   rel_path="$(python3 -c "import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$canonical" "$BIN_DIR" 2>/dev/null || echo "")"

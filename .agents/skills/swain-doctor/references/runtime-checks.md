@@ -4,7 +4,7 @@ Procedural checks for memory directory, settings, script permissions, .agents di
 
 ## Memory directory
 
-The Claude Code memory directory stores `status-cache.json` and `stage-status.json`. Skills that write to this directory will fail silently or error if it doesn't exist. Note: `session.json` is stored at `.agents/session.json` (per-project, version-controlled) — not in the memory directory.
+The Claude Code memory directory stores `status-cache.json` and `stage-status.json`. Skills that write to this directory will fail silently or error if it doesn't exist. Note: `session.json` is stored at `.agents/session.json` (per-project, gitignored) — not in the memory directory.
 
 ### Step 1 — Compute the correct path
 
@@ -88,12 +88,12 @@ If this fails, warn:
 
 ## Script permissions
 
-All shell and Python scripts in `skills/*/scripts/` must be executable. Skills invoke these via `bash skills/<skill>/scripts/foo.sh`, which works regardless, but `uv run skills/<skill>/scripts/foo.py` and direct execution require the executable bit.
+All shell and Python scripts in the installed skill tree, usually `.agents/skills/*/scripts/`, must be executable. Skills invoke these via `.agents/bin/` or by direct path, and Python helpers may be run directly, so the executable bit still matters.
 
 ### Check and repair
 
 ```bash
-find skills/*/scripts/ -type f \( -name '*.sh' -o -name '*.py' \) ! -perm -u+x
+find .agents/skills -type f \( -path '*/scripts/*.sh' -o -path '*/scripts/*.py' \) ! -perm -u+x
 ```
 
 If any files are found without the executable bit:
@@ -116,7 +116,7 @@ Repos that ran `swain-keys --provision` switch `origin` to a project-specific SS
 Use the helper:
 
 ```bash
-bash skills/swain-doctor/scripts/ssh-readiness.sh --repair
+bash scripts/ssh-readiness.sh --repair
 ```
 
 The helper is a no-op for repos that do not use a `github.com-<project>` alias remote.
@@ -168,7 +168,7 @@ If it already exists, this step is silent.
 If the memory directory exists but `status-cache.json` does not, and the status script is available, seed an initial cache so that consumers have data on first use.
 
 ```bash
-STATUS_SCRIPT="skills/swain-session/scripts/swain-status.sh"
+STATUS_SCRIPT="$SKILLS_ROOT/swain-session/scripts/swain-status.sh"
 if [[ -f "$STATUS_SCRIPT" && ! -f "$MEMORY_DIR/status-cache.json" ]]; then
   bash "$STATUS_SCRIPT" --json > /dev/null 2>&1 || true
 fi

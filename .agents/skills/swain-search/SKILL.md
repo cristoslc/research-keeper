@@ -6,7 +6,7 @@ license: MIT
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Skill, WebSearch, WebFetch, AskUserQuestion
 metadata:
   short-description: Trove collection and normalization
-  version: 1.0.0
+  version: 1.1.0
   author: cristos
   source: swain
 ---
@@ -78,6 +78,21 @@ If existing troves contain relevant sources:
 
 This step runs in all modes (Create, Extend, Discover) and before any web searches. Existing trove content is always checked first.
 
+## Snapshot evidence gate (SPEC-220)
+
+Before a remote source can be treated as collected evidence, the run must produce a raw snapshot and a metadata ledger entry in `.agents/search-snapshots/metadata.jsonl`.
+
+Required flow for remote sources:
+1. Export/download the raw snapshot first:
+   - `bash skills/swain-search/scripts/export-snapshot.sh --url "<source-url>" --out-dir ".agents/search-snapshots/raw"`
+2. Normalize the downloaded file using `writing-skills` or `skill-creator` (never summary-only browser notes).
+3. Log metadata:
+   - `bash skills/swain-search/scripts/log-snapshot-metadata.sh --source-url "<source-url>" --export-mode "<mode>" --raw-path "<raw-path>" --normalized-path "<normalized-path>" --normalization-skill "<writing-skills|skill-creator>"`
+4. Verify before publication:
+   - `bash skills/swain-search/scripts/verify-snapshot-evidence.sh --source-url "<source-url>"`
+
+If verification fails, mark the source unverified, do not publish it downstream, and report the warning to the operator.
+
 ## Create mode
 
 Build a new trove from scratch.
@@ -99,7 +114,7 @@ If invoked from swain-design (e.g., spike entering Active), the artifact context
 
 ### Step 2 — Collect and normalize
 
-For each source, use the appropriate capability. Read `skills/swain-search/references/normalization-formats.md` for the exact markdown structure per source type.
+For each source, use the appropriate capability. Read `references/normalization-formats.md` for the exact markdown structure per source type.
 
 **Web search queries:**
 1. Use a web search capability to find relevant results
@@ -113,11 +128,20 @@ For each source, use the appropriate capability. Read `skills/swain-search/refer
 3. Normalize to markdown per the web page format
 4. If fetch fails, record the URL in manifest with a `failed: true` flag and move on
 
+**Google Docs / Drive-like documents:**
+1. Export raw content first (required):
+   - `bash skills/swain-search/scripts/export-snapshot.sh --url "<source-url>" --out-dir ".agents/search-snapshots/raw"`
+2. Prefer API export modes (`google-doc-export`, `google-slides-export`, `google-drive-download`).
+3. If API export fails, use a browser helper fallback only when available.
+4. Normalize the exported file with `writing-skills` or `skill-creator`.
+5. Log metadata in `.agents/search-snapshots/metadata.jsonl`.
+6. Verify with `verify-snapshot-evidence.sh` before including the source in trove outputs.
+
 **Paywall proxy fallback:**
 
 After fetching a web page, check if a paywall proxy is available for the URL's domain:
 
-1. Run `skills/swain-search/scripts/resolve-proxy.sh <url>`
+1. Run `scripts/resolve-proxy.sh <url>`
    - **Exit 1**: no proxy configured — use the direct fetch content as-is
    - **Exit 0**: outputs `PROXY:<name>:<proxy-url>` and `SIGNAL:<text>` lines
 2. If exit 0, check the fetched content for each `SIGNAL` text (case-sensitive literal match)
@@ -129,7 +153,7 @@ After fetching a web page, check if a paywall proxy is available for the URL's d
 4. If no signals match: use the direct fetch content as-is (no proxy needed)
 5. If all proxies fail: keep the original truncated content, set `notes: "Paywalled; proxies exhausted — content from direct fetch only"`
 
-The registry lives at `skills/swain-search/references/paywall-proxies.yaml`. Add new domains or proxies there — no skill file changes needed.
+The registry lives at `references/paywall-proxies.yaml`. Add new domains or proxies there — no skill file changes needed.
 
 **Video/audio URLs:**
 1. Use a media transcription capability to get the transcript
@@ -138,7 +162,7 @@ The registry lives at `skills/swain-search/references/paywall-proxies.yaml`. Add
 
 **Local files:**
 1. Use a document conversion capability (PDF, DOCX, etc.) or read directly if already markdown
-2. Normalize per the document format
+2. Normalize per the document format using `writing-skills` or `skill-creator`
 3. For markdown files: add frontmatter only, preserve content
 
 **Forum threads / discussions:**
@@ -164,12 +188,12 @@ Each normalized source gets a **slug-based source ID** and lives in a directory-
 
 **Source ID generation:**
 - Derive the source ID as a slug from the source title or URL (e.g., `mdn-websocket-api`, `strangeloop-2025-realtime`)
-- When a slug collides with an existing source ID: append `__word1-word2` using two random words from `skills/swain-search/references/wordlist.txt`
+- When a slug collides with an existing source ID: append `__word1-word2` using two random words from `references/wordlist.txt`
 - If the wordlist is missing, append `__` followed by 4 hex characters (e.g., `__a3f8`) as a fallback
 
 ### Step 3 — Generate manifest
 
-Create `manifest.yaml` following the schema in `skills/swain-search/references/manifest-schema.md`. Include:
+Create `manifest.yaml` following the schema in `references/manifest-schema.md`. Include:
 - Trove metadata (id, created date, tags)
 - Default freshness TTL per source type
 - One entry per source with provenance (URL/path, fetch date, content hash, type)
@@ -305,6 +329,7 @@ The skill references capabilities generically. When a capability isn't available
 |-----------|----------|
 | Web search | Skip search-based sources. Tell user: "No web search capability available — provide URLs directly or add a search MCP." |
 | Browser / page fetcher | Try basic URL fetch. If that fails: "Can't fetch this URL — paste the content or provide a local file." |
+| Snapshot export for remote docs | If export fails and no helper exists: mark source unverified, do not publish downstream, report exact URL and failure mode. |
 | Media transcription | "No transcription capability available — provide a pre-made transcript file, or add a media conversion tool." |
 | Document conversion | "Can't convert this file type — provide a markdown version, or add a document conversion tool." |
 | Paywall proxy | Keep truncated content. Note in manifest: "Paywalled; proxies exhausted." Suggest user provide content manually. |

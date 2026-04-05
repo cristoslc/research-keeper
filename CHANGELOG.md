@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3.0] - 2026-04-04
+
+### Features
+
+#### Agent-native research — seeded exploration with budgets and provenance
+
+The `rk research` command runs multi-step research explorations. Start with a topic and optional seed sources, and rk expands outward — gathering related material, branching into subtopics, and stopping when a source, effort, or time budget is reached. Each research run tracks which queries produced which sources, so the provenance chain from question to evidence is always recoverable. Completed runs auto-promote into investigations, linking the research query graph to the investigation lifecycle.
+
+#### Research queries are persistent and searchable
+
+Every query issued through `rk search` or `rk research` is now stored with its parameters, results, and timestamps. Queries are embedded alongside sources so semantic search can surface not just what you found, but what you asked. The query store supports the research pipeline's expansion logic — previously-seen queries are skipped, and branch decisions are informed by what's already been explored.
+- NotesNormalizer now reads file content when given a local path instead of storing the path string as content — fixes broken ingestion of `.md` and `.txt` files passed by path
+- Rebuild backfill now chunks long non-source content (tags, queries, investigations) before embedding, matching the chunked embedding strategy used for sources
+- Five bug fixes shipped from issue tracker: embedding backfill for non-source nodes, investigation symlink creation, trove import path handling, version string alignment, and duplicate model field cleanup
+
+### Supporting Changes
+- 25 specs transitioned from Active to Done, reflecting shipped implementation state
+- Completed EPICs closed and superseded specs marked to reduce artifact noise
+
 ## [0.2.0] - 2026-04-03
 
 ### Features

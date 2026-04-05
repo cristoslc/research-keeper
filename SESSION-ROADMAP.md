@@ -5,10 +5,10 @@
 ## Evidence Basis
 
 - **Focus lane:** INITIATIVE-001 (Mechanism Layer)
-- **ROADMAP.md hash:** `n/a`
-- **HEAD:** `a33fb6b`
-- **Artifacts in scope:** 6
-- **Direct children:** EPIC-001
+- **ROADMAP.md hash:** `ca4b01b1`
+- **HEAD:** `ea4531e`
+- **Artifacts in scope:** 52
+- **Direct children:** EPIC-001, EPIC-002, EPIC-003, EPIC-004, EPIC-005, EPIC-006, EPIC-007, EPIC-008, SPEC-020, SPEC-026, SPEC-035, SPEC-037
 
 ## Decision Set
 
@@ -16,11 +16,11 @@ No decisions needed in this focus area right now.
 
 ## Recommended Next
 
-> **SPEC-001**: Project Scaffolding & Domain Models — unblocks 2, weight: high
+> **SPEC-001**: Project Scaffolding & Domain Models — unblocks 3, weight: high
 
 ## Session Goal
 
-**Recommended goal:** Progress implementation on SPEC-001, EPIC-001, INITIATIVE-001
+**Recommended goal:** Progress implementation on SPEC-001, EPIC-001, EPIC-006
 
 *Justification:* No operator decisions are pending. These items are the highest-leverage implementation work in Mechanism Layer.
 
@@ -29,7 +29,13 @@ No decisions needed in this focus area right now.
 
 ## Progress
 
-No recent commits reference artifacts in this focus area.
+Recent commits touching this focus area:
+
+- `8f9b62e` feat: implement SPEC-040 (seeded research orchestration) and SPEC-041 (investigation promotion)
+- `9157515` feat(SPEC-039): research expansion and budgeting
+- `ef8ba14` feat(SPEC-038): research query persistence and provenance
+- `1d60a77` spec(SPEC-027): transition to Done — rk resolve fully implemented with all stages
+- `c0ac5be` spec(SPEC-024): transition to Done — investigation brief fix shipped in v0.2.0
 
 ## Decision Records
 
@@ -38,28 +44,3 @@ No decisions recorded yet this session.
 ## Walk-Away Signal
 
 No decisions needed — this focus area has no pending operator actions.
-
-## Walk-Away Signal
-
-> EPIC-007 spikes done (TW No-Go, SPA Conditional Go). Merged to trunk. Next: brainstorm IA then write interaction DESIGN.
-
-*Session closed: 2026-03-31T03:18:28Z*
-
-## Session session-20260403-140641-7a22 Handoff
-
-**Focus lane:** INITIATIVE-001
-**Closed:** 2026-04-03
-
-### What was done
-
-- Refactored `skill_template.py` from duplicated f-strings to Jinja2 `Template.render()`
-- Added `jinja2>=3.1` as a core dependency
-- Added "commit and push" step to the rk skill template for consumer agents
-- Created trove `ollama-cloud-librechat-openwebui` with 7 sources
-
-### Open items
-
-- 5 open GitHub issues (#1-#5), SPEC-024 and SPEC-025 linked and Active
-- `.claude/skills/research-keeper/SKILL.md` local copy may diverge from `src/` canonical
-
-*Session closed: 2026-04-03*

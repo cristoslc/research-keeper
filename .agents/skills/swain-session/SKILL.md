@@ -1,12 +1,12 @@
 ---
 name: swain-session
-description: "Session management and project status dashboard. Owns the full session lifecycle (start/work/close/resume), focus lane, bookmarks, worktree auto-isolation, and tab naming. Also serves as the project status dashboard — shows active epics, progress, actionable next steps, blocked items, tasks, GitHub issues, and recommendations. Triggers on: 'session', 'status', 'what's next', 'dashboard', 'overview', 'where are we', 'what should I work on', 'show me priorities', 'bookmark', 'focus on', 'session info'."
+description: "Session management and project status dashboard. Owns the full session lifecycle (start/work/close/resume), focus lane, bookmarks, worktree detection, and tab naming. Also serves as the project status dashboard — shows active epics, progress, actionable next steps, blocked items, tasks, GitHub issues, and recommendations. Worktree creation is deferred to swain-do task dispatch (SPEC-195). Triggers on: 'session', 'status', 'what's next', 'dashboard', 'overview', 'where are we', 'what should I work on', 'show me priorities', 'bookmark', 'focus on', 'session info'."
 user-invocable: true
 license: MIT
 allowed-tools: Bash, Read, Write, Edit, Grep, Glob, EnterWorktree, ExitWorktree
 metadata:
   short-description: Session state and identity management
-  version: 1.3.0
+  version: 1.4.0
   author: cristos
   source: swain
 ---
@@ -30,56 +30,59 @@ When invoked manually, the user can change preferences or bookmark context.
 
 When the operator launches with free text (e.g., `swain new bug about timestamps`), the launcher passes it as part of the initial prompt: `/swain-session Session purpose: new bug about timestamps`.
 
+The launcher is responsible for choosing the checkout that will own that bookmark:
+- If the operator starts from the main checkout, the launcher opens a new worktree first and only then passes the session purpose.
+- If the operator starts inside a linked worktree that already has a bookmark, the launcher should steer them to resume/finish that worktree or open a different worktree before reusing the purpose text.
+
 When session purpose text is present in the invocation:
-1. Write it immediately as the session bookmark note (using swain-bookmark.sh)
+1. Write it immediately as the session bookmark note (using swain-bookmark.sh) in the current checkout
 2. Display it: `**Session purpose:** <text>`
 
 Detection: if the skill is invoked with text after `/swain-session` (e.g., `/swain-session Session purpose: ...`), extract everything after "Session purpose: " as the purpose text.
 
 For runtimes that don't support initial prompts (e.g., crush), check the `SWAIN_PURPOSE` environment variable as a fallback.
 
-## Steps 1–2 — Bootstrap (tab naming + worktree detection + session load)
+## Step 1 — Fast Greeting (SPEC-194)
 
-Run the consolidated bootstrap script in a single call:
+Run the fast greeting script in a single call. This handles tab naming, worktree detection, session.json loading, bookmark display, focus lane, and lightweight preflight warnings — all in ~500ms. It does **not** invoke specgraph, GitHub API, or the full status dashboard.
 
 ```bash
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-bash "$REPO_ROOT/.agents/bin/swain-session-bootstrap.sh" --auto
+bash "$REPO_ROOT/.agents/bin/swain-session-greeting.sh" --json
 ```
 
-The script handles tab naming (tmux only), worktree isolation detection, and session.json loading atomically. It emits structured JSON:
+The greeting emits structured JSON:
 
 ```json
 {
+  "greeting": true,
+  "branch": "trunk",
+  "dirty": false,
+  "isolated": false,
+  "bookmark": "Left off implementing the bootstrap script",
+  "focus": "VISION-001",
   "tab": "project @ branch",
-  "worktree": { "isolated": false, "path": null, "branch": "trunk" },
-  "session": {
-    "focus": "VISION-001",
-    "bookmark": "Left off implementing the bootstrap script",
-    "lastBranch": "trunk"
-  },
   "warnings": []
 }
 ```
 
-**After receiving the JSON output:**
+**After receiving the greeting JSON:**
 
-1. If `worktree.isolated` is `false`: use the `EnterWorktree` tool to create an isolated worktree. Generate the worktree name by running:
-   ```bash
-   bash "$REPO_ROOT/.agents/bin/swain-worktree-name.sh"
-   ```
-   Pass the script's stdout as the `name` parameter to `EnterWorktree`. For descriptive names, pass context as an argument: `... swain-worktree-name.sh" "spec-174"`. Never use a static name like "session" (SPEC-174). If `EnterWorktree` fails with a branch-exists error, re-run the script (it generates a fresh suffix each time) and retry once. Then re-run the bootstrap with the new path:
-   ```bash
-   bash "$REPO_ROOT/.agents/bin/swain-session-bootstrap.sh" --path "$(pwd)" --skip-worktree --auto
-   ```
-   If `EnterWorktree` fails or is unavailable, log a warning and proceed — swain-do will attempt isolation at dispatch time as a fallback.
+1. Present the greeting to the operator — branch, dirty state, bookmark (if any), focus lane (if any), and warnings.
 
-2. If `session.bookmark` is not null, display it:
+2. If `isolated` is `false` and the operator has not started work yet, **do not create a worktree now** — worktree creation is deferred to swain-do task dispatch (SPEC-195). If EnterWorktree is needed before swain-do, generate the name:
+   ```bash
+   bash "$REPO_ROOT/.agents/bin/swain-worktree-name.sh" "context"
+   ```
+   Then re-run the greeting with `--path` to refresh tab name and context:
+   ```bash
+   bash "$REPO_ROOT/.agents/bin/swain-session-greeting.sh" --path "$(pwd)" --json
+   ```
+
+3. If `bookmark` is not null, display it:
    > **Resuming session** — Last time: {bookmark}
 
-3. If `session.focus` is not null, display the focus lane.
-
-4. Display any `warnings` entries.
+4. The session is now ready for work. The full status dashboard is available on-demand (see [Status Dashboard](#status-dashboard-spec-122)).
 
 **If `$TMUX` is NOT set** (detected by absence of `tab` in the JSON), check whether tmux is installed:
 - **tmux not installed:** Offer to install it (`brew install tmux`).
@@ -109,13 +112,67 @@ This is agent-agnostic — works in Claude Code, opencode, gemini cli, codex, co
   },
   "bookmark": {
     "note": "Left off implementing the bootstrap script",
-    "files": ["skills/swain-session/SKILL.md"],
+    "files": ["SKILL.md"],
     "timestamp": "2026-03-10T14:32:00Z"
   }
 }
 ```
 
 **Migration:** If `.agents/session.json` does not exist but the old global location (`~/.claude/projects/<project-path-slug>/memory/session.json`) does, the bootstrap script copies it automatically.
+
+## README Reconciliation Checkpoint (SPEC-209)
+
+After the greeting and before work begins, compare README.md against the artifact tree. This runs once per session, at focus lane selection time.
+
+### Trigger
+
+When a focus lane is set (either restored from a previous session or newly selected), and README.md exists:
+
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+[ -f "$REPO_ROOT/README.md" ] && echo "has_readme" || echo "no_readme"
+```
+
+If no README exists, skip reconciliation silently — swain-doctor will flag the missing README.
+
+### Process
+
+1. Read README.md and extract claims — any statement about what the project does, who it's for, how it works, what it supports, or what behavior it exhibits. Read the entire README as prose; no markers or section conventions required.
+2. Compare claims against current Active Visions, Designs, Journeys, and Persona artifacts. Look for:
+   - **Stale promises** — README claims a feature or behavior that an artifact explicitly dropped or superseded.
+   - **Missing coverage** — an artifact describes a capability the README doesn't mention.
+   - **Contradictions** — README and artifact disagree on behavior, audience, or scope.
+3. For each mismatch, surface a specific question to the operator:
+   > "README says '{claim}' but {artifact-id} {describes the conflict}. Which is right?"
+
+### Reconciliation direction
+
+Bidirectional. Drift does not assume artifacts are right:
+- A new Vision may mean the README needs updating.
+- The README may be right and the Vision needs reshaping.
+- A promise may have been intentionally dropped and needs removing from both.
+
+### Deferral tracking
+
+The operator can defer any mismatch. Deferrals are tracked in `.agents/session.json` under a `readme_deferrals` key:
+
+```json
+{
+  "readme_deferrals": [
+    {
+      "claim": "real-time sync",
+      "conflict_artifact": "VISION-003",
+      "deferred_at": "2026-03-31T14:00:00Z"
+    }
+  ]
+}
+```
+
+Deferred items are raised again at the next session start. When the operator resolves a deferral (updates README or artifact), remove it from the list.
+
+### Silent pass
+
+If no drift is detected, the reconciliation check passes silently — no output to the operator.
 
 ## Session Lifecycle (SPEC-119)
 
@@ -149,17 +206,50 @@ bash "$REPO_ROOT/.agents/bin/swain-session-state.sh" record-decision --note "App
 
 ### Session close
 
-When the operator says "done", "wrap up", "close session", or the decision budget is reached:
+When the operator says "done", "wrap up", "close session", or the decision budget is reached, execute this close sequence. **Critical:** swain-retro must run while the session is still active so it can read session state. Do not close the session before running retro.
+
+### Step 1 — Generate session digest and progress logs
+
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+bash "$REPO_ROOT/.agents/bin/swain-session-digest.sh" --session-id "$(jq -r .session_id "$REPO_ROOT/.agents/session-state.json")" --output "$REPO_ROOT/.agents/session-log.jsonl"
+bash "$REPO_ROOT/.agents/bin/swain-progress-log.sh" --digest "$REPO_ROOT/.agents/session-log.jsonl"
+```
+
+This appends a JSONL digest entry and updates each touched EPIC/Initiative's `progress.md` and `## Progress` section.
+
+### Step 2 — Run retro (session still active)
+
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+SWAIN_RETRO_SKILL="$REPO_ROOT/.claude/skills/swain-retro/SKILL.md"
+Skill("$SWAIN_RETRO_SKILL", "Session close — session is closing. Run /swain-retro to capture session learnings before the session state is cleared.")
+```
+
+**Important:** Retro reads session.json and session-state.json while they are still populated. Do not call session-state.sh close before this step.
+
+### Step 3 — Close the session
 
 ```bash
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 bash "$REPO_ROOT/.agents/bin/swain-session-state.sh" close --walkaway "Completed SPEC-119 tests and state management" --session-roadmap "$(pwd)/SESSION-ROADMAP.md"
 ```
 
-This:
-1. Sets session phase to `closed` with end time
-2. Appends the walk-away signal to SESSION-ROADMAP.md
-3. The agent should then commit SESSION-ROADMAP.md to git
+This sets session phase to `closed` with end time and appends the walk-away signal to SESSION-ROADMAP.md.
+
+### Step 4 — Run session teardown
+
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+SWAIN_TEARDOWN_SKILL="$REPO_ROOT/.claude/skills/swain-teardown/SKILL.md"
+Skill("$SWAIN_TEARDOWN_SKILL", "Session teardown — --session-chain flag passed from swain-session close handler.")
+```
+
+This runs orphan worktree checks, git dirty-state check, ticket sync prompt, and writes a handoff summary. The `--session-chain` flag tells teardown to skip the redundant session-active check since the handler already confirmed session state.
+
+### Step 5 — Commit SESSION-ROADMAP.md
+
+Finally, commit SESSION-ROADMAP.md to git.
 
 ### Session resume
 
@@ -180,6 +270,7 @@ This outputs the previous session's focus lane, walkaway note, and decision coun
   "focus_lane": "INITIATIVE-019",
   "phase": "active",
   "start_time": "2026-03-28T22:06:34Z",
+  "last_activity_time": "2026-03-28T22:06:34Z",
   "end_time": null,
   "decision_budget": 5,
   "decisions_made": 0,
@@ -252,16 +343,18 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 bash "$REPO_ROOT/.agents/bin/swain-focus.sh"
 ```
 
+Display the focus artifact as a context line by calling `artifact-context.sh` on the focus ID. Fall back to the bare ID if the utility is unavailable.
+
 Focus lane is stored in `.agents/session.json` under the `focus_lane` key. It persists across status checks within a session. The status dashboard reads it to filter recommendations and show peripheral awareness for non-focus visions.
 
-## Status Dashboard (absorbed from swain-status — SPEC-122)
+## Status Dashboard (SPEC-122)
 
 swain-session now owns the project status dashboard. When the operator says "status", "what's next", "dashboard", "overview", "where are we", "what should I work on", or "show me priorities", run the status script:
 
 ```bash
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 STATUS_SCRIPT="$REPO_ROOT/.agents/bin/swain-status.sh"
-[ -f "$STATUS_SCRIPT" ] && bash "$STATUS_SCRIPT" --refresh || echo "swain-status.sh not found"
+[ -f "$STATUS_SCRIPT" ] && bash "$STATUS_SCRIPT" --refresh || echo "status dashboard script not found"
 ```
 
 For compact mode (MOTD): `bash "$STATUS_SCRIPT" --compact`
@@ -275,6 +368,19 @@ Status writes to `.agents/status-cache.json` with 120-second TTL. Use `--refresh
 ### Recommendation
 
 Read `.priority.recommendations[0]` from the JSON cache. When a focus lane is set, recommendations scope to that vision/initiative.
+
+### Context-rich display
+
+When presenting artifacts to the operator (recommendations, focus lane, decisions needed), use the artifact-context utility instead of bare IDs:
+
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+CONTEXT=$(bash "$REPO_ROOT/.agents/bin/artifact-context.sh" <ARTIFACT-ID> 2>/dev/null)
+```
+
+If the utility is available and returns output, use the context line. If unavailable or empty, fall back to `<ID> — <title>` (current behavior).
+
+Display format: **title** `ID` — scope. progress.
 
 ### Mode Inference
 

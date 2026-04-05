@@ -1,8 +1,9 @@
 {
-  "session_id": "session-20260403-140641-7a22",
+  "session_id": "session-20260404-195234-ed9e",
   "focus_lane": "INITIATIVE-001",
   "phase": "active",
-  "start_time": "2026-04-03T18:06:41Z",
+  "start_time": "2026-04-04T23:52:34Z",
+  "last_activity_time": "2026-04-04T23:52:34Z",
   "end_time": null,
   "decision_budget": 5,
   "decisions_made": 0,

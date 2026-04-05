@@ -5,7 +5,7 @@ license: UNLICENSED
 allowed-tools: Bash, Read, Write, Edit, Grep, Glob, Skill
 metadata:
   short-description: Manage spec artifact creation and lifecycle
-  version: 1.6.0
+  version: 1.7.0
   author: cristos
   source: swain
 ---
@@ -21,7 +21,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)" && bash "$REPO_R
 ```
 If the JSON output has `"status"` other than `"active"`, inform the operator: "No active session — start one with `/swain-session`?" Proceed if they dismiss.
 
-This skill defines the canonical artifact types, phases, and hierarchy. Detailed definitions and templates live in `skills/swain-design/references/`. If the host repo has an AGENTS.md, keep its artifact sections in sync with the skill's reference data.
+This skill defines the canonical artifact types, phases, and hierarchy. Detailed definitions and templates live in `references/` (relative to this skill's directory). If the host repo has an AGENTS.md, keep its artifact sections in sync with the skill's reference data.
 
 ## Artifact type definitions
 
@@ -104,7 +104,11 @@ When fast-path applies, output: `[fast-path] Skipped: specwatch scan, scope chec
 
 ### Workflow
 
-1. Scan `docs/<type>/` (recursively, across all phase subdirectories) to determine the next available number for the prefix.
+1. Determine the next available number for the prefix by running:
+   ```bash
+   bash "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.agents/bin/next-artifact-id.sh" <PREFIX>
+   ```
+   This scans ALL local branches and the working tree to prevent ID collisions across worktree sessions (SPEC-193). If the script is unavailable, fall back to scanning `docs/<type>/` on the current HEAD — but note this risks collisions in worktree workflows.
 2. **For VISION artifacts:** Before drafting, ask the user whether this is a **competitive product** or a **personal product**. The answer determines which template sections to include and shapes the entire downstream decomposition. See the vision definition for details on each product type.
 2a. **For DESIGN artifacts:** First, ask which domain this design covers: `interaction` (UI/UX — screens, flows, states), `data` (data architecture — entities, schemas, flows, invariants), or `system` (system contracts — API boundaries, behavioral guarantees, integration interfaces). Default to `interaction` if unclear. Then prompt for Design Intent content — Context (one sentence anchoring the design to its purpose), Goals (what experience or guarantee we're trying to create), Constraints (reviewable boundaries), and Non-goals (what we explicitly decided not to do). This section is write-once: it is set at creation and not updated as the mutable sections evolve. Use the domain-specific template sections from the DESIGN template.
 3. Read the artifact's definition file and template from the lookup table above.
@@ -129,7 +133,7 @@ When fast-path applies, output: `[fast-path] Skipped: specwatch scan, scope chec
    - The new artifact's scoping section (`Interaction Surface` for DESIGNs, `Trigger` for Runbooks, `Role` for Personas) describes a surface that overlaps with or subsumes an existing Active artifact's scope.
    If overlap is detected, ask the operator: "This overlaps with `<EXISTING-ID>` (`<title>`). Does the new artifact supersede it?" If yes, transition the existing artifact to Superseded (set `superseded-by`, update status, move to `Superseded/` directory, add lifecycle entry) as part of the same operation.
 8. **ADR compliance check** — run `bash "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.agents/bin/adr-check.sh" <artifact-path>`. Review any findings with the user before proceeding.
-8a. **Alignment check** — *(skip for fast-path tier)* run `bash "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.agents/bin/chart.sh" scope <artifact-id>` and assess per [skills/swain-design/references/alignment-checking.md](skills/swain-design/references/alignment-checking.md). Report blocking findings (MISALIGNED); note advisory ones (SCOPE_LEAK, GOAL_DRIFT) without gating the operation.
+8a. **Alignment check** — *(skip for fast-path tier)* run `bash "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.agents/bin/chart.sh" scope <artifact-id>` and assess per [references/alignment-checking.md](references/alignment-checking.md). Report blocking findings (MISALIGNED); note advisory ones (SCOPE_LEAK, GOAL_DRIFT) without gating the operation. When displaying scope chains or ancestry to the operator, use `artifact-context.sh` for each node to show plain-language names alongside IDs. Fall back to bare IDs if unavailable.
 8b. **Unanchored check** — after validating parent references, check if the new artifact has a path to a Vision via parent edges. If not, warn: `⚠ No Vision ancestry — this artifact will appear as Unanchored in swain chart`. Offer to attach to an existing Initiative or Epic. Do not block creation.
 9. **Post-operation scan** — *(skip for fast-path tier)* run `bash "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.agents/bin/specwatch.sh" scan`. This now also runs `design-check.sh` as part of the scan pipeline. Fix any stale references or design drift findings before committing.
 10. **Index refresh step** — *(skip for fast-path tier; batch refresh at session end via `rebuild-index.sh`)* update `list-<type>.md` (see [Index maintenance](#index-maintenance)).
@@ -218,6 +222,30 @@ When an Epic has `artifact-refs` with `rel: [aligned]` pointing to a DESIGN:
 When a DESIGN's mutable sections are modified but `sourcecode-refs` blobs haven't changed:
 - Surface: "DESIGN-NNN evolved but tracked code hasn't caught up." Nudge the operator to reconcile.
 
+### README reconciliation nudge
+
+When transitioning a Vision, Design, Journey, or Persona to a new phase, emit a soft signal if the transition changes the project's public-facing claims:
+
+> README.md may need updating to reflect this change.
+
+This is informational, not blocking — the operator can dismiss it.
+
+**Trigger conditions** — nudge when:
+- A Vision transitions to Active (new direction) or Abandoned (dropped direction)
+- A Design transitions to Active (new interaction model, data architecture, or system contract) or Superseded (replaced)
+- A Journey transitions to Active (new user flow) or Abandoned (deprecated path)
+- A Persona transitions to Active (new audience) or Abandoned (dropped audience)
+
+**Brainstorming context** — when the `brainstorming` skill runs for a project that has a README but no artifacts (or a thin artifact tree — fewer than 3 Active Visions, Designs, Journeys, or Personas combined), it should use the README as the starting context for Socratic exploration. The README's claims, audience, and described behavior seed the brainstorming conversation instead of starting from scratch.
+
+Detection for brainstorming context:
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+ACTIVE_COUNT=$(find "$REPO_ROOT/docs" -path "*/Active/*" -name "*.md" 2>/dev/null | grep -cE "(VISION|DESIGN|JOURNEY|PERSONA)" || echo "0")
+HAS_README=$( [ -f "$REPO_ROOT/README.md" ] && echo "yes" || echo "no" )
+```
+If `HAS_README=yes` and `ACTIVE_COUNT < 3`, pass README content to brainstorming as primary context.
+
 ## Trove integration
 
 During research phase transitions (Spike Proposed -> Active, ADR Proposed -> Active, Vision/Epic creation), check for existing troves and offer to link or create one. Read [references/trove-integration.md](references/trove-integration.md) for the full hook, trove scanning, and back-link maintenance procedures.
@@ -233,7 +261,7 @@ SPECs link to GitHub Issues via the `source-issue` frontmatter field. During pha
 <!-- swain-model-hint: sonnet, effort: low — status queries are data aggregation -->
 ## Status overview
 
-For project-wide status, progress, or "what's next?" queries, defer to the **swain-session** skill (it aggregates swain chart + tk + git + GitHub issues). For artifact-specific graph queries, use `bash "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.agents/bin/chart.sh"` — see [skills/swain-design/references/specgraph-guide.md](skills/swain-design/references/specgraph-guide.md). The default output is a vision-rooted hierarchy tree; lenses (`ready`, `recommend`, `debt`, `unanchored`, etc.) filter and annotate the tree for different decision contexts.
+For project-wide status, progress, or "what's next?" queries, defer to the **swain-session** skill (it aggregates swain chart + tk + git + GitHub issues). For artifact-specific graph queries, use `bash "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.agents/bin/chart.sh"` — see [references/specgraph-guide.md](references/specgraph-guide.md). The default output is a vision-rooted hierarchy tree; lenses (`ready`, `recommend`, `debt`, `unanchored`, etc.) filter and annotate the tree for different decision contexts.
 
 <!-- swain-model-hint: opus, effort: high — audits require deep cross-artifact analysis -->
 ## Auditing artifacts
@@ -253,7 +281,7 @@ Consult these files when a workflow step references them:
 - **Artifact relationships:** [references/relationship-model.md](references/relationship-model.md) — ER diagram of type hierarchy and cross-references
 - **Lifecycle table format:** [references/lifecycle-format.md](references/lifecycle-format.md) — commit hash stamping convention
 - **Index maintenance:** [references/index-maintenance.md](references/index-maintenance.md) — `list-<type>.md` refresh rules
-- **Tooling:** Scripts live in `skills/swain-design/scripts/`. See [references/specwatch-guide.md](references/specwatch-guide.md), [references/specgraph-guide.md](references/specgraph-guide.md), [references/adr-check-guide.md](references/adr-check-guide.md) for details.
+- **Tooling:** Scripts live in `scripts/` (relative to this skill's directory). See [references/specwatch-guide.md](references/specwatch-guide.md), [references/specgraph-guide.md](references/specgraph-guide.md), [references/adr-check-guide.md](references/adr-check-guide.md) for details.
 
 ## Session bookmark
 

@@ -5,15 +5,15 @@
 
 ## Progress
 
-█░░░░░░░░░░░ 2/43 complete (5%)
+█░░░░░░░░░░░ 9/72 complete (12%)
 
 ## Recent Activity
 
 | Date | Time | Commit | Message |
 |------|------|--------|---------|
-| 2026-03-30 | 23:03 | `4186413` | docs: complete SPIKE-001 (No-Go) and SPIKE-002 (Conditional Go), retro on EPIC-007 |
-| 2026-03-30 | 16:59 | `1df3584` | docs(EPIC-007): stamp lifecycle hash 2491404 |
-| 2026-03-30 | 16:58 | `2491404` | docs: add EPIC-007 (Knowledge Base Viewer), parent SPIKE-001 and SPIKE-002 |
+| 2026-03-31 | 20:23 | `8fbd729` | feat: add SPEC-036 (Chunk Embeddings) and DESIGN-009 (Chunk Embedding Pipeline) |
+| 2026-03-31 | 12:03 | `e5d2263` | retro: viewer design session — trove to locked-in homepage in two days |
+| 2026-03-31 | 10:53 | `4de9a08` | docs: update session bookmark for EPIC-007 design work |
 
 ## Priority Subset
 
@@ -22,10 +22,13 @@
 
 | Initiative | Epic | Progress | Unblocks | Needs |
 |-----------|------|----------|----------|-------|
-| [Mechanism Layer](../../initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Hexagonal Foundation](../../epic/Active/(EPIC-001)-Hexagonal-Foundation.md) | 0/5 | 2 | — |
-|  | [Auto-Tagging & Synthesis](../../epic/Active/(EPIC-002)-Auto-Tagging-And-Synthesis.md) | 0/4 | 1 | — |
-|  | [V1 Ready](../../epic/Active/(EPIC-006)-V1-Ready.md) | 0/5 | 1 | — |
-|  | [Completion Config & Task Routing](../../spec/Active/(SPEC-019)-Completion-Resolution-And-Config.md) | 0/0 | 1 | **needs decomposition** |
+| [Mechanism Layer](docs/initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Hexagonal Foundation](docs/epic/Active/(EPIC-001)-Hexagonal-Foundation.md) | 0/5 | 2 | — |
+|  | [V1 Ready](docs/epic/Active/(EPIC-006)-V1-Ready.md) | 0/5 | 2 | — |
+|  | [Auto-Tagging & Synthesis](docs/epic/Active/(EPIC-002)-Auto-Tagging-And-Synthesis.md) | 0/4 | 1 | — |
+|  | [rk skill install](docs/spec/Active/(SPEC-035)-RK-Skill-Install.md) | 0/0 | 1 | **needs decomposition** |
+|  | [Agent-Native Research](docs/epic/Active/(EPIC-008)-Agent-Native-Research/(EPIC-008)-Agent-Native-Research.md) | 0/4 | 0 | — |
+|  | [Explicit Runtime Targets For rk skill install](docs/spec/Active/(SPEC-037)-Explicit-Runtime-Targets-For-RK-Skill-Install/(SPEC-037)-Explicit-Runtime-Targets-For-RK-Skill-Install.md) | 0/0 | 0 | **needs decomposition** |
+| [Knowledge Base Viewer](docs/initiative/Active/(INITIATIVE-002)-Knowledge-Base-Viewer.md) | [Sidecar Pipeline](docs/epic/Active/(EPIC-007)-Sidecar-Pipeline.md) | 0/3 | 0 | — |
 
 ### Schedule
 *High priority, not yet started*
@@ -37,18 +40,17 @@
 
 | Initiative | Epic | Progress | Unblocks | Needs |
 |-----------|------|----------|----------|-------|
-| [Mechanism Layer](../../initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Query System](../../epic/Active/(EPIC-003)-Query-System.md) | 0/3 | 1 | — |
-|  | [Investigations & MCP Server](../../epic/Active/(EPIC-004)-Investigations-And-MCP.md) | 0/3 | 1 | — |
-|  | [Multi-Environment Access](../../epic/Active/(EPIC-005)-Multi-Environment.md) | 0/3 | 0 | — |
-|  | [Knowledge Base Viewer](../../epic/Active/(EPIC-007)-Knowledge-Base-Viewer.md) | 0/0 | 0 | **needs decomposition** |
+| [Mechanism Layer](docs/initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Query System](docs/epic/Active/(EPIC-003)-Query-System.md) | 1/9 | 2 | — |
+|  | [Investigations & MCP Server](docs/epic/Active/(EPIC-004)-Investigations-And-MCP.md) | 0/4 | 2 | — |
+|  | [Multi-Environment Access](docs/epic/Active/(EPIC-005)-Multi-Environment.md) | 0/3 | 0 | — |
 
 ### Backlog
 *Not yet prioritized or started*
 
 | Initiative | Epic | Progress | Unblocks | Needs |
 |-----------|------|----------|----------|-------|
-| [Mechanism Layer](../../initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Completion Fallback & Backfill](../../spec/Proposed/(SPEC-020)-Completion-Fallback-And-Backfill.md) | 0/0 | 0 | **activate or drop** |
-|  | [Trove Manifest Import](../../spec/Proposed/(SPEC-026)-Trove-Manifest-Import.md) | 0/0 | 0 | **activate or drop** |
+| [Mechanism Layer](docs/initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) | [Completion Fallback & Backfill](docs/spec/Proposed/(SPEC-020)-Completion-Fallback-And-Backfill.md) | 0/0 | 0 | **activate or drop** |
+|  | [Trove Manifest Import](docs/spec/Proposed/(SPEC-026)-Trove-Manifest-Import.md) | 0/0 | 0 | **activate or drop** |
 
 
 ## Children
@@ -66,14 +68,21 @@
   - [SPEC-007](../../spec/Active/(SPEC-007)-Synthesizer-Port-And-LLM-Adapter.md) — Synthesizer Port & LLM Adapter (Active, in progress)
   - [SPEC-008](../../spec/Active/(SPEC-008)-TagStore-Filesystem-Adapter.md) — TagStore Filesystem Adapter (Active, in progress)
   - [SPEC-009](../../spec/Active/(SPEC-009)-Pipeline-Tagging-And-Synthesis-Integration.md) — Pipeline Tagging & Synthesis Integration (Active, in progress)
-- [EPIC-003](../../epic/Active/(EPIC-003)-Query-System.md) — Query System (0/3)
+- [EPIC-003](../../epic/Active/(EPIC-003)-Query-System.md) — Query System (1/9)
   - [SPEC-010](../../spec/Active/(SPEC-010)-Freshness-Decay-And-Retriever-Port.md) — Freshness Decay & Retriever Port (Active, in progress)
   - [SPEC-011](../../spec/Active/(SPEC-011)-QueryStore-Filesystem-Adapter.md) — QueryStore Filesystem Adapter (Active, in progress)
   - [SPEC-012](../../spec/Active/(SPEC-012)-Query-Pipeline-And-CLI.md) — Query Pipeline & CLI (Active, in progress)
-- [EPIC-004](../../epic/Active/(EPIC-004)-Investigations-And-MCP.md) — Investigations & MCP Server (0/3)
+  - [SPEC-029](../../spec/Active/(SPEC-029)-Query-Sidecar-Generation.md) — Query Sidecar Generation (Active, in progress)
+  - [SPEC-030](../../spec/Active/(SPEC-030)-Resolve-Query-Sidecars.md) — Resolve Query Sidecars (Active, in progress)
+  - [SPEC-031](../../spec/Abandoned/(SPEC-031)-FTS-Search-Fallback.md) — FTS Search Fallback (Abandoned, done)
+  - [SPEC-032](../../spec/Active/(SPEC-032)-Embedding-Backfill-In-Rebuild.md) — Embedding Backfill in Rebuild (Active, in progress)
+  - [SPEC-033](../../spec/Active/(SPEC-033)-Doctor-Embedding-Coverage.md) — Doctor Embedding Coverage (Active, in progress)
+  - [SPEC-036](../../spec/Active/(SPEC-036)-Chunk-Embeddings/(SPEC-036)-Chunk-Embeddings.md) — Chunk Embeddings for Long Sources (Active, in progress)
+- [EPIC-004](../../epic/Active/(EPIC-004)-Investigations-And-MCP.md) — Investigations & MCP Server (0/4)
   - [SPEC-013](../../spec/Active/(SPEC-013)-InvestigationStore-Filesystem-Adapter.md) — InvestigationStore Filesystem Adapter (Active, in progress)
   - [SPEC-014](../../spec/Active/(SPEC-014)-Investigation-Pipeline-And-CLI.md) — Investigation Pipeline & CLI (Active, in progress)
   - [SPEC-015](../../spec/Active/(SPEC-015)-MCP-Server.md) — MCP Server (Active, in progress)
+  - [SPEC-034](../../spec/Active/(SPEC-034)-Investigation-Rolling-Synthesis.md) — Investigation Rolling Synthesis (Active, in progress)
 - [EPIC-005](../../epic/Active/(EPIC-005)-Multi-Environment.md) — Multi-Environment Access (0/3)
   - [SPEC-016](../../spec/Active/(SPEC-016)-Remote-Data-Directory.md) — Remote Data Directory (Active, in progress)
   - [SPEC-017](../../spec/Active/(SPEC-017)-Doctor-And-Collision-Detection.md) — Doctor & Collision Detection (Active, in progress)
@@ -84,17 +93,39 @@
   - [SPEC-023](../../spec/Active/(SPEC-023)-Graceful-Degradation-And-User-Feedback.md) — Graceful Degradation & User Feedback (Active, in progress)
   - [SPEC-024](../../spec/Active/(SPEC-024)-Fix-Investigation-Brief.md) — Fix Investigation Brief (Active, in progress)
   - [SPEC-025](../../spec/Active/(SPEC-025)-Fix-Investigation-Source-Symlinks.md) — Fix Investigation Source Symlinks (Active, in progress)
-- [EPIC-007](../../epic/Active/(EPIC-007)-Knowledge-Base-Viewer.md) — Knowledge Base Viewer (—)
+- [EPIC-007](../../epic/Active/(EPIC-007)-Sidecar-Pipeline.md) — Sidecar Pipeline (0/3)
+  - [SPEC-019](../../spec/Active/(SPEC-019)-Completion-Resolution-And-Config.md) — Sidecar Generation in rk add (Active, in progress)
+  - [SPEC-027](../../spec/Active/(SPEC-027)-RK-Resolve-Pipeline-State-Machine.md) — rk resolve — Pipeline State Machine (Active, in progress)
+  - [SPEC-028](../../spec/Active/(SPEC-028)-Jinja2-Sidecar-Templates.md) — Jinja2 Sidecar Templates (Active, in progress)
   - [SPIKE-001](../../research/Complete/(SPIKE-001)-TiddlyWiki-As-RK-Viewer/(SPIKE-001)-TiddlyWiki-As-RK-Viewer.md) — TiddlyWiki as rk Viewer (Complete, done)
   - [SPIKE-002](../../research/Complete/(SPIKE-002)-Custom-SPA-As-RK-Viewer/(SPIKE-002)-Custom-SPA-As-RK-Viewer.md) — Custom SPA as rk Viewer (Complete, done)
+- [EPIC-007](../../epic/Active/(EPIC-007)-Sidecar-Pipeline.md) — Sidecar Pipeline (0/3)
+  - [SPEC-019](../../spec/Active/(SPEC-019)-Completion-Resolution-And-Config.md) — Sidecar Generation in rk add (Active, in progress)
+  - [SPEC-027](../../spec/Active/(SPEC-027)-RK-Resolve-Pipeline-State-Machine.md) — rk resolve — Pipeline State Machine (Active, in progress)
+  - [SPEC-028](../../spec/Active/(SPEC-028)-Jinja2-Sidecar-Templates.md) — Jinja2 Sidecar Templates (Active, in progress)
+  - [SPIKE-001](../../research/Complete/(SPIKE-001)-TiddlyWiki-As-RK-Viewer/(SPIKE-001)-TiddlyWiki-As-RK-Viewer.md) — TiddlyWiki as rk Viewer (Complete, done)
+  - [SPIKE-002](../../research/Complete/(SPIKE-002)-Custom-SPA-As-RK-Viewer/(SPIKE-002)-Custom-SPA-As-RK-Viewer.md) — Custom SPA as rk Viewer (Complete, done)
+- [EPIC-008](../../epic/Active/(EPIC-008)-Agent-Native-Research/(EPIC-008)-Agent-Native-Research.md) — Agent-Native Research (0/4)
+  - [SPEC-038](../../spec/Active/(SPEC-038)-Research-Query-Persistence-And-Provenance/(SPEC-038)-Research-Query-Persistence-And-Provenance.md) — Research Query Persistence and Provenance (Active, in progress)
+  - [SPEC-039](../../spec/Active/(SPEC-039)-Research-Expansion-And-Budgeting/(SPEC-039)-Research-Expansion-And-Budgeting.md) — Research Expansion and Budgeting (Active, in progress)
+  - [SPEC-040](../../spec/Active/(SPEC-040)-Seeded-Research-Orchestration/(SPEC-040)-Seeded-Research-Orchestration.md) — Seeded Research Orchestration (Active, in progress)
+  - [SPEC-041](../../spec/Active/(SPEC-041)-Research-Investigation-Promotion/(SPEC-041)-Research-Investigation-Promotion.md) — Research Investigation Promotion (Active, in progress)
 - [INITIATIVE-001](../../initiative/Active/(INITIATIVE-001)-Mechanism-Layer.md) — Mechanism Layer (in progress)
   - [EPIC-001](../../epic/Active/(EPIC-001)-Hexagonal-Foundation.md) — Hexagonal Foundation (Active, 0/5)
   - [EPIC-002](../../epic/Active/(EPIC-002)-Auto-Tagging-And-Synthesis.md) — Auto-Tagging & Synthesis (Active, 0/4)
-  - [EPIC-003](../../epic/Active/(EPIC-003)-Query-System.md) — Query System (Active, 0/3)
-  - [EPIC-004](../../epic/Active/(EPIC-004)-Investigations-And-MCP.md) — Investigations & MCP Server (Active, 0/3)
+  - [EPIC-003](../../epic/Active/(EPIC-003)-Query-System.md) — Query System (Active, 1/9)
+  - [EPIC-004](../../epic/Active/(EPIC-004)-Investigations-And-MCP.md) — Investigations & MCP Server (Active, 0/4)
   - [EPIC-005](../../epic/Active/(EPIC-005)-Multi-Environment.md) — Multi-Environment Access (Active, 0/3)
   - [EPIC-006](../../epic/Active/(EPIC-006)-V1-Ready.md) — V1 Ready (Active, 0/5)
-  - [EPIC-007](../../epic/Active/(EPIC-007)-Knowledge-Base-Viewer.md) — Knowledge Base Viewer (Active, —)
-  - [SPEC-019](../../spec/Active/(SPEC-019)-Completion-Resolution-And-Config.md) — Completion Config & Task Routing (Active, in progress)
+  - [EPIC-007](../../epic/Active/(EPIC-007)-Sidecar-Pipeline.md) — Sidecar Pipeline (Active, 0/3)
+  - [EPIC-008](../../epic/Active/(EPIC-008)-Agent-Native-Research/(EPIC-008)-Agent-Native-Research.md) — Agent-Native Research (Active, 0/4)
   - [SPEC-020](../../spec/Proposed/(SPEC-020)-Completion-Fallback-And-Backfill.md) — Completion Fallback & Backfill (Proposed, in progress)
   - [SPEC-026](../../spec/Proposed/(SPEC-026)-Trove-Manifest-Import.md) — Trove Manifest Import (Proposed, in progress)
+  - [SPEC-035](../../spec/Active/(SPEC-035)-RK-Skill-Install.md) — rk skill install (Active, in progress)
+  - [SPEC-037](../../spec/Active/(SPEC-037)-Explicit-Runtime-Targets-For-RK-Skill-Install/(SPEC-037)-Explicit-Runtime-Targets-For-RK-Skill-Install.md) — Explicit Runtime Targets For rk skill install (Active, in progress)
+- [INITIATIVE-002](../../initiative/Active/(INITIATIVE-002)-Knowledge-Base-Viewer.md) — Knowledge Base Viewer (in progress)
+  - [EPIC-007](../../epic/Active/(EPIC-007)-Sidecar-Pipeline.md) — Sidecar Pipeline (Active, 0/3)
+- [JOURNEY-001](../../journey/Active/(JOURNEY-001)-Exploring-a-New-Topic/(JOURNEY-001)-Exploring-a-New-Topic.md) — Exploring a New Topic (done)
+- [JOURNEY-002](../../journey/Active/(JOURNEY-002)-Picking-Up-an-Investigation/(JOURNEY-002)-Picking-Up-an-Investigation.md) — Picking Up an Investigation (done)
+- [JOURNEY-003](../../journey/Active/(JOURNEY-003)-Browsing-the-Knowledge-Base/(JOURNEY-003)-Browsing-the-Knowledge-Base.md) — Browsing the Knowledge Base (done)
+- [JOURNEY-004](../../journey/Active/(JOURNEY-004)-Adding-New-Material/(JOURNEY-004)-Adding-New-Material.md) — Adding New Material (done)

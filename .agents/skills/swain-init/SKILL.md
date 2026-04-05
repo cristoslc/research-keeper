@@ -146,7 +146,7 @@ If found, verify it runs:
 ```
 
 If tk is not found or broken, tell the user:
-> The vendored tk script was not found at `skills/swain-do/bin/tk`. This usually means the swain-do skill was not fully installed. Try running `/swain update` to reinstall skills.
+> The vendored tk script was not found. This usually means the swain-do skill was not fully installed. Try running `/swain update` to reinstall skills.
 
 ### Step 2.3 — Migrate from beads (if applicable)
 
@@ -174,32 +174,39 @@ If `.beads/` exists:
 
 If `.beads/` does not exist, skip this step. tk creates `.tickets/` on first `tk create`.
 
-### Step 2.4 — swain-box symlink (ADR-019)
+### Step 2.4 — Operator bin/ symlinks (SPEC-214, ADR-019)
 
-Find the swain-box script in the installed skill tree and create `bin/swain-box` as a relative symlink per ADR-019's operator-facing convention.
+Create `bin/` symlinks for all operator-facing scripts declared in `.agents/skills/*/usr/bin/` manifest directories. This is the same logic swain-doctor uses for auto-repair.
 
 ```bash
-SWAIN_BOX_SCRIPT=$(find . .claude .agents -path '*/swain/scripts/swain-box' -print -quit 2>/dev/null)
-if [ -n "$SWAIN_BOX_SCRIPT" ]; then
-  BIN_DIR="bin"
-  mkdir -p "$BIN_DIR"
-  SWAIN_BOX_REL=$(python3 -c "import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$SWAIN_BOX_SCRIPT" "$BIN_DIR" 2>/dev/null || echo "../$SWAIN_BOX_SCRIPT")
-  if [ -L "$BIN_DIR/swain-box" ] && [ "$(readlink "$BIN_DIR/swain-box")" = "$SWAIN_BOX_REL" ]; then
-    echo "already linked"
-  elif [ -e "$BIN_DIR/swain-box" ] && [ ! -L "$BIN_DIR/swain-box" ]; then
-    echo "conflict — bin/swain-box exists as a real file; skipping"
-  else
-    ln -sf "$SWAIN_BOX_REL" "$BIN_DIR/swain-box"
-    echo "created bin/swain-box -> $SWAIN_BOX_REL"
-  fi
-  # Migrate old root symlink if present
-  [ -L swain-box ] && rm -f swain-box && echo "migrated old ./swain-box to bin/"
-fi
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+BIN_DIR="$REPO_ROOT/bin"
+SKILLS_ROOT="$REPO_ROOT/.agents/skills"
+for manifest_dir in "$SKILLS_ROOT"/*/usr/bin; do
+  [ -d "$manifest_dir" ] || continue
+  for entry in "$manifest_dir"/*; do
+    [ -e "$entry" ] || [ -L "$entry" ] || continue
+    cmd_name="$(basename "$entry")"
+    script_path="$(cd "$manifest_dir" && readlink -f "$cmd_name" 2>/dev/null || true)"
+    [ -z "$script_path" ] || [ ! -f "$script_path" ] && continue
+    rel_path="$(python3 -c "import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$script_path" "$BIN_DIR" 2>/dev/null || echo "")"
+    [ -z "$rel_path" ] && continue
+    if [ -L "$BIN_DIR/$cmd_name" ]; then
+      echo "already linked: $cmd_name"
+    elif [ -e "$BIN_DIR/$cmd_name" ]; then
+      echo "conflict — bin/$cmd_name exists as a real file; skipping"
+    else
+      mkdir -p "$BIN_DIR"
+      ln -sf "$rel_path" "$BIN_DIR/$cmd_name"
+      echo "created bin/$cmd_name"
+    fi
+  done
+done
 ```
 
-Tell the user: `bin/swain-box created — run it from this project to launch Claude Code in a Docker Sandbox.`
+Tell the user which operator commands are now available in `bin/`.
 
-If the script is not found, skip silently — swain-box is not installed in this skill tree.
+If no `usr/bin/` manifest directories are found, skip silently.
 
 ## Phase 2.5: Branch model
 
@@ -390,7 +397,7 @@ If the user says **no**, note "tmux: skipped" and continue to Phase 4.5.
 
 ## Phase 4.5: Shell launcher
 
-Goal: offer to install a `swain` shell function so the user can launch swain with a single command. Templates are stored per-runtime, per-shell in `skills/swain-init/templates/launchers/{runtime}/swain.{shell}` — inspect them to see exactly what gets added. Supported runtimes are defined in ADR-017.
+Goal: offer to install a `swain` shell function so the user can launch swain with a single command. Templates are stored per-runtime, per-shell in `templates/launchers/{runtime}/swain.{shell}` (relative to this skill's directory) — inspect them to see exactly what gets added. Supported runtimes are defined in ADR-017.
 
 ### Step 4.5.1 — Detect shell runtime
 
@@ -503,7 +510,7 @@ If no, skip to Phase 6.
 
 ### Step 5.3 — Inject governance
 
-Read the canonical governance content from `skills/swain-doctor/references/AGENTS.content.md`. Locate it by searching for the file relative to the installed skills directory:
+Read the canonical governance content from the sibling `swain-doctor/references/AGENTS.content.md`. Locate it by searching for the file relative to the installed skills directory:
 
 ```bash
 find .claude/skills .agents/skills skills -path '*/swain-doctor/references/AGENTS.content.md' -print -quit 2>/dev/null
@@ -513,6 +520,54 @@ Append the full contents of that file to AGENTS.md.
 
 Tell the user:
 > Governance rules added to AGENTS.md. These ensure swain skills are routable and conventions are enforced. You can customize anything outside the `<!-- swain governance -->` markers.
+
+## Phase 5.5: README seeding and artifact proposals (SPEC-207)
+
+Goal: ensure every swain project has a README, and offer to bootstrap artifacts from it when the artifact tree is empty.
+
+### Step 5.5.1 — Check for README
+
+```bash
+[ -f "README.md" ] && echo "exists" || echo "missing"
+```
+
+### Step 5.5.2 — Seed README if missing
+
+If README.md does not exist, determine the project's context and seed one:
+
+**Context detection:**
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+HAS_CODE=$(find "$REPO_ROOT" -maxdepth 3 \( -name '*.py' -o -name '*.js' -o -name '*.ts' -o -name '*.go' -o -name '*.rs' -o -name '*.sh' \) -not -path '*/node_modules/*' -not -path '*/.git/*' -print -quit 2>/dev/null)
+HAS_ARTIFACTS=$(find "$REPO_ROOT/docs" -name '*.md' -path '*/Active/*' -print -quit 2>/dev/null)
+```
+
+**Seeding strategy:**
+- **No code, no artifacts** — Interview the operator: "What does this project do?" Write the README from their answer.
+- **Code exists, no artifacts** — Infer project purpose from code (read entry points, package.json/pyproject.toml/go.mod, etc.). Present a draft README to the operator for editing.
+- **Artifacts exist, no README** — Compile from Active Visions, Designs, Journeys, and Personas. Present a draft to the operator for editing.
+
+Present the draft to the operator. They can approve, edit, or skip. If they skip, note "README: skipped" in the summary and swain-doctor will flag it on future sessions.
+
+### Step 5.5.3 — Propose seed artifacts from README
+
+If README.md exists (or was just created) but the artifact tree is empty or thin (fewer than 3 Active artifacts across Vision, Design, Journey, and Persona types):
+
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+ACTIVE_COUNT=$(find "$REPO_ROOT/docs" -path "*/Active/*" -name "*.md" 2>/dev/null | grep -cE "\(VISION|DESIGN|JOURNEY|PERSONA\)" || echo "0")
+```
+
+If `ACTIVE_COUNT < 3`, read the README and extract intent claims using semantic analysis. Propose seed artifacts:
+
+- **Vision** — from the README's description of what the project does and why.
+- **Personas** — from who the README addresses and what problems it describes.
+- **Journeys** — from usage flows, examples, or "getting started" paths.
+- **Designs** — from architectural or structural claims.
+
+Present each proposal individually. The operator approves, edits, or rejects each one. Approved artifacts are created via swain-design. Rejected proposals are silently dropped.
+
+**Semantic extraction:** Read the entire README as prose. No convention-based sections, no operator-placed markers. Any claim in the README is a potential intent source — install instructions, feature descriptions, behavioral claims, architectural statements.
 
 ## Phase 6: Finalize
 
@@ -531,9 +586,10 @@ Create `.agents/bin/` and populate it with symlinks for all agent-facing scripts
 ```bash
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 AGENTS_BIN="$REPO_ROOT/.agents/bin"
+SKILLS_ROOT="$REPO_ROOT/.agents/skills"
 mkdir -p "$AGENTS_BIN"
 OPERATOR_SCRIPTS="swain swain-box"
-for skill_scripts_dir in "$REPO_ROOT"/skills/*/scripts; do
+for skill_scripts_dir in "$SKILLS_ROOT"/*/scripts; do
   [ -d "$skill_scripts_dir" ] || continue
   for script in "$skill_scripts_dir"/*; do
     [ -f "$script" ] && [ -x "$script" ] || continue
@@ -546,10 +602,11 @@ for skill_scripts_dir in "$REPO_ROOT"/skills/*/scripts; do
 done
 ```
 
-Add `.agents/bin/` to `.gitignore` if not already present (consumer projects should not track these symlinks):
+Add `.agents/bin/` and `.agents/session.json` to `.gitignore` if not already present (consumer projects should not track these):
 
 ```bash
 grep -qx '.agents/bin/' .gitignore 2>/dev/null || echo '.agents/bin/' >> .gitignore
+grep -qx '.agents/session.json' .gitignore 2>/dev/null || echo '.agents/session.json' >> .gitignore
 ```
 
 ### Step 6.2 — Run swain-doctor
@@ -605,6 +662,8 @@ Report what was done:
 > - tmux: [installed/skipped/already present]
 > - Shell launcher: [installed (runtime)/skipped/already present/no runtime found/unsupported shell]
 > - Swain governance in AGENTS.md: [done/skipped/already present]
+> - README: [seeded/already present/skipped]
+> - Artifact proposals from README: [N proposed, M accepted/skipped/not applicable]
 > - Init marker: written (.swain-init)
 
 ### Step 6.6 — Start session
