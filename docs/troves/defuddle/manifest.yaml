@@ -1,0 +1,24 @@
+id: defuddle
+created: 2026-04-07
+tags: [web-scraping, markdown-conversion, content-extraction, readability]
+refreshed: 2026-04-07
+
+defaults:
+  freshness-ttl:
+    web-page: 30d
+    repository: 90d
+
+sources:
+  - id: kepano-defuddle
+    url: https://github.com/kepano/defuddle
+    type: repository
+    fetched: 2026-04-07
+    hash: 23be7e16b6069e5ead4455ddb159792cf01f9b5c6deded807f45cc3dd5d303e0
+    highlights:
+      - README.md
+
+history:
+  - event: created
+    date: 2026-04-07
+    commit: "--"
+    sources: 1
