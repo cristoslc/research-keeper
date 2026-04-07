@@ -60,7 +60,8 @@ class TestContentFlag:
             mock_pipeline.add.assert_called_once()
             call_args = mock_pipeline.add.call_args
             assert call_args[0][0] == "This is pre-fetched content from the article."
-            assert call_args[1]["metadata"]["origin"] == "https://example.com/article"
+            # metadata is the second positional argument
+            assert call_args[0][1]["origin"] == "https://example.com/article"
 
     def test_content_without_origin_errors(self, runner: CliRunner, tmp_path: Path):
         """Given --content without --origin, when called,
