@@ -46,12 +46,13 @@ class TestFallbackTrigger:
 
             # Verify: Should output error with fallback hint
             assert result.exit_code != 0  # Should error
-            # Should provide actionable hint for LLM
+            # Should provide actionable hint for LLM (check stderr too)
+            full_output = result.output + (getattr(result, "stderr", "") or "")
             assert (
-                "--content" in result.output
-                or "fallback" in result.output.lower()
-                or "alternative" in result.output.lower()
-                or "playwright" in result.output.lower()
+                "--content" in full_output
+                or "fallback" in full_output.lower()
+                or "alternative" in full_output.lower()
+                or "playwright" in full_output.lower()
             )
 
     def test_clear_error_on_total_failure(self, runner: CliRunner, tmp_path: Path):
@@ -69,12 +70,13 @@ class TestFallbackTrigger:
 
             # Should provide clear error with URL
             assert result.exit_code != 0
-            assert "example.com" in result.output
+            full_output = result.output + (getattr(result, "stderr", "") or "")
+            assert "example.com" in full_output
             # Error should be actionable with fallback hint
             assert (
-                "--content" in result.output
-                or "fallback" in str(result.output).lower()
-                or "alternative" in str(result.output).lower()
+                "--content" in full_output
+                or "fallback" in full_output.lower()
+                or "alternative" in full_output.lower()
             )
 
 
@@ -136,10 +138,11 @@ class TestFallbackWorkflow:
 
             # Error should include CLI syntax hint
             assert result.exit_code != 0
-            # Should show the exact command format
+            # Should show the exact command format (check stderr too)
+            full_output = result.output + (getattr(result, "stderr", "") or "")
             assert (
-                "--content" in result.output and "--origin" in result.output
-            ) or "rk add --content" in result.output
+                "--content" in full_output and "--origin" in full_output
+            ) or "rk add --content" in full_output
 
 
 class TestNormalFetchUnaffected:
