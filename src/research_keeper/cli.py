@@ -215,7 +215,20 @@ def add(
                 click.echo(f"({'; '.join(notes)})")
 
             for raw_prefix, exc in errors:
-                click.echo(f"  Error adding '{raw_prefix}': {exc}", err=True)
+                error_msg = str(exc)
+                click.echo(f"  Error adding '{raw_prefix}': {error_msg}", err=True)
+
+                # SPEC-053: If error looks like a fetch failure and input is a URL, provide fallback hint
+                if ("fetch" in error_msg.lower() or "url" in error_msg.lower()) and (
+                    raw_prefix.startswith("http://")
+                    or raw_prefix.startswith("https://")
+                ):
+                    click.echo(
+                        "\n  Hint: If this page requires JavaScript rendering, try:\n"
+                        f'    rk add --content "<content>" --origin "{raw_prefix}"\n'
+                        "\n  Use Playwright or Chrome to fetch the content first.",
+                        err=True,
+                    )
 
             if investigation:
                 click.echo(f"Linked to investigation: {investigation}")
