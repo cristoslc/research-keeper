@@ -16,7 +16,9 @@ _verbose = False
 
 @click.group()
 @click.version_option(version=_pkg_version("research-keeper"), prog_name="rk")
-@click.option("--verbose", is_flag=True, default=False, help="Show full tracebacks on error")
+@click.option(
+    "--verbose", is_flag=True, default=False, help="Show full tracebacks on error"
+)
 def main(verbose: bool) -> None:
     """rk -- research keeper CLI."""
     global _verbose
@@ -93,18 +95,22 @@ def init(path: str) -> None:
     # Init git if not already a repo
     if not (root / ".git").exists():
         import subprocess
+
         subprocess.run(["git", "init"], cwd=str(root), capture_output=True)
 
     click.echo(f"Initialized research-keeper at {root}")
 
 
 @main.command()
-@click.argument("sources", nargs=-1, required=True)
+@click.argument("sources", nargs=-1, required=False)
 @click.option("--root", type=click.Path(exists=True), default=".")
 @click.option("--origin", default=None, help="Source URL or path")
 @click.option("--published", default=None, help="Publication date (YYYY-MM-DD)")
 @click.option("--investigation", default=None, help="Link to investigation ID")
-@click.option("--no-prompt", is_flag=True, default=False, help="Skip sidecar generation")
+@click.option(
+    "--no-prompt", is_flag=True, default=False, help="Skip sidecar generation"
+)
+@click.option("--content", default=None, help="Pre-fetched content (use '-' for stdin)")
 def add(
     sources: tuple[str, ...],
     root: str,
@@ -112,14 +118,112 @@ def add(
     published: str | None,
     investigation: str | None,
     no_prompt: bool,
+    content: str | None,
 ) -> None:
-    """Add one or more sources to the library."""
+    """Add one or more sources to the library.
+
+    Use --content to add pre-fetched content with --origin URL.
+    Use --content - to read content from stdin.
+    """
     try:
         root_path = Path(root).resolve()
         pipeline = _build_pipeline(root_path)
 
         added: list[tuple[str, Path | None]] = []
         errors: list[tuple[str, Exception]] = []
+
+        # Handle --content flag (SPEC-054)
+        if content is not None:
+            # Validate origin is provided with --content
+            if not origin:
+                click.echo(
+                    "Error: --origin is required when using --content",
+                    err=True,
+                )
+                raise SystemExit(1)
+
+            # Read content from stdin if "-" is passed
+            if content == "-":
+                import sys
+
+                actual_content = sys.stdin.read()
+            else:
+                actual_content = content
+
+            # Add pre-fetched content with origin metadata
+            metadata: dict = {}
+            if origin:
+                metadata["origin"] = origin
+            if published:
+                metadata["published"] = published
+
+            try:
+                source = pipeline.add(
+                    actual_content,
+                    metadata,
+                    investigation_id=investigation,
+                    no_prompt=no_prompt,
+                )
+
+                # Find the sidecar path if it was generated
+                sidecar_path = None
+                pending_dir = pipeline._store.source_dir(source.slug) / ".pending"
+                tag_j2 = pending_dir / "tag.j2"
+                if tag_j2.exists():
+                    sidecar_path = tag_j2
+
+                added.append((source.slug, sidecar_path))
+            except Exception as exc:
+                errors.append(("content", exc))
+
+            # Output summary for --content
+            if added:
+                click.echo(f"Added 1 source:")
+                for slug, sidecar in added:
+                    if sidecar:
+                        model_hint = pipeline._config.completion.tasks.get(
+                            "tagging", "medium"
+                        )
+                        rel = (
+                            sidecar.relative_to(root_path)
+                            if sidecar.is_relative_to(root_path)
+                            else sidecar
+                        )
+                        click.echo(f"  {slug:<20s} {rel} ({model_hint})")
+                    else:
+                        click.echo(f"  {slug}")
+
+                sidecar_count = sum(1 for _, s in added if s is not None)
+                if sidecar_count > 0:
+                    click.echo(
+                        f"\n{sidecar_count} tag sidecar(s) pending (parallelizable). Run: rk resolve"
+                    )
+
+            # Report notes
+            notes: list[str] = []
+            embedder_model = getattr(pipeline._embedder, "_model", None)
+            if embedder_model == "stub":
+                notes.append("embeddings skipped -- Ollama not available")
+            elif pipeline.embedding_failed:
+                notes.append("embeddings skipped -- Ollama not available")
+            if no_prompt:
+                notes.append("sidecar generation skipped (--no-prompt)")
+            elif pipeline._sidecar is None:
+                notes.append("sidecar generation skipped -- no sidecar generator")
+
+            if notes:
+                click.echo(f"({'; '.join(notes)})")
+
+            for raw_prefix, exc in errors:
+                click.echo(f"  Error adding '{raw_prefix}': {exc}", err=True)
+
+            if investigation:
+                click.echo(f"Linked to investigation: {investigation}")
+
+            if errors and not added:
+                raise SystemExit(1)
+
+            return  # Exit early after processing --content
 
         for raw in sources:
             try:
@@ -133,11 +237,15 @@ def add(
                     metadata["published"] = published
 
                 # If raw looks like a URL, set it as origin
-                if raw_decoded.startswith(("http://", "https://")) and "origin" not in metadata:
+                if (
+                    raw_decoded.startswith(("http://", "https://"))
+                    and "origin" not in metadata
+                ):
                     metadata["origin"] = raw_decoded
 
                 source = pipeline.add(
-                    raw_decoded, metadata,
+                    raw_decoded,
+                    metadata,
                     investigation_id=investigation,
                     no_prompt=no_prompt,
                 )
@@ -159,8 +267,14 @@ def add(
             click.echo(f"Added {len(added)} source(s):")
             for slug, sidecar in added:
                 if sidecar:
-                    model_hint = pipeline._config.completion.tasks.get("tagging", "medium")
-                    rel = sidecar.relative_to(root_path) if sidecar.is_relative_to(root_path) else sidecar
+                    model_hint = pipeline._config.completion.tasks.get(
+                        "tagging", "medium"
+                    )
+                    rel = (
+                        sidecar.relative_to(root_path)
+                        if sidecar.is_relative_to(root_path)
+                        else sidecar
+                    )
                     click.echo(f"  {slug:<20s} {rel} ({model_hint})")
                 else:
                     click.echo(f"  {slug}")
@@ -218,8 +332,15 @@ def resolve(root: str) -> None:
 @main.command()
 @click.argument("slug", required=False)
 @click.option("--root", type=click.Path(exists=True), default=".")
-@click.option("--expired", is_flag=True, default=False, help="Prune all TTL-expired sources")
-@click.option("--dry-run", is_flag=True, default=False, help="Show what would be pruned without changing anything")
+@click.option(
+    "--expired", is_flag=True, default=False, help="Prune all TTL-expired sources"
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Show what would be pruned without changing anything",
+)
 @click.option("--yes", is_flag=True, default=False, help="Skip confirmation prompt")
 def prune(slug: str | None, root: str, expired: bool, dry_run: bool, yes: bool) -> None:
     """Soft-delete a source from the library.
@@ -230,7 +351,9 @@ def prune(slug: str | None, root: str, expired: bool, dry_run: bool, yes: bool) 
     try:
         root_path = Path(root).resolve()
 
-        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
         from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
         from research_keeper.adapters.sqlite.index import SqliteIndex
 
@@ -243,7 +366,9 @@ def prune(slug: str | None, root: str, expired: bool, dry_run: bool, yes: bool) 
             return
 
         if not slug:
-            click.echo("Error: SLUG argument required when not using --expired", err=True)
+            click.echo(
+                "Error: SLUG argument required when not using --expired", err=True
+            )
             raise SystemExit(2)
 
         _prune_single(slug, store, index, tag_store, root_path, dry_run, yes)
@@ -293,6 +418,7 @@ def _prune_single(
     # Confirm
     if not yes and not dry_run:
         import sys
+
         if not sys.stdin.isatty():
             click.echo("Use --yes for non-interactive pruning.", err=True)
             raise SystemExit(1)
@@ -313,7 +439,9 @@ def _prune_single(
     store.remove(slug)
 
     click.echo(f"Pruned: {slug} -> library/.deleted/sources/{slug}")
-    click.echo(f"{tag_links} tag link(s), {query_citations} query citation(s), {investigation_links} investigation link(s) now broken.")
+    click.echo(
+        f"{tag_links} tag link(s), {query_citations} query citation(s), {investigation_links} investigation link(s) now broken."
+    )
     click.echo("Run: rk resolve")
 
 
@@ -359,7 +487,9 @@ def _prune_expired(
         click.echo(f"[dry-run] Would prune {len(expired)} expired source(s):")
         for source in expired:
             click.echo(f"  {source.slug}")
-        click.echo(f"[dry-run] {total_tag_links} tag link(s), {total_query_citations} query citation(s), {total_investigation_links} investigation link(s) would be broken.")
+        click.echo(
+            f"[dry-run] {total_tag_links} tag link(s), {total_query_citations} query citation(s), {total_investigation_links} investigation link(s) would be broken."
+        )
         return
 
     click.echo(f"Found {len(expired)} expired source(s).")
@@ -367,6 +497,7 @@ def _prune_expired(
     # Confirm
     if not yes:
         import sys
+
         if not sys.stdin.isatty():
             click.echo("Use --yes for non-interactive pruning.", err=True)
             raise SystemExit(1)
@@ -380,7 +511,9 @@ def _prune_expired(
         store.remove(source.slug)
 
     click.echo(f"Pruned {len(expired)} expired sources to library/.deleted/sources/")
-    click.echo(f"{total_tag_links} tag link(s), {total_query_citations} query citation(s), {total_investigation_links} investigation link(s) now broken.")
+    click.echo(
+        f"{total_tag_links} tag link(s), {total_query_citations} query citation(s), {total_investigation_links} investigation link(s) now broken."
+    )
     click.echo("Run: rk resolve")
 
 
@@ -492,14 +625,19 @@ def _rebuild_impl(root: str) -> None:
 
     # Rebuild query nodes from queries/ directory
     from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
+
     query_store = FilesystemQueryStore(root_path)
     query_count = 0
     for query_id in query_store.list():
         node = query_store.get(query_id)
         if node:
-            index.upsert_tag_node(query_id, node.synthesis, model="query", tier="frontier")
+            index.upsert_tag_node(
+                query_id, node.synthesis, model="query", tier="frontier"
+            )
             cur = index._conn.cursor()
-            cur.execute("UPDATE nodes SET kind = ? WHERE id = ?", ("query-synthesis", query_id))
+            cur.execute(
+                "UPDATE nodes SET kind = ? WHERE id = ?", ("query-synthesis", query_id)
+            )
             index._conn.commit()
 
             # Rebuild query edges
@@ -519,13 +657,18 @@ def _rebuild_impl(root: str) -> None:
     from research_keeper.adapters.filesystem.investigation_store import (
         FilesystemInvestigationStore,
     )
+
     inv_store = FilesystemInvestigationStore(root_path)
     inv_count = 0
     for inv in inv_store.list():
         if inv.synthesis:
-            index.upsert_tag_node(inv.inv_id, inv.synthesis, model="investigation", tier="frontier")
+            index.upsert_tag_node(
+                inv.inv_id, inv.synthesis, model="investigation", tier="frontier"
+            )
             cur = index._conn.cursor()
-            cur.execute("UPDATE nodes SET kind = ? WHERE id = ?", ("investigation", inv.inv_id))
+            cur.execute(
+                "UPDATE nodes SET kind = ? WHERE id = ?", ("investigation", inv.inv_id)
+            )
             index._conn.commit()
 
         # Rebuild edges
@@ -587,8 +730,9 @@ def _rebuild_impl(root: str) -> None:
                         emb_bytes = embedder.embed(chunk.content)
                         if emb_bytes:
                             chunk_id = f"{node_id}#chunk-{chunk.index}"
-                            index.upsert_embedding(chunk_id, model_name, emb_bytes,
-                                                   content=chunk.content)
+                            index.upsert_embedding(
+                                chunk_id, model_name, emb_bytes, content=chunk.content
+                            )
                 backfilled += 1
             except Exception:
                 skipped += 1
@@ -606,8 +750,9 @@ def _rebuild_impl(root: str) -> None:
                 emb_bytes = embedder.embed(chunk.content)
                 if emb_bytes:
                     chunk_id = f"{node_id}#chunk-{chunk.index}"
-                    index.upsert_embedding(chunk_id, model_name, emb_bytes,
-                                           content=chunk.content)
+                    index.upsert_embedding(
+                        chunk_id, model_name, emb_bytes, content=chunk.content
+                    )
             backfilled += 1
         except Exception:
             skipped += 1
@@ -655,7 +800,13 @@ def search(query: str, root: str, top_k: int | None, investigation: str | None) 
 @click.option("--close", "close_id", default=None, help="Close investigation by ID")
 @click.option("--list", "list_all", is_flag=True, help="List all investigations")
 @click.option("--brief", default=None, help="Brief description for the investigation")
-def investigate(topic: str | None, root: str, close_id: str | None, list_all: bool, brief: str | None) -> None:
+def investigate(
+    topic: str | None,
+    root: str,
+    close_id: str | None,
+    list_all: bool,
+    brief: str | None,
+) -> None:
     """Create or manage investigations."""
     try:
         root_path = Path(root).resolve()
@@ -698,7 +849,9 @@ def investigate(topic: str | None, root: str, close_id: str | None, list_all: bo
 @click.option("--source-budget", type=int, default=50, help="Max sources to gather")
 @click.option("--effort-budget", type=int, default=None, help="Max API calls")
 @click.option("--time-budget", type=int, default=None, help="Max seconds")
-@click.option("--no-prompt", is_flag=True, default=True, help="Skip sidecar generation for seeds")
+@click.option(
+    "--no-prompt", is_flag=True, default=True, help="Skip sidecar generation for seeds"
+)
 @click.option("--investigation", default=None, help="Link to existing investigation ID")
 def research(
     topic: str,
@@ -779,7 +932,9 @@ def research(
 @click.argument("manifest_path", type=click.Path(exists=True))
 @click.option("--root", type=click.Path(exists=True), default=".")
 @click.option("--investigation", default=None, help="Link to existing investigation ID")
-@click.option("--no-prompt", is_flag=True, default=False, help="Skip sidecar generation")
+@click.option(
+    "--no-prompt", is_flag=True, default=False, help="Skip sidecar generation"
+)
 def import_trove(
     manifest_path: str,
     root: str,
@@ -834,7 +989,8 @@ def import_trove(
 
             try:
                 source = pipeline.add(
-                    url, metadata,
+                    url,
+                    metadata,
                     investigation_id=inv_id,
                     no_prompt=no_prompt,
                 )
@@ -915,6 +1071,7 @@ def _export_filename(targets: tuple[str, ...]) -> str:
         slug = targets[0].split(":", 1)[-1] if ":" in targets[0] else targets[0]
         return f"rk-export-{slug}.zip"
     import datetime
+
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     return f"rk-export-{ts}.zip"
 
@@ -922,6 +1079,7 @@ def _export_filename(targets: tuple[str, ...]) -> str:
 def _open_folder(path: Path) -> None:
     """Open the containing folder in the platform file manager."""
     from research_keeper.export import open_folder
+
     open_folder(path)
 
 
@@ -989,10 +1147,14 @@ def doctor(root: str, fix: bool) -> None:
     info_count = sum(1 for r in results if r.severity == Severity.INFO)
 
     for result in results:
-        icon = {"error": "ERROR", "warning": "WARN", "info": "INFO"}[result.severity.value]
+        icon = {"error": "ERROR", "warning": "WARN", "info": "INFO"}[
+            result.severity.value
+        ]
         click.echo(f"  [{icon}] {result.check}: {result.message}")
 
-    click.echo(f"\nSummary: {error_count} error(s), {warning_count} warning(s), {info_count} info(s)")
+    click.echo(
+        f"\nSummary: {error_count} error(s), {warning_count} warning(s), {info_count} info(s)"
+    )
 
     if fix:
         click.echo("(Auto-fix applied where safe)")
@@ -1017,7 +1179,12 @@ def serve(root: str) -> None:
 
 
 @main.command()
-@click.option("--check", is_flag=True, default=False, help="Show version and install method without updating")
+@click.option(
+    "--check",
+    is_flag=True,
+    default=False,
+    help="Show version and install method without updating",
+)
 def update(check: bool) -> None:
     """Update research-keeper to the latest version."""
     from research_keeper.updater import (
@@ -1050,7 +1217,9 @@ def update(check: bool) -> None:
     else:
         click.echo(f"research-keeper {current} is already the latest version.")
 
-    click.echo("\nNote: If you have agent skills installed, run 'rk skill install' to update them.")
+    click.echo(
+        "\nNote: If you have agent skills installed, run 'rk skill install' to update them."
+    )
 
 
 @main.group()
@@ -1073,17 +1242,35 @@ def install(runtime_slugs: tuple[str, ...]) -> None:
 
     cwd = Path.cwd()
     runtime_specs = {
-        "claude-code": ("Claude Code", cwd / ".claude", cwd / ".claude" / "skills" / "research-keeper" / "SKILL.md"),
-        "codex": ("Codex", cwd / ".codex", cwd / ".codex" / "skills" / "research-keeper.md"),
-        "crush": ("Crush", cwd / ".crush", cwd / ".crush" / "skills" / "research-keeper" / "SKILL.md"),
-        "gemini": ("Gemini", cwd / ".gemini", cwd / ".gemini" / "skills" / "research-keeper.md"),
+        "claude-code": (
+            "Claude Code",
+            cwd / ".claude",
+            cwd / ".claude" / "skills" / "research-keeper" / "SKILL.md",
+        ),
+        "codex": (
+            "Codex",
+            cwd / ".codex",
+            cwd / ".codex" / "skills" / "research-keeper.md",
+        ),
+        "crush": (
+            "Crush",
+            cwd / ".crush",
+            cwd / ".crush" / "skills" / "research-keeper" / "SKILL.md",
+        ),
+        "gemini": (
+            "Gemini",
+            cwd / ".gemini",
+            cwd / ".gemini" / "skills" / "research-keeper.md",
+        ),
     }
     install_order = ["claude-code", "codex", "crush", "gemini"]
 
     if runtime_slugs:
         target_slugs = list(dict.fromkeys(runtime_slugs))
     else:
-        target_slugs = [slug for slug in install_order if runtime_specs[slug][1].is_dir()]
+        target_slugs = [
+            slug for slug in install_order if runtime_specs[slug][1].is_dir()
+        ]
 
     installed: list[str] = []
     for slug in target_slugs:
@@ -1096,12 +1283,16 @@ def install(runtime_slugs: tuple[str, ...]) -> None:
         generic_path = cwd / ".agents" / "skills" / "research-keeper" / "SKILL.md"
         generic_path.parent.mkdir(parents=True, exist_ok=True)
         generic_path.write_text(SKILL_CONTENT)
-        click.echo(f"No supported runtime detected. Installed generic skill at {generic_path}")
+        click.echo(
+            f"No supported runtime detected. Installed generic skill at {generic_path}"
+        )
         return
 
     names = ", ".join(installed)
     count = len(installed)
-    click.echo(f"Installed rk skill for {names} ({count} runtime{'s' if count > 1 else ''})")
+    click.echo(
+        f"Installed rk skill for {names} ({count} runtime{'s' if count > 1 else ''})"
+    )
 
 
 @main.group()
@@ -1256,18 +1447,21 @@ def _build_pipeline(root: Path):
 
     try:
         from research_keeper.adapters.normalizers.web import WebNormalizer
+
         normalizers["web"] = WebNormalizer()
     except ImportError:
         pass
 
     try:
         from research_keeper.adapters.normalizers.documents import DocumentNormalizer
+
         normalizers["document"] = DocumentNormalizer()
     except ImportError:
         pass
 
     try:
         from research_keeper.adapters.normalizers.media import MediaNormalizer
+
         normalizers["media"] = MediaNormalizer()
     except ImportError:
         pass
@@ -1292,15 +1486,19 @@ def _build_embedder(config):
     provider = getattr(getattr(config, "embeddings", None), "provider", "ollama")
 
     if provider == "none":
+
         class StubEmbedder:
             _model = "stub"
+
             def embed(self, content: str) -> bytes:
                 return b""
+
         return StubEmbedder()
 
     # Default: ollama
     try:
         from research_keeper.adapters.embedder.ollama import OllamaEmbedder
+
         emb_cfg = getattr(config, "embeddings", None)
         model = emb_cfg.model if emb_cfg else config.models.embedder
         base_url = emb_cfg.ollama_url if emb_cfg else "http://localhost:11434"
@@ -1311,6 +1509,7 @@ def _build_embedder(config):
     # Stub embedder that returns empty bytes
     class StubEmbedder:  # noqa: F811
         _model = "stub"
+
         def embed(self, content: str) -> bytes:
             return b""
 
