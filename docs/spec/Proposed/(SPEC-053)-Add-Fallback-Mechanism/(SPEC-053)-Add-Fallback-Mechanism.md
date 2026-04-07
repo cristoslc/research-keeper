@@ -10,8 +10,10 @@ priority-weight: ""
 type: enhancement
 parent-epic: ""
 parent-initiative: ""
-linked-artifacts: []
-depends-on-artifacts: []
+linked-artifacts:
+  - SPEC-054
+depends-on-artifacts:
+  - SPEC-054
 addresses: []
 evidence-pool: ""
 source-issue: ""
@@ -26,7 +28,15 @@ When `rk add` fails to fetch content from JavaScript-heavy or scrape-resistant p
 
 ## Desired Outcomes
 
-When `rk add` cannot fetch content via the primary method, it should automatically prompt the LLM to attempt alternative fetching strategies (Playwright, Chrome, etc.) and pass the results back to `rk` with detailed syntax to add as sources. This provides a graceful degradation path when JavaScript or scrape-resistant pages prevent normal snapshotting.
+When `rk add` cannot fetch content via the primary method, the system should:
+1. Output detailed failure context and suggest alternative fetching tools (Playwright, Chrome, etc.)
+2. Provide exact CLI syntax for the LLM to pass fetched content back: `rk add --content "<content>" --origin "<url>"`
+3. Process the pre-fetched content through the normal pipeline (tagging, synthesis)
+
+This provides a graceful degradation path when JavaScript or scrape-resistant pages prevent normal snapshotting.
+
+**Dependencies:**
+- **SPEC-054** (Add --content Flag) — defines the CLI mechanism for passing pre-fetched content to rk
 
 ## External Behavior
 
@@ -85,12 +95,18 @@ When `rk add` cannot fetch content via the primary method, it should automatical
 
 ## Implementation Approach
 
-1. **Detect fetch failure** — identify when the primary fetch method fails in the rk skill
-2. **Prompt LLM with context** — provide failure details and suggest alternative tools
-3. **Tool detection** — check for Playwright, Chrome, or browser automation availability
-4. **Execute fallback** — run alternative fetch with appropriate tool
-5. **Return to pipeline** — pass fetched content back to the normal `rk add` flow
-6. **Error handling** — if all methods fail, provide actionable error message
+**Phase 1: Enable content passthrough (SPEC-054)**
+1. Add `--content` flag to `rk add` CLI
+2. Support stdin for large content
+3. Bypass normalizer for pre-fetched content
+4. Set origin metadata correctly
+
+**Phase 2: Implement fallback workflow (this spec)**
+1. Detect fetch failure in web normalizer
+2. Output failure message with CLI syntax hint for LLM
+3. LLM uses Playwright/Chrome to fetch content
+4. LLM calls `rk add --content "<content>" --origin "<url>"`
+5. Normal pipeline proceeds (tagging, synthesis)
 
 TDD approach: write tests for each fallback scenario, then implement the fallback chain.
 
