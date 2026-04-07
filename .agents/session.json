@@ -1,8 +1,19 @@
 {
   "bookmark": {
-    "note": "Pushed commits to trunk",
-    "timestamp": "2026-04-05T05:22:23Z"
+    "note": "create implementation plan for SPEC-052",
+    "files": [
+      "/Users/cristos/Documents/code/research-keeper/docs/spec/Proposed/(SPEC-052)-Lower-Weight-Models-Skip-Artifact-Workflow.md"
+    ],
+    "timestamp": "2026-04-07T20:19:09Z"
   },
   "lastBranch": "trunk",
-  "focus_lane": "INITIATIVE-001"
+  "focus_lane": "INITIATIVE-001",
+  "worktrees": [
+    {
+      "path": "/Users/cristos/Documents/code/research-keeper/.worktrees/spec-052-workflow-bug",
+      "branch": "spec-052-workflow-bug",
+      "session_id": "session-20260404-195234-ed9e",
+      "last_active": "2026-04-07T20:25:42Z"
+    }
+  ]
 }
