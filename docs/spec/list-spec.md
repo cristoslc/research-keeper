@@ -5,6 +5,8 @@
 | Artifact | Title | Last Updated | Commit |
 |----------|-------|-------------|--------|
 | SPEC-020 | Completion Fallback & Backfill | 2026-03-30 | -- |
+| SPEC-052 | Lower Weight Models Skip Artifact Workflow | 2026-04-07 | -- |
+| SPEC-053 | Add Fallback Mechanism for rk add Failures | 2026-04-07 | -- |
 
 ## Active
 
