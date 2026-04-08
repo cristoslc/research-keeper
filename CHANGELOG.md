@@ -1,4 +1,12 @@
 # Changelog
+## [1.0.0-alpha.1] - 2026-04-08
+
+### Features
+
+#### Embeddings now use sentence-transformers instead of Ollama
+
+Replaced the Ollama external service dependency with sentence-transformers as the sole embedding backend. Embeddings are now generated locally using the nomic-ai/nomic-embed-text-v1.5 model — no external service required. First run downloads the model (~500MB), then cached locally. Added progress bar to `rk rebuild` for better visibility during backfill operations.
+
 
 ## [0.6.0] - 2026-04-07
 
