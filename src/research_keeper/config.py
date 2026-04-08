@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import yaml
 
+
 @dataclass
 class ModelsConfig:
     tagger: str = "claude-sonnet-4-6"
@@ -10,21 +11,25 @@ class ModelsConfig:
     synthesizer_standard: str = "claude-haiku-4-5"
     embedder: str = "nomic-embed-text"
 
+
 @dataclass
 class FreshnessConfig:
     default_ttl: str = "30d"
     synthesis_demotion_days: int = 30
+
 
 @dataclass
 class RetrievalConfig:
     top_k: int = 20
     freshness_decay: str = "exponential"
 
+
 @dataclass
 class IntakeConfig:
     dedup: bool = True
     auto_tag: bool = True
     auto_synthesize: bool = True
+
 
 @dataclass
 class AuthConfig:
@@ -33,30 +38,36 @@ class AuthConfig:
     ssh_command: str | None = None
     token_configured: bool = False
 
+
 @dataclass
 class EmbeddingsConfig:
-    provider: str = "ollama"  # "ollama" or "none"
-    model: str = "nomic-embed-text"
-    ollama_url: str = "http://localhost:11434"
+    provider: str = "sentence-transformers"
+    model: str = "nomic-ai/nomic-embed-text-v1.5"
+
 
 @dataclass
 class CompletionConfig:
-    models: dict[str, str] = field(default_factory=lambda: {
-        "heavy": "anthropic/claude-opus-4",
-        "medium": "anthropic/claude-sonnet-4",
-        "light": "anthropic/claude-haiku-4",
-    })
-    tasks: dict[str, str] = field(default_factory=lambda: {
-        "tagging": "medium",
-        "synthesis": "heavy",
-        "query": "heavy",
-        "tag-validation": "light",
-    })
+    models: dict[str, str] = field(
+        default_factory=lambda: {
+            "heavy": "anthropic/claude-opus-4",
+            "medium": "anthropic/claude-sonnet-4",
+            "light": "anthropic/claude-haiku-4",
+        }
+    )
+    tasks: dict[str, str] = field(
+        default_factory=lambda: {
+            "tagging": "medium",
+            "synthesis": "heavy",
+            "query": "heavy",
+            "tag-validation": "light",
+        }
+    )
 
     def resolve_model(self, task: str) -> str:
         """Resolve a task name to a model ID."""
         task_value = self.tasks.get(task, "medium")
         return self.models.get(task_value, task_value)
+
 
 @dataclass
 class Config:
@@ -72,10 +83,12 @@ class Config:
     def resolve_root(self, config_parent: Path) -> Path:
         return (config_parent / self.data_dir).resolve()
 
+
 def _merge_dataclass(dc: object, overrides: dict) -> None:
     for key, value in overrides.items():
         if hasattr(dc, key):
             setattr(dc, key, value)
+
 
 def load_config(path: Path) -> Config:
     if not path.exists():

@@ -99,6 +99,6 @@ Always check `rk resolve` output. If it says "pending" or generates new sidecars
 
 ## Requirements
 
-- **Ollama** must be running with `nomic-embed-text` for `rk search` to work
-- If search fails with an embedder error: start ollama (`ollama serve`) or run `rk rebuild` to backfill embeddings
-- `rk add` works without ollama — sources are filed and tagged normally, embeddings are backfilled on next `rk rebuild`
+- Embeddings are handled automatically by `sentence-transformers` — no external service required
+- First run downloads the model (~500MB), then cached locally
+- `rk add` generates embeddings automatically; `rk rebuild` backfills missing embeddings
