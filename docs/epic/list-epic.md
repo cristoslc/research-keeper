@@ -1,5 +1,11 @@
 # Epics
 
+## Proposed
+
+| Artifact | Title | Last Updated | Commit |
+|----------|-------|-------------|--------|
+| EPIC-010 | rk Add Fallback Support for JavaScript-Heavy Pages | 2026-04-07 | -- |
+
 ## Active
 
 | Artifact | Title | Last Updated | Commit |

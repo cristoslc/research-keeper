@@ -8,6 +8,7 @@
 | SPEC-052 | Lower Weight Models Skip Artifact Workflow | 2026-04-07 | -- |
 | SPEC-053 | Add Fallback Mechanism for rk add Failures | 2026-04-07 | -- |
 | SPEC-054 | Add --content Flag to rk add for Fallback Workflow | 2026-04-07 | -- |
+| SPEC-055 | Update rk Skill to Handle Fallback Workflow | 2026-04-07 | -- |
 
 ## Active
 

@@ -8,10 +8,11 @@ created: 2026-04-07
 last-updated: 2026-04-07
 priority-weight: ""
 type: enhancement
-parent-epic: ""
-parent-initiative: ""
+parent-epic: EPIC-010
+parent-initiative: INITIATIVE-001
 linked-artifacts:
   - SPEC-054
+  - SPEC-055
 depends-on-artifacts:
   - SPEC-054
 addresses: []
