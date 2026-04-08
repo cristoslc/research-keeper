@@ -22,7 +22,7 @@ rk skill install
 
 ## What it does
 
-- **Add anything** — URLs, PDFs, videos, notes. rk normalizes it all to markdown. Videos get transcribed automatically.
+- **Add anything** — URLs, PDFs, videos, notes. rk normalizes it all to markdown. Videos get transcribed automatically. JavaScript-heavy pages? rk provides fallback hints — use Playwright to fetch, then `rk add --content "<markdown>" --origin "<url>"`.
 - **Auto-tag** — Every source gets tagged by themes. No manual organization.
 - **Synthesize per tag** — Each tag maintains a rolling synthesis across all its sources. Add a new paper about memory architectures and your understanding of that topic updates on the next resolve.
 - **Search with synthesis** — Ask "what do I know about X?" and get a freshness-weighted answer citing specific sources.
@@ -87,7 +87,6 @@ Everything is plain files. Sources are markdown with YAML sidecars. Tags, querie
 ## Requirements
 
 - **Python 3.11+** and [**uv**](https://docs.astral.sh/uv/)
-- [**Ollama**](https://ollama.ai) with `nomic-embed-text` for search embeddings
 - An **agent runtime** — Claude Code, codex, Cursor, Gemini, or similar
 
 ## Development

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import click
 import yaml
+from tqdm import tqdm
 
 from research_keeper.config import Config, load_config
 
@@ -67,9 +68,8 @@ def init(path: str) -> None:
             "auto_synthesize": True,
         },
         "embeddings": {
-            "provider": "ollama",
-            "model": "nomic-embed-text",
-            "ollama_url": "http://localhost:11434",
+            "provider": "sentence-transformers",
+            "model": "nomic-ai/nomic-embed-text-v1.5",
         },
         "completion": {
             "models": {
@@ -122,8 +122,9 @@ def add(
 ) -> None:
     """Add one or more sources to the library.
 
-    Use --content to add pre-fetched content with --origin URL.
+    Use --content to add pre-fetched content.
     Use --content - to read content from stdin.
+    Use --origin to set the source URL (optional with --content).
     """
     try:
         root_path = Path(root).resolve()
@@ -134,13 +135,13 @@ def add(
 
         # Handle --content flag (SPEC-054)
         if content is not None:
-            # Validate origin is provided with --content
-            if not origin:
-                click.echo(
-                    "Error: --origin is required when using --content",
-                    err=True,
-                )
-                raise SystemExit(1)
+            # Read content from stdin if "-" is passed
+            if content == "-":
+                import sys
+
+                actual_content = sys.stdin.read()
+            else:
+                actual_content = content
 
             # Read content from stdin if "-" is passed
             if content == "-":
@@ -150,7 +151,7 @@ def add(
             else:
                 actual_content = content
 
-            # Add pre-fetched content with origin metadata
+            # Add pre-fetched content with optional origin metadata
             metadata: dict = {}
             if origin:
                 metadata["origin"] = origin
@@ -201,11 +202,8 @@ def add(
 
             # Report notes
             notes: list[str] = []
-            embedder_model = getattr(pipeline._embedder, "_model", None)
-            if embedder_model == "stub":
-                notes.append("embeddings skipped -- Ollama not available")
-            elif pipeline.embedding_failed:
-                notes.append("embeddings skipped -- Ollama not available")
+            if pipeline.embedding_failed:
+                notes.append("embeddings skipped -- embedder failed")
             if no_prompt:
                 notes.append("sidecar generation skipped (--no-prompt)")
             elif pipeline._sidecar is None:
@@ -300,11 +298,8 @@ def add(
 
         # Report notes
         notes: list[str] = []
-        embedder_model = getattr(pipeline._embedder, "_model", None)
-        if embedder_model == "stub":
-            notes.append("embeddings skipped -- Ollama not available")
-        elif pipeline.embedding_failed:
-            notes.append("embeddings skipped -- Ollama not available")
+        if pipeline.embedding_failed:
+            notes.append("embeddings skipped -- embedder failed")
         if no_prompt:
             notes.append("sidecar generation skipped (--no-prompt)")
         elif pipeline._sidecar is None:
@@ -740,7 +735,7 @@ def _rebuild_impl(root: str) -> None:
 
     backfilled = 0
     skipped = 0
-    for node_id, content in missing:
+    for node_id, content in tqdm(missing, desc="Backfilling embeddings"):
         if node_id not in source_slugs:
             # Non-source node (tag, query, investigation) — chunk if long, then embed
             try:
@@ -784,7 +779,7 @@ def _rebuild_impl(root: str) -> None:
 
     parts = [f"Backfilled embeddings for {backfilled} source(s)"]
     if skipped:
-        parts.append(f"{skipped} skipped (embedder error — check Ollama status)")
+        parts.append(f"{skipped} skipped (embedder error)")
     click.echo(". ".join(parts) + ".")
 
 
@@ -1507,35 +1502,12 @@ def _build_pipeline(root: Path):
 
 
 def _build_embedder(config):
-    """Build embedder from config, with stub fallback."""
-    provider = getattr(getattr(config, "embeddings", None), "provider", "ollama")
+    """Build embedder from config."""
+    from research_keeper.adapters.embedder.sentence_transformers import (
+        SentenceTransformerEmbedder,
+    )
 
-    if provider == "none":
+    emb_cfg = getattr(config, "embeddings", None)
+    model_name = emb_cfg.model if emb_cfg else "nomic-ai/nomic-embed-text-v1.5"
 
-        class StubEmbedder:
-            _model = "stub"
-
-            def embed(self, content: str) -> bytes:
-                return b""
-
-        return StubEmbedder()
-
-    # Default: ollama
-    try:
-        from research_keeper.adapters.embedder.ollama import OllamaEmbedder
-
-        emb_cfg = getattr(config, "embeddings", None)
-        model = emb_cfg.model if emb_cfg else config.models.embedder
-        base_url = emb_cfg.ollama_url if emb_cfg else "http://localhost:11434"
-        return OllamaEmbedder(model=model, base_url=base_url)
-    except ImportError:
-        pass
-
-    # Stub embedder that returns empty bytes
-    class StubEmbedder:  # noqa: F811
-        _model = "stub"
-
-        def embed(self, content: str) -> bytes:
-            return b""
-
-    return StubEmbedder()
+    return SentenceTransformerEmbedder(model_name=model_name)

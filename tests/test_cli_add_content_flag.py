@@ -63,7 +63,7 @@ class TestContentFlag:
             # metadata is the second positional argument
             assert call_args[0][1]["origin"] == "https://example.com/article"
 
-    def test_content_without_origin_errors(self, runner: CliRunner, tmp_path: Path):
+    def test_content_without_origin_succeeds(self, runner: CliRunner, tmp_path: Path):
         """Given --content without --origin, when called,
         then error with clear message requiring origin."""
         mock_pipeline = MagicMock()
