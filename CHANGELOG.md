@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.6.0] - 2026-04-07
+
+### Features
+
+#### Fallback workflow for JavaScript-heavy pages
+
+Three-spec fallback mechanism (EPIC-010) enables rk to handle JavaScript-rendered and scrape-resistant pages. When `rk add` fails to fetch, CLI outputs actionable hints with exact syntax. The `--content` flag accepts pre-fetched content with origin metadata. The rk skill automatically retries with Playwright/browser automation. Fallback is transparent to users — same tagging/synthesis pipeline, zero overhead for normal pages.
+
+#### Content flag for pre-fetched content
+
+`rk add --content "<content>" --origin "<url>"` adds pre-fetched content directly. Supports stdin with `--content -` for large content. Validates origin is provided, bypasses URL fetching, proceeds through normal pipeline (SPEC-054).
+
+#### rk skill fallback handling
+
+Skill template updated with fallback workflow section: recognition patterns for fetch errors, Playwright code example, step-by-step retry instructions. Skill automatically handles JavaScript-heavy pages without user intervention (SPEC-055).
+
+#### Media summary integration complete
+
+Frame extraction, caption fallback chain, consolidated yt-dlp calls for no-speech videos. Media-Summary Integration (SPEC-048) ships with full verification evidence.
+
+#### Lower-weight model workflow
+
+Discovery loop for artifact creation with reduced model requirements (SPEC-052). Optimizes token/compute usage for routine artifact operations.
+
+### Research
+- Defuddle trove — 1 source collected with history hash tracking
+
+### Supporting Changes
+- Artifact index rebuilds and cross-reference enrichment across ~100 doc files
+- Session state management improvements
+- Spike index addition from rebuild
+- SPEC-052 retrospective added
+
 ## [0.5.0] - 2026-04-04
 
 ### Features
