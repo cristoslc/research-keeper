@@ -119,11 +119,47 @@ After the final `rk resolve` reports "Done" (no more pending sidecars), commit a
 
 This applies to every operation sequence — `rk add`, `rk search`, `rk investigate`, `rk rebuild`, etc.
 
+## Fallback Workflow for JavaScript-Heavy Pages
+
+Some websites require JavaScript rendering or employ anti-scraping measures. When `rk add` fails:
+
+**Recognition:** Error output includes:
+```
+Error adding 'https://example.com': Failed to fetch URL
+
+Hint: If this page requires JavaScript rendering, try:
+  rk add --content "<content>" --origin "https://example.com"
+
+Use Playwright or Chrome to fetch the content first.
+```
+
+**Fallback steps:**
+1. **Fetch with browser automation** — Use Playwright, Puppeteer, or browser to get rendered HTML
+2. **Extract markdown** — Convert HTML to markdown (trafilatura, readability, or manual extraction)
+3. **Retry with --content** — `rk add --content "<markdown>" --origin "https://example.com"`
+4. **Continue normal workflow** — Fill sidecars, resolve as usual
+
+**Example (Playwright):**
+```python
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    page.goto("https://example.com")
+    html = page.content()
+    # Convert to markdown or extract text
+    browser.close()
+```
+
+**Zero overhead:** Normal pages work without fallback — only use when `rk add` errors with fetch failure.
+
 ## Requirements
 
 - **Ollama** must be running with `nomic-embed-text` for `rk search` to work
 - If search fails with an embedder error: start ollama (`ollama serve`) or run `rk rebuild` to backfill embeddings
 - `rk add` works without ollama — sources are filed and tagged normally, embeddings are backfilled on next `rk rebuild`
+- **Playwright/browser** for fallback workflow — Install if not available: `uv add playwright` or use agent's browser tools
 """)
 
 SKILL_CONTENT = _SKILL_TEMPLATE.render(
