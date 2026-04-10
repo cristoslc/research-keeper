@@ -85,7 +85,9 @@ class SqliteIndex:
                 source.content,
                 str(source.freshness.published) if source.freshness.published else None,
                 str(source.freshness.ingested),
-                str(source.freshness.last_refreshed) if source.freshness.last_refreshed else None,
+                str(source.freshness.last_refreshed)
+                if source.freshness.last_refreshed
+                else None,
                 source.freshness.ttl,
                 source.hash,
                 source.provenance.model,
@@ -106,8 +108,10 @@ class SqliteIndex:
         cur = self._conn.cursor()
         cur.execute("DELETE FROM node_search WHERE id = ?", (slug,))
         cur.execute("DELETE FROM nodes WHERE id = ?", (slug,))
-        cur.execute("DELETE FROM embeddings WHERE node_id = ? OR node_id LIKE ?",
-                    (slug, f"{slug}#chunk-%"))
+        cur.execute(
+            "DELETE FROM embeddings WHERE node_id = ? OR node_id LIKE ?",
+            (slug, f"{slug}#chunk-%"),
+        )
         cur.execute(
             "DELETE FROM edges WHERE source_id = ? OR target_id = ?",
             (slug, slug),
@@ -137,7 +141,10 @@ class SqliteIndex:
             self.upsert_source(source)
 
     def upsert_embedding(
-        self, node_id: str, model: str, embedding: bytes,
+        self,
+        node_id: str,
+        model: str,
+        embedding: bytes,
         content: str | None = None,
     ) -> None:
         cur = self._conn.cursor()
@@ -145,8 +152,13 @@ class SqliteIndex:
             """INSERT OR REPLACE INTO embeddings
             (node_id, model, embedding, created_at, content)
             VALUES (?, ?, ?, ?, ?)""",
-            (node_id, model, embedding,
-             datetime.datetime.now(datetime.UTC).isoformat(), content),
+            (
+                node_id,
+                model,
+                embedding,
+                datetime.datetime.now(datetime.UTC).isoformat(),
+                content,
+            ),
         )
         self._conn.commit()
 
@@ -186,9 +198,7 @@ class SqliteIndex:
         )
         self._conn.commit()
 
-    def upsert_edge(
-        self, source_id: str, target_id: str, relationship: str
-    ) -> None:
+    def upsert_edge(self, source_id: str, target_id: str, relationship: str) -> None:
         """Insert or replace an edge between two nodes."""
         cur = self._conn.cursor()
         cur.execute(
@@ -243,3 +253,30 @@ class SqliteIndex:
             tags=json.loads(row["tags"]) if row["tags"] else [],
             hash=row["hash"],
         )
+
+    def sources_for_tag(self, tag_slug: str) -> list[str]:
+        """Return source slugs linked to a tag via the 'tagged' edge."""
+        cur = self._conn.cursor()
+        cur.execute(
+            """SELECT source_id FROM edges
+            WHERE target_id = ? AND relationship = 'tagged'""",
+            (tag_slug,),
+        )
+        return [row["source_id"] for row in cur.fetchall()]
+
+    def tags_for_source(self, source_slug: str) -> list[str]:
+        """Return tag slugs linked to a source via the 'tagged' edge."""
+        cur = self._conn.cursor()
+        cur.execute(
+            """SELECT target_id FROM edges
+            WHERE source_id = ? AND relationship = 'tagged'""",
+            (source_slug,),
+        )
+        return [row["target_id"] for row in cur.fetchall()]
+
+    def source_content_by_slug(self, slug: str) -> str | None:
+        """Return the content of a source node by slug, or None if not found."""
+        cur = self._conn.cursor()
+        cur.execute("SELECT content FROM nodes WHERE id = ?", (slug,))
+        row = cur.fetchone()
+        return row["content"] if row else None

@@ -171,5 +171,74 @@ class TestRemoveSourceChunkCleanup:
         idx.upsert_embedding("to-remove#chunk-1", "model", b"\x00" * 16)
         idx.remove_source("to-remove")
         cur = idx._conn.cursor()
-        cur.execute("SELECT COUNT(*) as cnt FROM embeddings WHERE node_id LIKE ?", ("to-remove%",))
+        cur.execute(
+            "SELECT COUNT(*) as cnt FROM embeddings WHERE node_id LIKE ?",
+            ("to-remove%",),
+        )
         assert cur.fetchone()["cnt"] == 0
+
+
+class TestSourcesForTag:
+    def test_returns_source_slugs_for_tag(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        s1 = _make_source("src-a", "About attention", ["ml-attention"])
+        s2 = _make_source("src-b", "About transformers", ["ml-attention"])
+        s3 = _make_source("src-c", "About databases", ["databases"])
+        for s in [s1, s2, s3]:
+            idx.upsert_source(s)
+        idx.upsert_edge("src-a", "ml-attention", "tagged")
+        idx.upsert_edge("src-b", "ml-attention", "tagged")
+        idx.upsert_edge("src-c", "databases", "tagged")
+
+        result = idx.sources_for_tag("ml-attention")
+        assert sorted(result) == ["src-a", "src-b"]
+
+    def test_returns_empty_for_unknown_tag(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        assert idx.sources_for_tag("nonexistent-tag") == []
+
+    def test_ignores_non_tagged_edges(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        s = _make_source("src-a", "Content", ["ml"])
+        idx.upsert_source(s)
+        idx.upsert_edge("src-a", "ml", "cites")
+
+        result = idx.sources_for_tag("ml")
+        assert result == []
+
+
+class TestTagsForSource:
+    def test_returns_tag_slugs_for_source(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        s = _make_source("src-a", "About attention", ["ml-attention", "transformers"])
+        idx.upsert_source(s)
+        idx.upsert_edge("src-a", "ml-attention", "tagged")
+        idx.upsert_edge("src-a", "transformers", "tagged")
+
+        result = idx.tags_for_source("src-a")
+        assert sorted(result) == ["ml-attention", "transformers"]
+
+    def test_returns_empty_for_untagged_source(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        s = _make_source("src-b", "No tags", [])
+        idx.upsert_source(s)
+
+        assert idx.tags_for_source("src-b") == []
+
+    def test_returns_empty_for_unknown_source(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        assert idx.tags_for_source("nonexistent-source") == []
+
+
+class TestSourceContentBySlug:
+    def test_returns_source_content(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        s = _make_source("my-src", "The full content of the source")
+        idx.upsert_source(s)
+
+        result = idx.source_content_by_slug("my-src")
+        assert result == "The full content of the source"
+
+    def test_returns_none_for_unknown_slug(self, tmp_path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        assert idx.source_content_by_slug("no-such-source") is None

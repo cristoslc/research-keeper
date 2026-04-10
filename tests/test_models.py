@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime
-from research_keeper.models import Source, Freshness, Provenance
+from research_keeper.models import ScoredNode, Source, Freshness, Provenance
 
 
 def test_source_creation():
@@ -57,3 +57,38 @@ def test_provenance_with_model():
     )
     assert p.model == "claude-opus-4-6"
     assert p.model_tier == "frontier"
+
+
+def test_scored_node_default_provenance():
+    node = ScoredNode(
+        slug="test-source",
+        content="Some content",
+        score=0.9,
+        similarity=0.85,
+        freshness_weight=1.0,
+    )
+    assert node.provenance == "similarity"
+
+
+def test_scored_node_tag_expansion_provenance():
+    node = ScoredNode(
+        slug="expanded-source",
+        content="Expanded content",
+        score=0.5,
+        similarity=0.4,
+        freshness_weight=0.8,
+        provenance="tag-expansion",
+    )
+    assert node.provenance == "tag-expansion"
+
+
+def test_scored_node_explicit_similarity_provenance():
+    node = ScoredNode(
+        slug="source",
+        content="Content",
+        score=0.7,
+        similarity=0.6,
+        freshness_weight=0.9,
+        provenance="similarity",
+    )
+    assert node.provenance == "similarity"

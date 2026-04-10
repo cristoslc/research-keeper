@@ -1444,6 +1444,8 @@ def _build_search_pipeline(root: Path):
 
     config = load_config(root / "rk.yaml")
 
+    from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+
     index = SqliteIndex(root / "rk.db")
     query_store = FilesystemQueryStore(root)
     half_life = parse_ttl_days(config.freshness.default_ttl)
@@ -1451,6 +1453,7 @@ def _build_search_pipeline(root: Path):
     embedder = _build_embedder(config)
     sidecar_gen = SidecarGenerator(root, config.completion)
     inv_store = FilesystemInvestigationStore(root)
+    tag_store = FilesystemTagStore(root)
 
     return QueryPipeline(
         retriever=retriever,
@@ -1460,6 +1463,7 @@ def _build_search_pipeline(root: Path):
         index=index,
         top_k=config.retrieval.top_k,
         investigation_store=inv_store,
+        tag_store=tag_store,
     )
 
 

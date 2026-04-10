@@ -89,6 +89,8 @@ class FilesystemQueryStore:
         embedding: bytes | None = None,
         investigation_id: str | None = None,
         query_type: str = "search",
+        tag_expansion: list[dict] | None = None,
+        expanded_sources: list[str] | None = None,
     ) -> str:
         """Create query directory with meta.yaml and embedding, but no synthesis.
 
@@ -119,10 +121,18 @@ class FilesystemQueryStore:
             "created": str(today),
             "top_k": len(retrieval),
             "retrieval": retrieval,
-            "cited_sources": [r["slug"] for r in retrieval if r.get("kind") == "source"],
-            "cited_tags": [r["slug"] for r in retrieval if r.get("kind") == "tag-synthesis"],
+            "cited_sources": [
+                r["slug"] for r in retrieval if r.get("kind") == "source"
+            ],
+            "cited_tags": [
+                r["slug"] for r in retrieval if r.get("kind") == "tag-synthesis"
+            ],
             "investigation": investigation_id,
         }
+        if tag_expansion:
+            meta["tag_expansion"] = tag_expansion
+        if expanded_sources:
+            meta["expanded_sources"] = expanded_sources
         if query_type != "search":
             meta["query_type"] = query_type
         (query_dir / "meta.yaml").write_text(
@@ -182,9 +192,7 @@ class FilesystemQueryStore:
         meta["branches"] = branches
         meta["budgets"] = budgets
         meta["branch_outcomes"] = branch_outcomes
-        meta_path.write_text(
-            yaml.dump(meta, default_flow_style=False, sort_keys=False)
-        )
+        meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))
 
     def list(self) -> list[str]:
         if not self._queries_dir.exists():

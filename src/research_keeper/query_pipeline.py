@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -22,7 +23,7 @@ class QuerySearchResult:
 
 
 class QueryPipeline:
-    """Orchestrates: embed query -> retrieve -> persist pending -> generate sidecar."""
+    """Orchestrates: embed query -> retrieve -> tag expand -> persist pending -> generate sidecar."""
 
     def __init__(
         self,
@@ -34,6 +35,9 @@ class QueryPipeline:
         top_k: int = 20,
         investigation_store: object | None = None,
         remote_resolver: object | None = None,
+        tag_store: object | None = None,
+        tag_expansion_tags: int = 5,
+        tag_expansion_sources: int = 20,
     ) -> None:
         self._retriever = retriever
         self._query_store = query_store
@@ -43,6 +47,59 @@ class QueryPipeline:
         self._top_k = top_k
         self._investigation_store = investigation_store
         self._remote = remote_resolver
+        self._tag_store = tag_store
+        self._tag_expansion_tags = tag_expansion_tags
+        self._tag_expansion_sources = tag_expansion_sources
+
+    def _expand_tags(self, scored_nodes: list[ScoredNode]) -> list[ScoredNode]:
+        """Expand results by pulling in sources from top tags.
+
+        Collects tags from scored_nodes via the index, selects the most
+        frequent tags, and pulls in additional sources from those tags
+        (via TagStore) that are not already in the results.
+        """
+        if not self._tag_store:
+            return []
+
+        tag_counts: Counter[str] = Counter()
+        for node in scored_nodes:
+            for tag in self._index.tags_for_source(node.slug):
+                tag_counts[tag] += 1
+
+        if not tag_counts:
+            return []
+
+        top_tags = [tag for tag, _ in tag_counts.most_common(self._tag_expansion_tags)]
+        existing_slugs = {node.slug for node in scored_nodes}
+
+        per_tag_budget = self._tag_expansion_sources // max(len(top_tags), 1)
+        expanded: list[ScoredNode] = []
+
+        for tag in top_tags:
+            source_slugs = self._tag_store.sources_for_tag(tag)
+            added = 0
+            for slug in source_slugs:
+                if slug in existing_slugs:
+                    continue
+                content = self._index.source_content_by_slug(slug)
+                if content is None:
+                    continue
+                expanded.append(
+                    ScoredNode(
+                        slug=slug,
+                        content=content,
+                        score=0.0,
+                        similarity=0.0,
+                        freshness_weight=0.0,
+                        provenance="tag-expansion",
+                    )
+                )
+                existing_slugs.add(slug)
+                added += 1
+                if added >= per_tag_budget:
+                    break
+
+        return expanded
 
     def search(
         self,
@@ -63,7 +120,30 @@ class QueryPipeline:
         # Step 2: Retrieve top-k results
         scored_nodes = self._retriever.search_by_embedding(query_embedding, top_k=top_k)
 
-        # Step 3: Build retrieval list for meta.yaml
+        # Step 3: Tag expansion — pull in additional sources from top tags
+        expanded_nodes = self._expand_tags(scored_nodes)
+        all_nodes = scored_nodes + expanded_nodes
+
+        # Step 4: Build tag expansion metadata
+        tag_expansion_meta = []
+        if expanded_nodes and self._tag_store:
+            tag_counts: Counter[str] = Counter()
+            for node in scored_nodes:
+                for tag in self._index.tags_for_source(node.slug):
+                    tag_counts[tag] += 1
+            top_tags = [
+                tag for tag, _ in tag_counts.most_common(self._tag_expansion_tags)
+            ]
+            for tag in top_tags:
+                tag_expansion_meta.append(
+                    {
+                        "tag": tag,
+                        "source_count": len(self._tag_store.sources_for_tag(tag)),
+                    }
+                )
+        expanded_slugs = [n.slug for n in expanded_nodes]
+
+        # Step 5: Build retrieval list for meta.yaml
         retrieval = [
             {
                 "slug": node.slug,
@@ -71,19 +151,22 @@ class QueryPipeline:
                 "score": round(node.score, 4),
                 "similarity": round(node.similarity, 4),
                 "freshness_weight": round(node.freshness_weight, 4),
+                "provenance": node.provenance,
             }
-            for node in scored_nodes
+            for node in all_nodes
         ]
 
-        # Step 4: Create pending query (directory, meta.yaml, embedding.bin)
+        # Step 6: Create pending query (directory, meta.yaml, embedding.bin)
         query_id = self._query_store.create_pending(
             query_text=query_text,
             retrieval=retrieval,
             embedding=query_embedding,
             investigation_id=investigation_id,
+            tag_expansion=tag_expansion_meta,
+            expanded_sources=expanded_slugs,
         )
 
-        # Step 5: Build scored_sources for sidecar context
+        # Step 7: Build scored_sources for sidecar context
         scored_sources = [
             {
                 "slug": node.slug,
@@ -91,8 +174,9 @@ class QueryPipeline:
                 "score": round(node.score, 4),
                 "similarity": round(node.similarity, 4),
                 "freshness_weight": round(node.freshness_weight, 4),
+                "provenance": node.provenance,
             }
-            for node in scored_nodes
+            for node in all_nodes
         ]
 
         # Step 6: Generate query.j2 sidecar
@@ -115,5 +199,5 @@ class QueryPipeline:
             query_id=query_id,
             query_text=query_text,
             sidecar_path=sidecar_path,
-            scored_nodes=scored_nodes,
+            scored_nodes=all_nodes,
         )

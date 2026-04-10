@@ -50,6 +50,7 @@ class ScoredNode:
     kind: str = "source"
     chunk_index: int | None = None
     chunk_heading: str | None = None
+    provenance: str = "similarity"
 
 
 @dataclass(frozen=True)
