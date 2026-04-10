@@ -1,4 +1,20 @@
 # Changelog
+## [1.0.0-alpha.2] - 2026-04-09
+
+### Features
+
+#### Web normalizer markdown upgrade
+
+Improved markdown output with snapshot-date and metadata scanning for better content normalization.
+
+#### Query tag expansion
+
+Search pipeline now expands tags when searching, improving recall for related content.
+
+#### Explicit resolve instructions
+
+rk resolve output now tells agents exactly which .j2 file to read, which output file to write (tag.yaml, synthesize.md, query.md), and that .pending/ gets cleaned up automatically.
+
 ## [1.0.0-alpha.1] - 2026-04-08
 
 ### Features
