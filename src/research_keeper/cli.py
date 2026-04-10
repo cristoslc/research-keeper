@@ -806,7 +806,26 @@ def search(query: str, root: str, top_k: int | None, investigation: str | None) 
             click.echo()
 
         click.echo(f"Sidecar: {result.sidecar_path}")
-        click.echo("\nFill the sidecar, then run: rk resolve")
+        click.echo("\nAGENT ACTION:")
+        click.echo(
+            "  1. Read the query.j2 file — Jinja2 comments contain the prompt and retrieved sources"
+        )
+        click.echo(
+            "  2. Write a NEW file 'query.md' in the same .pending/ directory (DO NOT move/rename the .j2)"
+        )
+        click.echo(
+            "  3. Markdown format: answer using ONLY the provided sources, cite as (source-slug)"
+        )
+        click.echo("")
+        click.echo(
+            "NEXT RESOLVE: rk resolve will read query.md, write queries/<id>/synthesis.md,"
+        )
+        click.echo(
+            "              create symlinks to cited sources/tags, index in SQLite,"
+        )
+        click.echo("              then delete the .pending/ directory")
+        click.echo("")
+        click.echo("After filling query.md, run: rk resolve")
 
         if investigation:
             click.echo(f"Linked to investigation: {investigation}")

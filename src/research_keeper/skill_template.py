@@ -27,12 +27,16 @@ Invoke when:
 rk is a research library that never calls an LLM. It generates **sidecar templates** (`.j2` files) that describe what intelligence it needs. Your job as the agent is to read each sidecar, fill it with LLM output, and call `rk resolve` to finalize. The loop:
 
 1. Run the rk command (`rk add`, `rk search`, etc.)
-2. Check output for sidecar paths or "pending" messages
+2. Check output for "AGENT ACTION:" — it tells you exactly which .j2 file to read and what output file to write
 3. Read the `.j2` file — Jinja2 comments contain the prompt and all context you need
-4. Write the output to the matching file (`tag.j2` → `tag.yaml`, `synthesize.j2` → `synthesize.md`, `query.j2` → `query.md`)
-5. Run `rk resolve`
-6. If resolve reports more sidecars, repeat from step 3
-7. If resolve reports "Done", the cycle is complete
+4. Write the output to the matching file **in the same .pending/ directory**:
+   - `tag.j2` → `tag.yaml` (YAML format: `tags: [tag-one, tag-two]`)
+   - `synthesize.j2` → `synthesize.md` (markdown, cite sources as `(source-slug)`)
+   - `query.j2` → `query.md` (markdown, answer using ONLY provided sources)
+5. **DO NOT move, rename, or delete the .j2 file** — rk resolve will clean up the entire .pending/ directory
+6. Run `rk resolve`
+7. If resolve reports more sidecars, repeat from step 2
+8. If resolve reports "Done", the cycle is complete — commit and push all changes
 
 ## Command routing
 

@@ -10,6 +10,7 @@ Stages:
   3. Synthesis: synthesize.j2 without synthesize.md -> report pending
   4. Done
 """
+
 from __future__ import annotations
 
 import datetime
@@ -20,7 +21,9 @@ from pathlib import Path
 
 import yaml
 
-from research_keeper.adapters.filesystem.investigation_store import FilesystemInvestigationStore
+from research_keeper.adapters.filesystem.investigation_store import (
+    FilesystemInvestigationStore,
+)
 from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
 from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
 from research_keeper.adapters.sqlite.index import SqliteIndex
@@ -52,7 +55,9 @@ class ResolveLock:
                             )
                         except ProcessLookupError:
                             # Process is dead -- stale lock, override it
-                            logger.info("Overriding stale resolve lock (PID %d dead)", pid)
+                            logger.info(
+                                "Overriding stale resolve lock (PID %d dead)", pid
+                            )
                             break
                         except PermissionError:
                             # Process exists but we can't signal it -- treat as held
@@ -102,11 +107,17 @@ def _resolve_impl(root: Path, config) -> str:
     pruned = _resolve_pruned_sources(root, tag_store)
     if pruned["tags"] or pruned["queries"] or pruned["investigations"]:
         if pruned["tags"]:
-            lines.append(f"Pruned sources unlinked from {len(pruned['tags'])} tag(s) (marked stale)")
+            lines.append(
+                f"Pruned sources unlinked from {len(pruned['tags'])} tag(s) (marked stale)"
+            )
         if pruned["queries"]:
-            lines.append(f"Pruned sources tombstoned in {len(pruned['queries'])} quer(y/ies)")
+            lines.append(
+                f"Pruned sources tombstoned in {len(pruned['queries'])} quer(y/ies)"
+            )
         if pruned["investigations"]:
-            lines.append(f"Pruned sources tombstoned in {len(pruned['investigations'])} investigation(s)")
+            lines.append(
+                f"Pruned sources tombstoned in {len(pruned['investigations'])} investigation(s)"
+            )
         lines.append("")
 
     # --- Phase 1: Process any rendered output files ---
@@ -123,7 +134,9 @@ def _resolve_impl(root: Path, config) -> str:
                 tags = sidecar_gen.parse_tag_response(tag_yaml)
                 if tags:
                     tag_results[slug] = tags
-                    newly_linked = _apply_tags(root, store, tag_store, index, slug, tags)
+                    newly_linked = _apply_tags(
+                        root, store, tag_store, index, slug, tags
+                    )
                     tags_with_new_sources.update(newly_linked)
                     resolved_count += 1
                 # Clean up the .pending directory
@@ -146,7 +159,9 @@ def _resolve_impl(root: Path, config) -> str:
                 # Clean up
                 _cleanup_pending(pending)
             except Exception as exc:
-                logger.warning("Failed to process synthesize.md for %s: %s", tag_slug, exc)
+                logger.warning(
+                    "Failed to process synthesize.md for %s: %s", tag_slug, exc
+                )
 
     # Process rendered query.md files (Stage 4 — independent of Stages 1-3)
     query_results: list[str] = []
@@ -158,7 +173,9 @@ def _resolve_impl(root: Path, config) -> str:
             try:
                 synthesis = query_md.read_text()
                 meta_path = query_dir / "meta.yaml"
-                meta = yaml.safe_load(meta_path.read_text()) if meta_path.exists() else {}
+                meta = (
+                    yaml.safe_load(meta_path.read_text()) if meta_path.exists() else {}
+                )
                 _apply_query(root, index, query_dir, query_id, synthesis, meta)
                 query_results.append(query_id)
                 resolved_count += 1
@@ -180,7 +197,9 @@ def _resolve_impl(root: Path, config) -> str:
                 resolved_count += 1
                 _cleanup_pending(pending)
             except Exception as exc:
-                logger.warning("Failed to process investigation synthesis for %s: %s", inv_id, exc)
+                logger.warning(
+                    "Failed to process investigation synthesis for %s: %s", inv_id, exc
+                )
 
     # Report what was resolved
     if tag_results:
@@ -211,7 +230,9 @@ def _resolve_impl(root: Path, config) -> str:
     intake_locks = _find_intake_locks(root)
     if intake_locks:
         lines.append(f"Stage: intake")
-        lines.append(f"{len(intake_locks)} source(s) still being filed (intake in progress).")
+        lines.append(
+            f"{len(intake_locks)} source(s) still being filed (intake in progress)."
+        )
         lines.append("Wait for intake to complete, then run: rk resolve")
         return "\n".join(lines)
 
@@ -225,12 +246,30 @@ def _resolve_impl(root: Path, config) -> str:
             rel = path.relative_to(root) if path.is_relative_to(root) else path
             lines.append(f"  {rel} ({model_hint})")
         lines.append("")
-        lines.append("Fill these sidecars, then run: rk resolve")
+        lines.append("AGENT ACTION: For each tag.j2 sidecar:")
+        lines.append(
+            "  1. Read the .j2 file — Jinja2 comments contain the prompt and context"
+        )
+        lines.append(
+            "  2. Write a NEW file 'tag.yaml' in the same .pending/ directory (DO NOT move/rename the .j2)"
+        )
+        lines.append("  3. YAML format: tags: [tag-one, tag-two, ...]")
+        lines.append("")
+        lines.append(
+            "NEXT RESOLVE: rk resolve will read tag.yaml, apply tags to sources,"
+        )
+        lines.append(
+            "              then delete the .pending/ directory (including tag.j2 and tag.yaml)"
+        )
+        lines.append("")
+        lines.append("After filling all tag.yaml files, run: rk resolve")
         return "\n".join(lines)
 
     # BATCH GATE: all tags resolved -> generate synthesis sidecars
     # Find tags that have sources but no synthesis.md (or have new sources since last synthesis)
-    tags_needing_synthesis = _find_tags_needing_synthesis(root, tag_store, tags_with_new_sources)
+    tags_needing_synthesis = _find_tags_needing_synthesis(
+        root, tag_store, tags_with_new_sources
+    )
     if tags_needing_synthesis:
         model_hint = config.completion.tasks.get("synthesis", "heavy")
         generated: list[tuple[str, Path, int]] = []
@@ -251,12 +290,32 @@ def _resolve_impl(root: Path, config) -> str:
 
         if generated:
             lines.append(f"Stage: synthesis")
-            lines.append(f"{len(generated)} synthesis sidecar(s) generated (parallelizable):")
+            lines.append(
+                f"{len(generated)} synthesis sidecar(s) generated (parallelizable):"
+            )
             for tag_slug, path, src_count in generated:
                 rel = path.relative_to(root) if path.is_relative_to(root) else path
                 lines.append(f"  {rel} ({model_hint}) -- {src_count} source(s)")
             lines.append("")
-            lines.append("Fill these sidecars, then run: rk resolve")
+            lines.append("AGENT ACTION: For each synthesize.j2 sidecar:")
+            lines.append(
+                "  1. Read the .j2 file — Jinja2 comments contain the prompt and all source content"
+            )
+            lines.append(
+                "  2. Write a NEW file 'synthesize.md' in the same .pending/ directory (DO NOT move/rename the .j2)"
+            )
+            lines.append(
+                "  3. Markdown format: organize by theme, cite sources as (source-slug)"
+            )
+            lines.append("")
+            lines.append(
+                "NEXT RESOLVE: rk resolve will read synthesize.md, write tags/<tag>/synthesis.md,"
+            )
+            lines.append(
+                "              index in SQLite, then delete the .pending/ directory"
+            )
+            lines.append("")
+            lines.append("After filling all synthesize.md files, run: rk resolve")
             return "\n".join(lines)
 
     # Check for pending synthesis sidecars
@@ -264,12 +323,32 @@ def _resolve_impl(root: Path, config) -> str:
     if pending_synth:
         model_hint = config.completion.tasks.get("synthesis", "heavy")
         lines.append(f"Stage: synthesis")
-        lines.append(f"{len(pending_synth)} synthesis sidecar(s) pending (parallelizable):")
+        lines.append(
+            f"{len(pending_synth)} synthesis sidecar(s) pending (parallelizable):"
+        )
         for path in pending_synth:
             rel = path.relative_to(root) if path.is_relative_to(root) else path
             lines.append(f"  {rel} ({model_hint})")
         lines.append("")
-        lines.append("Fill these sidecars, then run: rk resolve")
+        lines.append("AGENT ACTION: For each synthesize.j2 sidecar:")
+        lines.append(
+            "  1. Read the .j2 file — Jinja2 comments contain the prompt and all source content"
+        )
+        lines.append(
+            "  2. Write a NEW file 'synthesize.md' in the same .pending/ directory (DO NOT move/rename the .j2)"
+        )
+        lines.append(
+            "  3. Markdown format: organize by theme, cite sources as (source-slug)"
+        )
+        lines.append("")
+        lines.append(
+            "NEXT RESOLVE: rk resolve will read synthesize.md, write tags/<tag>/synthesis.md,"
+        )
+        lines.append(
+            "              index in SQLite, then delete the .pending/ directory"
+        )
+        lines.append("")
+        lines.append("After filling all synthesize.md files, run: rk resolve")
         return "\n".join(lines)
 
     # Check for investigations needing (re-)synthesis
@@ -296,12 +375,35 @@ def _resolve_impl(root: Path, config) -> str:
 
         if generated_inv:
             lines.append(f"Stage: investigation synthesis")
-            lines.append(f"{len(generated_inv)} investigation synthesis sidecar(s) generated:")
+            lines.append(
+                f"{len(generated_inv)} investigation synthesis sidecar(s) generated:"
+            )
             for inv_id, path in generated_inv:
                 rel = path.relative_to(root) if path.is_relative_to(root) else path
                 lines.append(f"  {rel} ({model_hint})")
             lines.append("")
-            lines.append("Fill these sidecars, then run: rk resolve")
+            lines.append(
+                "AGENT ACTION: For each synthesize.j2 sidecar in investigations/:"
+            )
+            lines.append(
+                "  1. Read the .j2 file — contains investigation brief, linked sources, and query syntheses"
+            )
+            lines.append(
+                "  2. Write a NEW file 'synthesize.md' in the same .pending/ directory (DO NOT move/rename the .j2)"
+            )
+            lines.append(
+                "  3. Markdown format: rolling synthesis integrating all findings, cite sources as (source-slug)"
+            )
+            lines.append("")
+            lines.append(
+                "NEXT RESOLVE: rk resolve will read synthesize.md, write investigations/<id>/synthesis.md,"
+            )
+            lines.append(
+                "              update meta.yaml with last_synthesized timestamp, index in SQLite,"
+            )
+            lines.append("              then delete the .pending/ directory")
+            lines.append("")
+            lines.append("After filling all synthesize.md files, run: rk resolve")
             return "\n".join(lines)
 
     # --- Phase 3: Nothing pending -> Done ---
@@ -474,7 +576,9 @@ def _apply_synthesis(
         meta = yaml.safe_load(meta_path.read_text()) or {}
         if "stale" in meta:
             del meta["stale"]
-            meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))
+            meta_path.write_text(
+                yaml.dump(meta, default_flow_style=False, sort_keys=False)
+            )
 
 
 def _iter_query_dirs(root: Path):
@@ -590,11 +694,13 @@ def _gather_investigation_queries(root: Path, inv) -> list[dict]:
         meta_path = root / "queries" / query_id / "meta.yaml"
         if synth_path.exists() and meta_path.exists():
             meta = yaml.safe_load(meta_path.read_text())
-            queries.append({
-                "query_id": query_id,
-                "query_text": meta.get("query_text", ""),
-                "synthesis": synth_path.read_text(),
-            })
+            queries.append(
+                {
+                    "query_id": query_id,
+                    "query_text": meta.get("query_text", ""),
+                    "synthesis": synth_path.read_text(),
+                }
+            )
     return queries
 
 

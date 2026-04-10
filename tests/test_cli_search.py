@@ -50,7 +50,9 @@ class TestCLISearch:
         from research_keeper.query_pipeline import QuerySearchResult
 
         mock_pipeline = MagicMock()
-        sidecar_path = initialized_root / "queries" / "qry-20260330-test" / ".pending" / "query.j2"
+        sidecar_path = (
+            initialized_root / "queries" / "qry-20260330-test" / ".pending" / "query.j2"
+        )
         sidecar_path.parent.mkdir(parents=True)
         sidecar_path.write_text("template")
 
@@ -63,10 +65,15 @@ class TestCLISearch:
         mock_build.return_value = mock_pipeline
 
         runner = CliRunner()
-        result = runner.invoke(main, ["search", "test query", "--root", str(initialized_root)])
+        result = runner.invoke(
+            main, ["search", "test query", "--root", str(initialized_root)]
+        )
         assert result.exit_code == 0
         assert "Sidecar:" in result.output
-        assert "Fill the sidecar" in result.output
+        assert "AGENT ACTION:" in result.output
+        assert "query.j2" in result.output
+        assert "query.md" in result.output
+        assert "rk resolve" in result.output
 
     @patch("research_keeper.cli._build_search_pipeline")
     def test_search_shows_retrieval_summary(self, mock_build, initialized_root: Path):
@@ -74,7 +81,9 @@ class TestCLISearch:
         from research_keeper.query_pipeline import QuerySearchResult
 
         mock_pipeline = MagicMock()
-        sidecar_path = initialized_root / "queries" / "qry-20260330-test" / ".pending" / "query.j2"
+        sidecar_path = (
+            initialized_root / "queries" / "qry-20260330-test" / ".pending" / "query.j2"
+        )
         sidecar_path.parent.mkdir(parents=True)
         sidecar_path.write_text("template")
 
@@ -83,13 +92,21 @@ class TestCLISearch:
             query_text="test query",
             sidecar_path=sidecar_path,
             scored_nodes=[
-                ScoredNode(slug="alpha-paper", content="...", score=0.87, similarity=0.92, freshness_weight=0.95),
+                ScoredNode(
+                    slug="alpha-paper",
+                    content="...",
+                    score=0.87,
+                    similarity=0.92,
+                    freshness_weight=0.95,
+                ),
             ],
         )
         mock_build.return_value = mock_pipeline
 
         runner = CliRunner()
-        result = runner.invoke(main, ["search", "test query", "--root", str(initialized_root)])
+        result = runner.invoke(
+            main, ["search", "test query", "--root", str(initialized_root)]
+        )
         assert result.exit_code == 0
         assert "Retrieved 1 sources" in result.output
         assert "alpha-paper" in result.output

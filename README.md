@@ -33,19 +33,24 @@ rk skill install
 
 ## How it works
 
-rk never calls an LLM. It generates sidecar templates that describe what intelligence it needs — "tag this content," "synthesize these sources," "answer this question." The agent reads the sidecar, fills it, and calls `rk resolve` to finalize. The loop:
+rk never calls an LLM. It generates sidecar templates (`.j2` files) that describe what intelligence it needs. The agent reads each sidecar, writes the output file alongside it, and calls `rk resolve` to process. The loop:
 
 ```
-rk add <source>       → files source, generates tag sidecar
-agent fills sidecar   → produces tags
-rk resolve            → processes tags, generates synthesis sidecars
-agent fills sidecars  → produces syntheses
-rk resolve            → done — library updated
+rk add <source>       → files source, generates library/sources/<slug>/.pending/tag.j2
+agent reads tag.j2    → writes library/sources/<slug>/.pending/tag.yaml (DO NOT delete .j2)
+rk resolve            → reads tag.yaml, creates tags/, generates tags/<tag>/.pending/synthesize.j2
+agent reads synthesize.j2 → writes tags/<tag>/.pending/synthesize.md
+rk resolve            → writes tags/<tag>/synthesis.md, deletes .pending/, reports "Done"
 
-rk search <question>  → retrieves sources, generates query sidecar
-agent fills sidecar   → produces answer
-rk resolve            → persists answer with citations
+rk search <question>  → retrieves sources, generates queries/<id>/.pending/query.j2
+agent reads query.j2  → writes queries/<id>/.pending/query.md
+rk resolve            → writes queries/<id>/synthesis.md, creates symlinks, indexes, deletes .pending/
 ```
+
+**Key rules:**
+- **Never move or rename the .j2 file** — write a new output file (`.yaml` or `.md`) in the same `.pending/` directory
+- **Never delete .pending/ contents** — `rk resolve` will clean it up after reading your output
+- **Check resolve output** — it tells you exactly which files to read/write and what will happen next
 
 When the rk skill is installed (`rk skill install`), your agent drives this loop automatically. You just say "add this article" or "what do I know about X?" and the agent handles the cycle.
 
