@@ -1,4 +1,20 @@
 # Changelog
+## [1.0.0-alpha.3] - 2026-04-10
+
+### Features
+
+#### Git-aware skill
+
+The research-keeper skill now automatically commits all library
+changes after successfully completing all open resolves, ensuring
+the library state on disk always matches what the agent produced.
+
+#### Security scanner path exclusions
+
+The security scanner now filters out findings from .agents/,
+.worktrees/, and other gitignored dotfolders, eliminating false
+positives from vendored skill files and worktree copies.
+
 ## [1.0.0-alpha.2] - 2026-04-09
 
 ### Features
