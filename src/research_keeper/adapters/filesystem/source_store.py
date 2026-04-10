@@ -37,20 +37,29 @@ class FilesystemSourceStore:
         provenance = Provenance(origin=metadata.get("origin", "unknown"))
         content_path = f"library/sources/{slug}/source.md"
         source = Source(
-            slug=slug, content_path=content_path, content=content,
-            freshness=freshness, provenance=provenance,
-            tags=metadata.get("tags", []), hash=content_hash,
-            title=metadata.get("title"), summary=metadata.get("summary"),
+            slug=slug,
+            content_path=content_path,
+            content=content,
+            freshness=freshness,
+            provenance=provenance,
+            tags=metadata.get("tags", []),
+            hash=content_hash,
+            title=metadata.get("title"),
+            summary=metadata.get("summary"),
         )
         (source_dir / "source.md").write_text(content)
         manifest = {
-            "slug": slug, "kind": "source", "hash": content_hash,
+            "slug": slug,
+            "kind": "source",
+            "hash": content_hash,
             "freshness": {
                 "published": str(freshness.published) if freshness.published else None,
-                "ingested": str(freshness.ingested), "ttl": freshness.ttl,
+                "ingested": str(freshness.ingested),
+                "ttl": freshness.ttl,
             },
             "provenance": {"origin": provenance.origin},
             "tags": source.tags,
+            "snapshot-date": metadata.get("snapshot_date", str(datetime.date.today())),
         }
         if metadata.get("title"):
             manifest["title"] = metadata["title"]
@@ -159,8 +168,10 @@ class FilesystemSourceStore:
         deleted_target = deleted_dir / slug
         if deleted_target.exists():
             import shutil
+
             shutil.rmtree(deleted_target)
         import shutil
+
         shutil.move(str(source_dir), str(deleted_target))
 
         # Remove ingestion-date symlinks

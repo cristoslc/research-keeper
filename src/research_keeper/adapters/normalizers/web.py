@@ -1,6 +1,7 @@
 # src/research_keeper/adapters/normalizers/web.py
 from __future__ import annotations
 
+import datetime
 import re
 from html.parser import HTMLParser
 
@@ -12,6 +13,26 @@ except ImportError:
     trafilatura = None  # type: ignore[assignment]
 
 MIN_WORD_COUNT = 50
+
+
+def _strip_markdown_syntax(text: str) -> str:
+    lines = text.split("\n")
+    stripped_lines = []
+    for line in lines:
+        line = re.sub(r"^#{1,6}\s+", "", line)
+        line = re.sub(r"^\s*[-*+]\s+", "", line)
+        line = re.sub(r"^\s*\d+\.\s+", "", line)
+        line = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line)
+        line = re.sub(r"[`*_~]", "", line)
+        line = re.sub(r"^>{1,}\s*", "", line)
+        line = re.sub(r"^---+\s*$", "", line)
+        stripped_lines.append(line)
+    return "\n".join(stripped_lines)
+
+
+def _count_words(text: str) -> int:
+    stripped = _strip_markdown_syntax(text)
+    return len(stripped.split())
 
 
 class _MetaTagParser(HTMLParser):
@@ -66,7 +87,8 @@ class WebNormalizer:
 
         html = raw if isinstance(raw, str) else raw.decode("utf-8", errors="replace")
 
-        # If input looks like a URL, fetch the HTML first
+        url = metadata.get("url", "")
+
         if isinstance(html, str) and re.match(r"https?://\S+$", html.strip()):
             url = html.strip()
             fetched = trafilatura.fetch_url(url)
@@ -77,33 +99,39 @@ class WebNormalizer:
                 )
             html = fetched
 
-        # Extract meta tags
         parser = _MetaTagParser()
         parser.feed(html)
         meta_tags = parser.meta
 
-        # Extract main content
-        content = trafilatura.extract(
+        doc = trafilatura.bare_extraction(
             html,
-            output_format="txt",
-            include_tables=True,
+            url=url or None,
+            include_formatting=True,
         )
 
-        if not content or len(content.split()) < MIN_WORD_COUNT:
+        if doc is None or not doc.text:
+            content = trafilatura.extract(
+                html,
+                output_format="markdown",
+                include_tables=True,
+            )
+        else:
+            content = doc.text
+
+        if not content or _count_words(content) < MIN_WORD_COUNT:
             raise NormalizationError(
                 f"Insufficient content extracted (need {MIN_WORD_COUNT}+ words)",
                 stage="web-normalize",
             )
 
-        # Build extracted metadata
         extracted: dict[str, str] = {}
 
-        # Title precedence: og:title > first content heading > html title
         if "og_title" in meta_tags:
             extracted["title"] = meta_tags["og_title"]
+        elif doc and doc.title:
+            extracted["title"] = doc.title
         else:
-            # Try first heading from content
-            first_line = content.split("\n", 1)[0].strip()
+            first_line = content.split("\n", 1)[0].strip().lstrip("#").strip()
             if first_line:
                 extracted["title"] = first_line[:200]
             elif "html_title" in meta_tags:
@@ -113,18 +141,42 @@ class WebNormalizer:
 
         if "author" in meta_tags:
             extracted["author"] = meta_tags["author"]
+        elif doc and doc.author:
+            extracted["author"] = doc.author
 
         if "published_time" in meta_tags:
-            # Extract date portion from ISO datetime
             pub = meta_tags["published_time"][:10]
             extracted["published"] = pub
+        elif doc and doc.date:
+            extracted["published"] = str(doc.date)[:10]
 
         if "site_name" in meta_tags:
             extracted["site_name"] = meta_tags["site_name"]
+        elif doc and doc.sitename:
+            extracted["site_name"] = doc.sitename
 
         if "description" in meta_tags:
             extracted["summary"] = meta_tags["description"]
+        elif doc and doc.description:
+            extracted["summary"] = doc.description
 
-        extracted["word_count"] = str(len(content.split()))
+        if url:
+            extracted["url"] = url
+        elif doc and doc.url:
+            extracted["url"] = doc.url
+
+        if doc and doc.categories:
+            cats = (
+                doc.categories if isinstance(doc.categories, list) else [doc.categories]
+            )
+            extracted["categories"] = ", ".join(str(c) for c in cats if c)
+
+        if doc and doc.tags:
+            tags = doc.tags if isinstance(doc.tags, list) else [doc.tags]
+            extracted["tags"] = ", ".join(str(t) for t in tags if t)
+
+        extracted["word_count"] = str(_count_words(content))
+
+        extracted["snapshot_date"] = datetime.date.today().isoformat()
 
         return content, extracted
