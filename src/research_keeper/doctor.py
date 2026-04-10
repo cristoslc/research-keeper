@@ -47,13 +47,15 @@ def check_duplicate_hashes(root: Path) -> list[DiagnosticResult]:
     results = []
     for content_hash, slugs in hash_to_slugs.items():
         if len(slugs) > 1:
-            results.append(DiagnosticResult(
-                severity=Severity.ERROR,
-                check="duplicate_hashes",
-                message=f"Duplicate content hash {content_hash[:12]}... in: {', '.join(slugs)}",
-                count=len(slugs),
-                details=slugs,
-            ))
+            results.append(
+                DiagnosticResult(
+                    severity=Severity.ERROR,
+                    check="duplicate_hashes",
+                    message=f"Duplicate content hash {content_hash[:12]}... in: {', '.join(slugs)}",
+                    count=len(slugs),
+                    details=slugs,
+                )
+            )
 
     return results
 
@@ -74,11 +76,13 @@ def check_orphaned_symlinks(root: Path, fix: bool = False) -> list[DiagnosticRes
                     continue
                 for symlink in subdir.iterdir():
                     if symlink.is_symlink() and not symlink.resolve().exists():
-                        results.append(DiagnosticResult(
-                            severity=Severity.WARNING,
-                            check="orphaned_symlinks",
-                            message=f"Broken symlink: {symlink.relative_to(root)}",
-                        ))
+                        results.append(
+                            DiagnosticResult(
+                                severity=Severity.WARNING,
+                                check="orphaned_symlinks",
+                                message=f"Broken symlink: {symlink.relative_to(root)}",
+                            )
+                        )
                         if fix:
                             symlink.unlink()
                             logger.info("Removed orphaned symlink: %s", symlink)
@@ -99,11 +103,13 @@ def check_missing_embeddings(root: Path, fix: bool = False) -> list[DiagnosticRe
         if not (src_dir / "manifest.yaml").exists():
             continue
         if not (src_dir / "embedding.bin").exists():
-            results.append(DiagnosticResult(
-                severity=Severity.WARNING,
-                check="missing_embeddings",
-                message=f"Missing embedding: {src_dir.name}",
-            ))
+            results.append(
+                DiagnosticResult(
+                    severity=Severity.WARNING,
+                    check="missing_embeddings",
+                    message=f"Missing embedding: {src_dir.name}",
+                )
+            )
 
     return results
 
@@ -136,11 +142,13 @@ def check_stale_nodes(root: Path) -> list[DiagnosticResult]:
             ingested = datetime.date.fromisoformat(ingested_str)
             ttl_days = int(ttl_str.rstrip("d"))
             if (today - ingested).days > ttl_days:
-                results.append(DiagnosticResult(
-                    severity=Severity.INFO,
-                    check="stale_nodes",
-                    message=f"Stale node (past {ttl_str} TTL): {src_dir.name}",
-                ))
+                results.append(
+                    DiagnosticResult(
+                        severity=Severity.INFO,
+                        check="stale_nodes",
+                        message=f"Stale node (past {ttl_str} TTL): {src_dir.name}",
+                    )
+                )
         except (ValueError, AttributeError):
             continue
 
@@ -171,17 +179,21 @@ def check_divergent_syntheses(root: Path) -> list[DiagnosticResult]:
                 if target.exists():
                     source_md = target / "source.md"
                     if source_md.exists() and source_md.stat().st_mtime > synth_mtime:
-                        results.append(DiagnosticResult(
-                            severity=Severity.WARNING,
-                            check="divergent_syntheses",
-                            message=f"Tag {tag_dir.name} synthesis may be stale (source {link.name} is newer)",
-                        ))
+                        results.append(
+                            DiagnosticResult(
+                                severity=Severity.WARNING,
+                                check="divergent_syntheses",
+                                message=f"Tag {tag_dir.name} synthesis may be stale (source {link.name} is newer)",
+                            )
+                        )
                         break  # One warning per tag is enough
 
     return results
 
 
-def check_stale_sidecars(root: Path, threshold_seconds: int = 3600) -> list[DiagnosticResult]:
+def check_stale_sidecars(
+    root: Path, threshold_seconds: int = 3600
+) -> list[DiagnosticResult]:
     """Detect .pending/ directories with sidecars older than threshold."""
     import time
 
@@ -194,14 +206,20 @@ def check_stale_sidecars(root: Path, threshold_seconds: int = 3600) -> list[Diag
         for src_dir in sources_dir.iterdir():
             if not src_dir.is_dir():
                 continue
-            for sidecar in (src_dir / ".pending").glob("*.j2") if (src_dir / ".pending").exists() else []:
+            for sidecar in (
+                (src_dir / ".pending").glob("*.j2")
+                if (src_dir / ".pending").exists()
+                else []
+            ):
                 age = now - sidecar.stat().st_mtime
                 if age > threshold_seconds:
-                    results.append(DiagnosticResult(
-                        severity=Severity.WARNING,
-                        check="stale_sidecars",
-                        message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar.relative_to(root)}",
-                    ))
+                    results.append(
+                        DiagnosticResult(
+                            severity=Severity.WARNING,
+                            check="stale_sidecars",
+                            message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar.relative_to(root)}",
+                        )
+                    )
 
     # Check synthesis sidecars
     tags_dir = root / "tags"
@@ -209,14 +227,20 @@ def check_stale_sidecars(root: Path, threshold_seconds: int = 3600) -> list[Diag
         for tag_dir in tags_dir.iterdir():
             if not tag_dir.is_dir():
                 continue
-            for sidecar in (tag_dir / ".pending").glob("*.j2") if (tag_dir / ".pending").exists() else []:
+            for sidecar in (
+                (tag_dir / ".pending").glob("*.j2")
+                if (tag_dir / ".pending").exists()
+                else []
+            ):
                 age = now - sidecar.stat().st_mtime
                 if age > threshold_seconds:
-                    results.append(DiagnosticResult(
-                        severity=Severity.WARNING,
-                        check="stale_sidecars",
-                        message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar.relative_to(root)}",
-                    ))
+                    results.append(
+                        DiagnosticResult(
+                            severity=Severity.WARNING,
+                            check="stale_sidecars",
+                            message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar.relative_to(root)}",
+                        )
+                    )
 
     return results
 
@@ -238,19 +262,23 @@ def check_orphaned_locks(root: Path) -> list[DiagnosticResult]:
                     try:
                         os.kill(pid, 0)
                     except ProcessLookupError:
-                        results.append(DiagnosticResult(
-                            severity=Severity.WARNING,
-                            check="orphaned_locks",
-                            message=f"Orphaned resolve lock (PID {pid} dead): .rk-resolve.lock",
-                        ))
+                        results.append(
+                            DiagnosticResult(
+                                severity=Severity.WARNING,
+                                check="orphaned_locks",
+                                message=f"Orphaned resolve lock (PID {pid} dead): .rk-resolve.lock",
+                            )
+                        )
                     except PermissionError:
                         pass  # Process exists, we just can't signal it
         except Exception:
-            results.append(DiagnosticResult(
-                severity=Severity.WARNING,
-                check="orphaned_locks",
-                message="Unparseable resolve lock: .rk-resolve.lock",
-            ))
+            results.append(
+                DiagnosticResult(
+                    severity=Severity.WARNING,
+                    check="orphaned_locks",
+                    message="Unparseable resolve lock: .rk-resolve.lock",
+                )
+            )
 
     # Check intake locks
     sources_dir = root / "library" / "sources"
@@ -268,11 +296,13 @@ def check_orphaned_locks(root: Path) -> list[DiagnosticResult]:
                             try:
                                 os.kill(pid, 0)
                             except ProcessLookupError:
-                                results.append(DiagnosticResult(
-                                    severity=Severity.WARNING,
-                                    check="orphaned_locks",
-                                    message=f"Orphaned intake lock (PID {pid} dead): {lock_file.relative_to(root)}",
-                                ))
+                                results.append(
+                                    DiagnosticResult(
+                                        severity=Severity.WARNING,
+                                        check="orphaned_locks",
+                                        message=f"Orphaned intake lock (PID {pid} dead): {lock_file.relative_to(root)}",
+                                    )
+                                )
                             except PermissionError:
                                 pass
                 except Exception:
@@ -299,12 +329,14 @@ def check_embedding_coverage(root: Path) -> list[DiagnosticResult]:
         return []
 
     count = len(missing)
-    return [DiagnosticResult(
-        severity=Severity.WARNING,
-        check="embedding_coverage",
-        message=f"{count} node(s) missing embeddings — run rk rebuild to backfill",
-        count=count,
-    )]
+    return [
+        DiagnosticResult(
+            severity=Severity.WARNING,
+            check="embedding_coverage",
+            message=f"{count} node(s) missing embeddings — run rk rebuild to backfill",
+            count=count,
+        )
+    ]
 
 
 def check_unresolved_sidecars(root: Path) -> list[DiagnosticResult]:
@@ -322,11 +354,13 @@ def check_unresolved_sidecars(root: Path) -> list[DiagnosticResult]:
                 tag_j2 = pending / "tag.j2"
                 tag_yaml = pending / "tag.yaml"
                 if tag_j2.exists() and not tag_yaml.exists():
-                    results.append(DiagnosticResult(
-                        severity=Severity.INFO,
-                        check="unresolved_sidecars",
-                        message=f"Unresolved tag sidecar: {tag_j2.relative_to(root)}",
-                    ))
+                    results.append(
+                        DiagnosticResult(
+                            severity=Severity.INFO,
+                            check="unresolved_sidecars",
+                            message=f"Unresolved tag sidecar: {tag_j2.relative_to(root)}",
+                        )
+                    )
 
     # Check synthesis sidecars
     tags_dir = root / "tags"
@@ -339,13 +373,77 @@ def check_unresolved_sidecars(root: Path) -> list[DiagnosticResult]:
                 synth_j2 = pending / "synthesize.j2"
                 synth_md = pending / "synthesize.md"
                 if synth_j2.exists() and not synth_md.exists():
-                    results.append(DiagnosticResult(
-                        severity=Severity.INFO,
-                        check="unresolved_sidecars",
-                        message=f"Unresolved synthesis sidecar: {synth_j2.relative_to(root)}",
-                    ))
+                    results.append(
+                        DiagnosticResult(
+                            severity=Severity.INFO,
+                            check="unresolved_sidecars",
+                            message=f"Unresolved synthesis sidecar: {synth_j2.relative_to(root)}",
+                        )
+                    )
 
     return results
+
+
+def check_metadata(root: Path, fix: bool = False) -> list[DiagnosticResult]:
+    """Check source manifests for missing fillable fields.
+
+    Extensible: add new checks by appending to the checks list.
+    Each check is a (field_name, severity, fix_fn_or_None) tuple.
+    """
+    sources_dir = root / "library" / "sources"
+    if not sources_dir.exists():
+        return []
+
+    checks: list[tuple[str, Severity, callable | None]] = [
+        ("snapshot-date", Severity.WARNING, _fix_snapshot_date),
+    ]
+
+    results: list[DiagnosticResult] = []
+    for src_dir in sources_dir.iterdir():
+        if not src_dir.is_dir():
+            continue
+        manifest_path = src_dir / "manifest.yaml"
+        if not manifest_path.exists():
+            continue
+
+        manifest = yaml.safe_load(manifest_path.read_text()) or {}
+
+        for field_name, severity, fix_fn in checks:
+            if field_name not in manifest or not manifest[field_name]:
+                if fix_fn and fix:
+                    fixed = fix_fn(src_dir, manifest, manifest_path)
+                    if not fixed:
+                        results.append(
+                            DiagnosticResult(
+                                severity=severity,
+                                check="metadata",
+                                message=f"Missing {field_name} in {src_dir.name} (backfill unavailable)",
+                            )
+                        )
+                else:
+                    results.append(
+                        DiagnosticResult(
+                            severity=severity,
+                            check="metadata",
+                            message=f"Missing {field_name} in {src_dir.name}",
+                        )
+                    )
+
+    return results
+
+
+def _fix_snapshot_date(src_dir: Path, manifest: dict, manifest_path: Path) -> bool:
+    """Backfill snapshot-date from freshness.ingested."""
+    freshness = manifest.get("freshness", {})
+    ingested = freshness.get("ingested")
+    if not ingested:
+        return False
+
+    manifest["snapshot-date"] = ingested
+    manifest_path.write_text(
+        yaml.dump(manifest, default_flow_style=False, sort_keys=False)
+    )
+    return True
 
 
 def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
@@ -360,4 +458,5 @@ def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     results.extend(check_orphaned_locks(root))
     results.extend(check_unresolved_sidecars(root))
     results.extend(check_embedding_coverage(root))
+    results.extend(check_metadata(root, fix=fix))
     return results

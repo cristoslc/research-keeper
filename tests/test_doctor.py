@@ -12,6 +12,7 @@ from research_keeper.doctor import (
     Severity,
     check_duplicate_hashes,
     check_embedding_coverage,
+    check_metadata,
     check_missing_embeddings,
     check_orphaned_symlinks,
     check_stale_nodes,
@@ -269,4 +270,56 @@ class TestCheckEmbeddingCoverage:
     def test_no_db_returns_empty(self, lib_root: Path):
         """When rk.db doesn't exist, check returns no results."""
         results = check_embedding_coverage(lib_root)
+        assert len(results) == 0
+
+
+class TestCheckMetadata:
+    def test_no_missing_snapshot_date(self, lib_root: Path):
+        src_dir = lib_root / "library" / "sources" / "test-src"
+        src_dir.mkdir(parents=True)
+        manifest = {
+            "slug": "test-src",
+            "hash": "abc",
+            "freshness": {"ingested": str(datetime.date.today()), "ttl": "30d"},
+            "snapshot-date": str(datetime.date.today()),
+        }
+        (src_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        results = check_metadata(lib_root, fix=False)
+        assert len(results) == 0
+
+    def test_finds_missing_snapshot_date(self, lib_root: Path):
+        src_dir = lib_root / "library" / "sources" / "test-src"
+        src_dir.mkdir(parents=True)
+        manifest = {
+            "slug": "test-src",
+            "hash": "abc",
+            "freshness": {"ingested": str(datetime.date.today()), "ttl": "30d"},
+        }
+        (src_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        results = check_metadata(lib_root, fix=False)
+        assert len(results) == 1
+        assert results[0].severity == Severity.WARNING
+        assert "snapshot-date" in results[0].message
+
+    def test_fix_backfills_snapshot_date(self, lib_root: Path):
+        src_dir = lib_root / "library" / "sources" / "test-src"
+        src_dir.mkdir(parents=True)
+        manifest = {
+            "slug": "test-src",
+            "hash": "abc",
+            "freshness": {"ingested": "2026-01-15", "ttl": "30d"},
+        }
+        manifest_path = src_dir / "manifest.yaml"
+        manifest_path.write_text(yaml.dump(manifest))
+
+        results = check_metadata(lib_root, fix=True)
+        # Should have been fixed, so no warning
+        assert len(results) == 0
+
+        # Verify the fix was written
+        updated = yaml.safe_load(manifest_path.read_text())
+        assert updated["snapshot-date"] == "2026-01-15"
+
+    def test_no_sources_returns_empty(self, lib_root: Path):
+        results = check_metadata(lib_root, fix=False)
         assert len(results) == 0
