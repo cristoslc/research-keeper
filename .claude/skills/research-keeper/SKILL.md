@@ -21,7 +21,7 @@ rk is a research library that never calls an LLM. It generates **sidecar templat
 4. Write the output to the matching file (`tag.j2` → `tag.yaml`, `synthesize.j2` → `synthesize.md`, `query.j2` → `query.md`)
 5. Run `rk resolve`
 6. If resolve reports more sidecars, repeat from step 3
-7. If resolve reports "Done", the cycle is complete
+7. If resolve reports "Done", the cycle is complete. Commit all changes to the library (rk tickets, indices, and files) before finishing.
 
 ## Command routing
 
