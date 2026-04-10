@@ -97,6 +97,25 @@ rk add → tag sidecars pending
 
 Always check `rk resolve` output. If it says "pending" or generates new sidecars, there's more work to do.
 
+## Publishing changes
+
+After completing the sidecar resolution cycle, commit all changes to the remote repository:
+
+```bash
+rk publish --root . -m "rk: add <source-slug>"
+# or
+rk publish --root . -m "rk: search <query-text>"
+# or
+rk publish --root . -m "rk: investigate <topic>"
+```
+
+`rk publish` handles:
+- Staging all library changes (sources, tags, queries, investigations, indices)
+- Committing with your message
+- Pushing to the configured remote (git)
+
+If no remote is configured, it reports "No remote configured — local data directory, nothing to publish."
+
 ## Requirements
 
 - Embeddings are handled automatically by `sentence-transformers` — no external service required
