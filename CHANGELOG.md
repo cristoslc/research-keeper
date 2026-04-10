@@ -1,4 +1,15 @@
 # Changelog
+## [1.0.0-alpha.4] - 2026-04-10
+
+### Features
+
+#### rk publish in skill
+
+The research-keeper skill now directs agents to use `rk publish` for
+committing and pushing library changes, replacing manual git operations.
+Agents no longer need to stage, commit, and push separately — `rk publish`
+handles remote resolution, staging, committing, and pushing in one step.
+
 ## [1.0.0-alpha.3] - 2026-04-10
 
 ### Features
