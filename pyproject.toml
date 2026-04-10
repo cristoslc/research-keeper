@@ -17,7 +17,10 @@ dependencies = [
 [project.optional-dependencies]
 web = ["trafilatura>=2.0"]
 media = ["yt-dlp", "faster-whisper>=1.0"]
-documents = ["pymupdf>=1.24"]
+documents = [
+    "pymupdf>=1.24",
+    "pymupdf4llm>=0.0.17",
+]
 mcp = ["mcp>=1.0"]
 all = ["research-keeper[web,media,documents,mcp]"]
 dev = ["pytest>=8.0", "pytest-tmp-files>=0.0.2"]

@@ -90,21 +90,29 @@ def pipeline_with_broken_embedder(library_root: Path) -> IntakePipeline:
     embedder = MagicMock()
     embedder.embed.side_effect = ConnectionError("Ollama not running")
     return IntakePipeline(
-        source_store=store, index=index, embedder=embedder,
+        source_store=store,
+        index=index,
+        embedder=embedder,
         normalizers={"note": NotesNormalizer()},
     )
 
 
-def test_add_survives_embedder_failure(pipeline_with_broken_embedder: IntakePipeline, library_root: Path):
+def test_add_survives_embedder_failure(
+    pipeline_with_broken_embedder: IntakePipeline, library_root: Path
+):
     """Source should be filed and indexed even if embedder fails."""
-    source = pipeline_with_broken_embedder.add("# Resilient\n\nContent survives embedder failure.")
+    source = pipeline_with_broken_embedder.add(
+        "# Resilient\n\nContent survives embedder failure."
+    )
     # Source is on disk
     assert (library_root / "library" / "sources" / source.slug / "source.md").exists()
     # Source is in index (searchable via FTS)
     results = pipeline_with_broken_embedder.search_fts("resilient")
     assert len(results) == 1
     # No embedding.bin (embedder failed)
-    assert not (library_root / "library" / "sources" / source.slug / "embedding.bin").exists()
+    assert not (
+        library_root / "library" / "sources" / source.slug / "embedding.bin"
+    ).exists()
 
 
 def test_pipeline_uses_source_dir_not_internal_root(library_root: Path):
@@ -114,7 +122,9 @@ def test_pipeline_uses_source_dir_not_internal_root(library_root: Path):
     embedder = MagicMock()
     embedder.embed.return_value = b"\x00" * 16
     pipeline = IntakePipeline(
-        source_store=store, index=index, embedder=embedder,
+        source_store=store,
+        index=index,
+        embedder=embedder,
         normalizers={"note": NotesNormalizer()},
     )
     source = pipeline.add("# Test abstraction\n\nContent here.")
@@ -132,15 +142,22 @@ def chunk_pipeline(library_root: Path):
     embedder._model = "test-model"
     normalizers = {"note": NotesNormalizer()}
     pipe = IntakePipeline(
-        source_store=store, index=index, embedder=embedder, normalizers=normalizers,
+        source_store=store,
+        index=index,
+        embedder=embedder,
+        normalizers=normalizers,
     )
     return {"pipeline": pipe, "index": index, "embedder": embedder, "store": store}
 
 
-def test_add_file_path_reads_content(pipeline: IntakePipeline, library_root: Path, tmp_path: Path):
+def test_add_file_path_reads_content(
+    pipeline: IntakePipeline, library_root: Path, tmp_path: Path
+):
     """SPEC-044: file paths should be read, not stored as content."""
     md_file = tmp_path / "bot-free-transcription.md"
-    md_file.write_text("# Bot-Free Transcription\n\nApproaches to meeting transcription without bots.")
+    md_file.write_text(
+        "# Bot-Free Transcription\n\nApproaches to meeting transcription without bots."
+    )
 
     source = pipeline.add(str(md_file))
 
@@ -153,15 +170,22 @@ def test_add_file_path_reads_content(pipeline: IntakePipeline, library_root: Pat
     assert "tmp" not in source.slug
 
     # On-disk source.md has real content
-    stored = (library_root / "library" / "sources" / source.slug / "source.md").read_text()
+    stored = (
+        library_root / "library" / "sources" / source.slug / "source.md"
+    ).read_text()
     assert "meeting transcription" in stored
 
 
 class TestChunkEmbedding:
     def test_short_source_creates_single_chunk_embedding(self, chunk_pipeline):
-        source = chunk_pipeline["pipeline"].add("# Short\n\nShort content about testing.")
+        source = chunk_pipeline["pipeline"].add(
+            "# Short\n\nShort content about testing."
+        )
         cur = chunk_pipeline["index"]._conn.cursor()
-        cur.execute("SELECT node_id FROM embeddings WHERE node_id LIKE ?", (f"{source.slug}#chunk-%",))
+        cur.execute(
+            "SELECT node_id FROM embeddings WHERE node_id LIKE ?",
+            (f"{source.slug}#chunk-%",),
+        )
         rows = cur.fetchall()
         assert len(rows) == 1
         assert rows[0]["node_id"] == f"{source.slug}#chunk-0"
@@ -169,22 +193,30 @@ class TestChunkEmbedding:
     def test_long_source_creates_multiple_chunk_embeddings(self, chunk_pipeline):
         content = (
             "## Introduction\n\n"
-            + "Introduction content. " * 60 + "\n\n"
+            + "Introduction content. " * 60
+            + "\n\n"
             + "## Methods\n\n"
-            + "Methods content here. " * 60 + "\n\n"
+            + "Methods content here. " * 60
+            + "\n\n"
             + "## Results\n\n"
             + "Results and findings. " * 60
         )
-        source = chunk_pipeline["pipeline"].add(content, metadata={"title": "Long Paper"})
+        source = chunk_pipeline["pipeline"].add(
+            content, metadata={"title": "Long Paper"}
+        )
         cur = chunk_pipeline["index"]._conn.cursor()
-        cur.execute("SELECT node_id FROM embeddings WHERE node_id LIKE ?", (f"{source.slug}#chunk-%",))
+        cur.execute(
+            "SELECT node_id FROM embeddings WHERE node_id LIKE ?",
+            (f"{source.slug}#chunk-%",),
+        )
         rows = cur.fetchall()
         assert len(rows) >= 3
 
     def test_embedder_called_per_chunk(self, chunk_pipeline):
         content = (
             "## Part One\n\n"
-            + "Content for part one. " * 60 + "\n\n"
+            + "Content for part one. " * 60
+            + "\n\n"
             + "## Part Two\n\n"
             + "Content for part two. " * 60
         )
@@ -202,8 +234,152 @@ class TestChunkEmbedding:
         source = chunk_pipeline["pipeline"].add("# Fail\n\nSome content.")
         assert chunk_pipeline["pipeline"].embedding_failed is True
         cur = chunk_pipeline["index"]._conn.cursor()
-        cur.execute("SELECT COUNT(*) as cnt FROM embeddings WHERE node_id LIKE ?", (f"{source.slug}%",))
+        cur.execute(
+            "SELECT COUNT(*) as cnt FROM embeddings WHERE node_id LIKE ?",
+            (f"{source.slug}%",),
+        )
         assert cur.fetchone()["cnt"] == 0
+
+
+class TestNormalizationGracefulFailure:
+    """When normalization fails for a binary source, the source should still be filed with a stub."""
+
+    def test_binary_source_filed_on_normalization_failure(
+        self, library_root: Path, tmp_path: Path
+    ):
+        from research_keeper.ports.normalizer import NormalizationError
+
+        pdf_path = tmp_path / "broken.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 not a real pdf")
+
+        class FailingDocumentNormalizer:
+            def normalize(self, raw, metadata):
+                raise NormalizationError("No text found", stage="document-normalize")
+
+        store = FilesystemSourceStore(library_root)
+        index = SqliteIndex(library_root / "rk.db")
+        embedder = MagicMock()
+        embedder.embed.return_value = b"\x00" * 16
+
+        pipeline = IntakePipeline(
+            source_store=store,
+            index=index,
+            embedder=embedder,
+            normalizers={
+                "note": NotesNormalizer(),
+                "document": FailingDocumentNormalizer(),
+            },
+        )
+
+        source = pipeline.add(str(pdf_path), metadata={"content_type": "document"})
+
+        assert source is not None
+        assert "broken.pdf" in source.content
+        assert "Normalization failed" in source.content
+
+        source_dir = library_root / "library" / "sources" / source.slug
+        assert (source_dir / "source.md").exists()
+        assert (source_dir / "original.pdf").exists()
+
+    def test_binary_source_skips_embedding_on_normalization_failure(
+        self, library_root: Path, tmp_path: Path
+    ):
+        from research_keeper.ports.normalizer import NormalizationError
+
+        pdf_path = tmp_path / "empty.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 empty")
+
+        class FailingDocumentNormalizer:
+            def normalize(self, raw, metadata):
+                raise NormalizationError("No text", stage="document-normalize")
+
+        store = FilesystemSourceStore(library_root)
+        index = SqliteIndex(library_root / "rk.db")
+        embedder = MagicMock()
+        embedder.embed.return_value = b"\x00" * 16
+
+        pipeline = IntakePipeline(
+            source_store=store,
+            index=index,
+            embedder=embedder,
+            normalizers={
+                "note": NotesNormalizer(),
+                "document": FailingDocumentNormalizer(),
+            },
+        )
+
+        source = pipeline.add(str(pdf_path), metadata={"content_type": "document"})
+        assert pipeline.embedding_failed is True
+        assert not (
+            library_root / "library" / "sources" / source.slug / "embedding.bin"
+        ).exists()
+
+    def test_note_source_still_raises_on_normalization_failure(
+        self, library_root: Path
+    ):
+        from research_keeper.ports.normalizer import NormalizationError
+
+        class FailingNoteNormalizer:
+            def normalize(self, raw, metadata):
+                raise NormalizationError("Broken", stage="note-normalize")
+
+        store = FilesystemSourceStore(library_root)
+        index = SqliteIndex(library_root / "rk.db")
+        embedder = MagicMock()
+        embedder.embed.return_value = b"\x00" * 16
+
+        pipeline = IntakePipeline(
+            source_store=store,
+            index=index,
+            embedder=embedder,
+            normalizers={"note": FailingNoteNormalizer()},
+        )
+
+        with pytest.raises(NormalizationError):
+            pipeline.add("some text")
+
+    def test_successful_binary_source_preserves_original(
+        self, library_root: Path, tmp_path: Path
+    ):
+        fitz = pytest.importorskip("fitz")
+
+        doc = fitz.open()
+        page = doc.new_page()
+        rect = fitz.Rect(36, 36, 559, 756)
+        page.insert_textbox(
+            rect, "Test document content for original file preservation.", fontsize=11
+        )
+        pdf_path = tmp_path / "doc.pdf"
+        doc.save(str(pdf_path))
+        doc.close()
+
+        from research_keeper.adapters.normalizers.documents import DocumentNormalizer
+
+        store = FilesystemSourceStore(library_root)
+        index = SqliteIndex(library_root / "rk.db")
+        embedder = MagicMock()
+        embedder.embed.return_value = b"\x00" * 16
+
+        pipeline = IntakePipeline(
+            source_store=store,
+            index=index,
+            embedder=embedder,
+            normalizers={"note": NotesNormalizer(), "document": DocumentNormalizer()},
+        )
+
+        source = pipeline.add(str(pdf_path), metadata={"content_type": "document"})
+
+        source_dir = library_root / "library" / "sources" / source.slug
+        assert (source_dir / "source.md").exists()
+        assert (source_dir / "original.pdf").exists()
+
+        import yaml
+
+        manifest = yaml.safe_load((source_dir / "manifest.yaml").read_text())
+        assert manifest["original-file"] == "original.pdf"
+
+        source_md = (source_dir / "source.md").read_text()
+        assert "Test document content" in source_md
 
 
 class TestChunkEmbeddingIntegration:
@@ -211,9 +387,11 @@ class TestChunkEmbeddingIntegration:
         """Full flow: add a long source, search, get the relevant chunk back."""
         content = (
             "## Machine Learning Basics\n\n"
-            + "Machine learning is a subset of AI. " * 60 + "\n\n"
+            + "Machine learning is a subset of AI. " * 60
+            + "\n\n"
             + "## Neural Architecture Search\n\n"
-            + "Neural architecture search automates model design. " * 60 + "\n\n"
+            + "Neural architecture search automates model design. " * 60
+            + "\n\n"
             + "## Conclusion\n\n"
             + "This paper reviewed recent advances. " * 60
         )
@@ -225,6 +403,7 @@ class TestChunkEmbeddingIntegration:
             struct.pack("4f", 0.9, 0.1, 0.0, 0.0),  # NAS section
             struct.pack("4f", 0.0, 0.0, 0.1, 0.9),  # Conclusion
         ]
+
         def mock_embed(text):
             nonlocal call_count
             idx = min(call_count, len(vectors) - 1)
@@ -233,10 +412,13 @@ class TestChunkEmbeddingIntegration:
 
         chunk_pipeline["embedder"].embed.side_effect = mock_embed
 
-        source = chunk_pipeline["pipeline"].add(content, metadata={"title": "ML Survey"})
+        source = chunk_pipeline["pipeline"].add(
+            content, metadata={"title": "ML Survey"}
+        )
 
         # Now search with a query embedding similar to the NAS section
         from research_keeper.adapters.retriever.semantic import SemanticRetriever
+
         retriever = SemanticRetriever(index=chunk_pipeline["index"], half_life_days=30)
         query_emb = struct.pack("4f", 0.9, 0.1, 0.0, 0.0)
         results = retriever.search_by_embedding(query_emb, top_k=5)

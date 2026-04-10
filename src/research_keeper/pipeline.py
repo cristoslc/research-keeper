@@ -2,16 +2,39 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
 from research_keeper.chunker import chunk_markdown
-from research_keeper.adapters.normalizers.identifier import identify_content_type
+from research_keeper.adapters.normalizers.identifier import (
+    EXTENSION_MAP,
+    identify_content_type,
+)
 from research_keeper.adapters.sqlite.index import SqliteIndex
 from research_keeper.config import Config
 from research_keeper.models import Source
+from research_keeper.ports.normalizer import NormalizationError
 from research_keeper.sidecar import SidecarGenerator
 
 logger = logging.getLogger(__name__)
+
+BINARY_EXTENSIONS = set(EXTENSION_MAP.keys()) - {".md", ".txt"}
+
+
+def _is_binary_content_type(content_type: str) -> bool:
+    return content_type in ("document", "media")
+
+
+def _infer_original_extension(raw: str, content_type: str) -> str | None:
+    if "/" in raw or "." in raw:
+        ext = Path(raw).suffix.lower()
+        if ext and ext in EXTENSION_MAP:
+            return ext
+    if content_type == "document":
+        return ".pdf"
+    if content_type == "media":
+        return None
+    return None
 
 
 class IntakePipeline:
@@ -60,21 +83,49 @@ class IntakePipeline:
 
         # Identify content type
         content_type = identify_content_type(raw, metadata)
+        is_binary = _is_binary_content_type(content_type)
 
         # Normalize
         normalizer = self._normalizers.get(content_type)
         if normalizer is None:
             raise ValueError(f"No normalizer for content type: {content_type}")
 
-        content, extracted_meta = normalizer.normalize(raw, metadata)
+        normalization_failed = False
+        original_file_path = Path(raw) if is_binary and Path(raw).exists() else None
+
+        try:
+            content, extracted_meta = normalizer.normalize(raw, metadata)
+        except NormalizationError as exc:
+            if not is_binary:
+                raise
+            logger.warning(
+                "Normalization failed for %s: %s -- filing with stub and original file",
+                raw,
+                exc,
+            )
+            normalization_failed = True
+            content = self._stub_content(raw, content_type, str(exc))
+            extracted_meta = {"title": metadata.get("title", Path(raw).stem)}
 
         # Merge extracted metadata with provided metadata (provided takes precedence)
-        merged = {**extracted_meta, **{k: v for k, v in metadata.items() if v is not None}}
+        merged = {
+            **extracted_meta,
+            **{k: v for k, v in metadata.items() if v is not None},
+        }
         if "origin" not in merged:
             merged["origin"] = "inline"
 
+        # Preserve original binary file if available
+        if original_file_path is not None:
+            ext = original_file_path.suffix.lower()
+            merged["original_file"] = f"original{ext}"
+
         # File (dedup check happens inside store.add)
-        source = self._store.add(content, merged)
+        source = self._store.add(
+            content,
+            merged,
+            original_file=original_file_path,
+        )
 
         # Write intake lock now that we know the actual slug
         if self._sidecar:
@@ -83,30 +134,39 @@ class IntakePipeline:
         # Index (always -- source is searchable via FTS regardless of embedding)
         self._index.upsert_source(source)
 
-        # Embed — chunk the content and embed each chunk
-        try:
-            chunks = chunk_markdown(content, title=merged.get("title"))
-            model_name = getattr(self._embedder, "_model", "unknown")
-            if not isinstance(model_name, str):
-                model_name = "unknown"
-            emb_dir = self._store.source_dir(source.slug)
-            first_embedding: bytes | None = None
-            for chunk in chunks:
-                embedding = self._embedder.embed(chunk.content)
-                chunk_id = f"{source.slug}#chunk-{chunk.index}"
-                self._index.upsert_embedding(chunk_id, model_name, embedding,
-                                             content=chunk.content)
-                if chunk.index == 0:
-                    first_embedding = embedding
-            # Write first chunk embedding as embedding.bin for backward compat
-            if first_embedding:
-                (emb_dir / "embedding.bin").write_bytes(first_embedding)
-        except Exception:
+        # Embed — skip if normalization failed (no useful text to embed)
+        if normalization_failed:
             self.embedding_failed = True
-            logger.warning(
-                "Embedding failed for %s -- source filed and indexed without embedding",
-                source.slug, exc_info=True,
+            logger.info(
+                "Skipping embedding for %s due to normalization failure",
+                source.slug,
             )
+        else:
+            try:
+                chunks = chunk_markdown(content, title=merged.get("title"))
+                model_name = getattr(self._embedder, "_model", "unknown")
+                if not isinstance(model_name, str):
+                    model_name = "unknown"
+                emb_dir = self._store.source_dir(source.slug)
+                first_embedding: bytes | None = None
+                for chunk in chunks:
+                    embedding = self._embedder.embed(chunk.content)
+                    chunk_id = f"{source.slug}#chunk-{chunk.index}"
+                    self._index.upsert_embedding(
+                        chunk_id, model_name, embedding, content=chunk.content
+                    )
+                    if chunk.index == 0:
+                        first_embedding = embedding
+                # Write first chunk embedding as embedding.bin for backward compat
+                if first_embedding:
+                    (emb_dir / "embedding.bin").write_bytes(first_embedding)
+            except Exception:
+                self.embedding_failed = True
+                logger.warning(
+                    "Embedding failed for %s -- source filed and indexed without embedding",
+                    source.slug,
+                    exc_info=True,
+                )
 
         # Generate tag sidecar (unless --no-prompt)
         if self._sidecar and not no_prompt:
@@ -123,7 +183,9 @@ class IntakePipeline:
                 self._sidecar.remove_intake_lock(source.slug)
             except Exception:
                 logger.warning(
-                    "Tag sidecar generation failed for %s", source.slug, exc_info=True,
+                    "Tag sidecar generation failed for %s",
+                    source.slug,
+                    exc_info=True,
                 )
 
         # Link to investigation if specified
@@ -135,6 +197,17 @@ class IntakePipeline:
             self._remote.publish(f"rk: add {source.slug}")
 
         return source
+
+    @staticmethod
+    def _stub_content(raw: str, content_type: str, error: str) -> str:
+        filename = Path(raw).name
+        return (
+            f"# {filename}\n\n"
+            f"> Normalization failed: {error}\n\n"
+            f"Original file: `{filename}`\n\n"
+            f"This source was filed with its original file intact. "
+            f"Re-normalize when a suitable normalizer is available.\n"
+        )
 
     def add_batch(
         self,
@@ -152,7 +225,9 @@ class IntakePipeline:
         # Phase 1: file all sources (with no_prompt=True to skip sidecars)
         for raw, metadata in items:
             try:
-                source = self.add(raw, metadata, investigation_id=investigation_id, no_prompt=True)
+                source = self.add(
+                    raw, metadata, investigation_id=investigation_id, no_prompt=True
+                )
                 sources.append(source)
                 results.append(source)
             except Exception as exc:
@@ -165,7 +240,9 @@ class IntakePipeline:
             model_hint = self._config.completion.tasks.get("tagging", "medium")
             for source in sources:
                 try:
-                    content = (self._store.source_dir(source.slug) / "source.md").read_text()
+                    content = (
+                        self._store.source_dir(source.slug) / "source.md"
+                    ).read_text()
                     self._sidecar.generate_tag_sidecar(
                         source_slug=source.slug,
                         source_content=content,
@@ -175,7 +252,9 @@ class IntakePipeline:
                     self._sidecar.remove_intake_lock(source.slug)
                 except Exception:
                     logger.warning(
-                        "Tag sidecar generation failed for %s", source.slug, exc_info=True,
+                        "Tag sidecar generation failed for %s",
+                        source.slug,
+                        exc_info=True,
                     )
 
         return results

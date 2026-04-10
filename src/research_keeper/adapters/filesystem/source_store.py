@@ -23,7 +23,12 @@ class FilesystemSourceStore:
         self._hash_cache: set[str] = set()
         self._hash_cache_loaded = False
 
-    def add(self, content: str, metadata: dict) -> Source:
+    def add(
+        self,
+        content: str,
+        metadata: dict,
+        original_file: Path | None = None,
+    ) -> Source:
         content_hash = hashlib.sha256(content.encode()).hexdigest()
         if self.exists_hash(content_hash):
             raise ValueError(f"Duplicate content (hash {content_hash[:12]}...)")
@@ -48,6 +53,16 @@ class FilesystemSourceStore:
             summary=metadata.get("summary"),
         )
         (source_dir / "source.md").write_text(content)
+
+        # Copy original binary file (PDF, DOCX, etc.) into the source directory
+        original_filename: str | None = None
+        if original_file is not None and original_file.exists():
+            dest_name = metadata.get(
+                "original_file", f"original{original_file.suffix.lower()}"
+            )
+            shutil.copy2(str(original_file), str(source_dir / dest_name))
+            original_filename = dest_name
+
         manifest = {
             "slug": slug,
             "kind": "source",
@@ -65,6 +80,8 @@ class FilesystemSourceStore:
             manifest["title"] = metadata["title"]
         if metadata.get("summary"):
             manifest["summary"] = metadata["summary"]
+        if original_filename:
+            manifest["original-file"] = original_filename
         (source_dir / "manifest.yaml").write_text(
             yaml.dump(manifest, default_flow_style=False, sort_keys=False)
         )
