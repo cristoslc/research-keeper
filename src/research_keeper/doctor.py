@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from typing import Callable
 
 import yaml
 
@@ -394,7 +395,7 @@ def check_metadata(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     if not sources_dir.exists():
         return []
 
-    checks: list[tuple[str, Severity, callable | None]] = [
+    checks: list[tuple[str, Severity, Callable | None]] = [
         ("snapshot-date", Severity.WARNING, _fix_snapshot_date),
     ]
 
@@ -446,6 +447,69 @@ def _fix_snapshot_date(src_dir: Path, manifest: dict, manifest_path: Path) -> bo
     return True
 
 
+def check_db_filesystem_drift(root: Path) -> list[DiagnosticResult]:
+    """Check for DB nodes that have no corresponding filesystem directory."""
+    db_path = root / "rk.db"
+    if not db_path.exists():
+        return []
+
+    from research_keeper.adapters.sqlite.index import SqliteIndex
+
+    index = SqliteIndex(db_path)
+    try:
+        results: list[DiagnosticResult] = []
+
+        tags_dir = root / "tags"
+        on_disk_tags: set[str] = set()
+        if tags_dir.exists():
+            on_disk_tags = {
+                d.name
+                for d in tags_dir.iterdir()
+                if d.is_dir() and (d / "meta.yaml").exists()
+            }
+
+        sources_dir = root / "library" / "sources"
+        on_disk_sources: set[str] = set()
+        if sources_dir.exists():
+            on_disk_sources = {
+                d.name
+                for d in sources_dir.iterdir()
+                if d.is_dir() and (d / "manifest.yaml").exists()
+            }
+
+        db_tag_ids = set(index.list_node_ids(kind="tag-synthesis"))
+        db_source_ids = set(index.list_node_ids(kind="source"))
+
+        orphan_tags = db_tag_ids - on_disk_tags
+        orphan_sources = db_source_ids - on_disk_sources
+
+        if orphan_tags:
+            results.append(
+                DiagnosticResult(
+                    severity=Severity.WARNING,
+                    check="db_filesystem_drift",
+                    message=f"{len(orphan_tags)} tag node(s) in index with no directory on disk",
+                    count=len(orphan_tags),
+                    details=sorted(orphan_tags),
+                )
+            )
+
+        if orphan_sources:
+            results.append(
+                DiagnosticResult(
+                    severity=Severity.WARNING,
+                    check="db_filesystem_drift",
+                    message=f"{len(orphan_sources)} source node(s) in index with no directory on disk",
+                    count=len(orphan_sources),
+                    details=sorted(orphan_sources),
+                )
+            )
+
+        return results
+    finally:
+        index._conn.close()
+
+
 def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     """Run all health checks."""
     results: list[DiagnosticResult] = []
@@ -459,4 +523,5 @@ def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     results.extend(check_unresolved_sidecars(root))
     results.extend(check_embedding_coverage(root))
     results.extend(check_metadata(root, fix=fix))
+    results.extend(check_db_filesystem_drift(root))
     return results

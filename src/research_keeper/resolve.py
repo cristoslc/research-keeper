@@ -103,6 +103,19 @@ def _resolve_impl(root: Path, config) -> str:
     lines: list[str] = []
     resolved_count = 0
 
+    # --- Phase -1: Reconcile DB with filesystem ---
+    reconciled = _reconcile_db_filesystem(root, tag_store, index)
+    if reconciled["tags"] or reconciled["sources"]:
+        if reconciled["tags"]:
+            lines.append(
+                f"Reconciled: removed {reconciled['tags']} orphan tag node(s) from index"
+            )
+        if reconciled["sources"]:
+            lines.append(
+                f"Reconciled: removed {reconciled['sources']} orphan source node(s) from index"
+            )
+        lines.append("")
+
     # --- Phase 0: Prune resolution (SPEC-049) ---
     pruned = _resolve_pruned_sources(root, tag_store)
     if pruned["tags"] or pruned["queries"] or pruned["investigations"]:
@@ -820,6 +833,77 @@ def _mark_tag_stale(tag_store: FilesystemTagStore, tag_slug: str) -> None:
     meta = yaml.safe_load(meta_path.read_text()) or {}
     meta["stale"] = True
     meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))
+
+
+def _reconcile_db_filesystem(
+    root: Path,
+    tag_store: FilesystemTagStore,
+    index: SqliteIndex,
+) -> dict[str, int]:
+    """Remove DB entries that have no corresponding filesystem directory.
+
+    Detects and cleans:
+    - Tag/source nodes in DB with no directory on disk
+    - Orphan edges referencing node IDs that no longer exist
+
+    Returns counts of removed items per type.
+    """
+    result: dict[str, int] = {"tags": 0, "sources": 0}
+
+    tags_dir = root / "tags"
+    sources_dir = root / "library" / "sources"
+
+    on_disk_tags: set[str] = set()
+    if tags_dir.exists():
+        on_disk_tags = {
+            d.name
+            for d in tags_dir.iterdir()
+            if d.is_dir() and (d / "meta.yaml").exists()
+        }
+
+    on_disk_sources: set[str] = set()
+    if sources_dir.exists():
+        on_disk_sources = {
+            d.name
+            for d in sources_dir.iterdir()
+            if d.is_dir() and (d / "manifest.yaml").exists()
+        }
+
+    db_tag_ids = set(index.list_node_ids(kind="tag-synthesis"))
+    db_source_ids = set(index.list_node_ids(kind="source"))
+
+    orphan_tags = db_tag_ids - on_disk_tags
+    orphan_sources = db_source_ids - on_disk_sources
+
+    for tag_id in orphan_tags:
+        logger.info("Reconciling orphan tag node from index: %s", tag_id)
+        index.remove_node(tag_id)
+        result["tags"] += 1
+
+    for source_id in orphan_sources:
+        logger.info("Reconciling orphan source node from index: %s", source_id)
+        index.remove_node(source_id)
+        result["sources"] += 1
+
+    # Clean edges referencing removed or never-existent nodes
+    valid_node_ids = (db_tag_ids | db_source_ids) - (orphan_tags | orphan_sources)
+    cur = index._conn.cursor()
+    cur.execute("SELECT source_id, target_id, relationship FROM edges")
+    orphan_edge_count = 0
+    for row in cur.fetchall():
+        src_id = row["source_id"]
+        tgt_id = row["target_id"]
+        if src_id not in valid_node_ids or tgt_id not in valid_node_ids:
+            cur2 = index._conn.cursor()
+            cur2.execute(
+                "DELETE FROM edges WHERE source_id = ? AND target_id = ? AND relationship = ?",
+                (src_id, tgt_id, row["relationship"]),
+            )
+            orphan_edge_count += 1
+    if orphan_edge_count:
+        index._conn.commit()
+
+    return result
 
 
 def _tombstone_query_source(query_dir: Path, source_slug: str) -> None:

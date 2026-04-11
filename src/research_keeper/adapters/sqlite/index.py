@@ -280,3 +280,27 @@ class SqliteIndex:
         cur.execute("SELECT content FROM nodes WHERE id = ?", (slug,))
         row = cur.fetchone()
         return row["content"] if row else None
+
+    def list_node_ids(self, kind: str | None = None) -> list[str]:
+        """Return all node IDs, optionally filtered by kind."""
+        cur = self._conn.cursor()
+        if kind:
+            cur.execute("SELECT id FROM nodes WHERE kind = ?", (kind,))
+        else:
+            cur.execute("SELECT id FROM nodes")
+        return [row["id"] for row in cur.fetchall()]
+
+    def remove_node(self, node_id: str) -> None:
+        """Remove a node and all its edges from the index."""
+        cur = self._conn.cursor()
+        cur.execute("DELETE FROM node_search WHERE id = ?", (node_id,))
+        cur.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
+        cur.execute(
+            "DELETE FROM edges WHERE source_id = ? OR target_id = ?",
+            (node_id, node_id),
+        )
+        cur.execute(
+            "DELETE FROM embeddings WHERE node_id = ? OR node_id LIKE ?",
+            (node_id, f"{node_id}#chunk-%"),
+        )
+        self._conn.commit()

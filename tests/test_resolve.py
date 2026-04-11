@@ -1,5 +1,6 @@
 # tests/test_resolve.py
 """Tests for SPEC-027: rk resolve -- Pipeline State Machine."""
+
 from __future__ import annotations
 
 import os
@@ -95,6 +96,7 @@ class TestResolveLocking:
         lock_path.write_text("pid: 99999999\nstarted: 2026-03-30T00:00:00Z\n")
 
         from research_keeper.resolve import ResolveLock
+
         lock = ResolveLock(resolve_root)
         # Should succeed because PID is dead
         lock.acquire()
@@ -107,7 +109,9 @@ class TestResolvePrunedSources:
     def test_detects_broken_tag_symlink(self, resolve_root: Path):
         """Broken symlink in tags/{tag}/sources/ should be removed and tag marked stale."""
         from research_keeper.resolve import run_resolve
-        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
         from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
 
         store = FilesystemSourceStore(resolve_root)
@@ -139,7 +143,9 @@ class TestResolvePrunedSources:
     def test_tombstones_query_reference(self, resolve_root: Path):
         """Broken symlink in queries/{query}/sources/ should be tombstoned with :pruned suffix."""
         from research_keeper.resolve import run_resolve
-        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
         import yaml
 
         store = FilesystemSourceStore(resolve_root)
@@ -166,7 +172,9 @@ class TestResolvePrunedSources:
             "cited_sources": [source.slug],
             "cited_tags": [],
         }
-        (queries_dir / "meta.yaml").write_text(yaml.dump(meta, default_flow_style=False))
+        (queries_dir / "meta.yaml").write_text(
+            yaml.dump(meta, default_flow_style=False)
+        )
 
         # Soft-delete the source
         store.remove(source.slug)
@@ -185,7 +193,9 @@ class TestResolvePrunedSources:
     def test_tombstones_investigation_reference(self, resolve_root: Path):
         """Broken symlink in investigations/{inv}/sources/ should be tombstoned."""
         from research_keeper.resolve import run_resolve
-        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
         import yaml
 
         store = FilesystemSourceStore(resolve_root)
@@ -231,7 +241,9 @@ class TestResolvePrunedSources:
         """Tag with stale: true should get synthesis sidecar on next resolve cycle."""
         from research_keeper.resolve import run_resolve
         from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
-        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
         import yaml
 
         store = FilesystemSourceStore(resolve_root)
@@ -241,7 +253,9 @@ class TestResolvePrunedSources:
         source = store.add("# ML content", {"title": "ML", "origin": "inline"})
         tag_store.ensure("ml")
         tag_store.link_source("ml", source.slug)
-        (resolve_root / "tags" / "ml" / "synthesis.md").write_text("# ML\n\nOriginal synthesis.")
+        (resolve_root / "tags" / "ml" / "synthesis.md").write_text(
+            "# ML\n\nOriginal synthesis."
+        )
 
         # Mark tag as stale (simulating prior prune)
         meta_path = resolve_root / "tags" / "ml" / "meta.yaml"
@@ -260,7 +274,9 @@ class TestResolvePrunedSources:
         """After successful synthesis, stale key should be removed from meta.yaml."""
         from research_keeper.resolve import run_resolve
         from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
-        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
         import yaml
 
         store = FilesystemSourceStore(resolve_root)
@@ -288,12 +304,16 @@ class TestResolvePrunedSources:
 
         # Stale key should be removed
         updated_meta = yaml.safe_load(meta_path.read_text())
-        assert "stale" not in updated_meta, "stale key should be removed after synthesis"
+        assert "stale" not in updated_meta, (
+            "stale key should be removed after synthesis"
+        )
 
     def test_idempotent_prune_resolution(self, resolve_root: Path):
         """Running resolve after broken symlinks are cleaned should be no-op."""
         from research_keeper.resolve import run_resolve
-        from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
         from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
 
         store = FilesystemSourceStore(resolve_root)
@@ -459,14 +479,18 @@ class TestResolveStaleSynthesis:
 
         # Fill synthesis sidecar
         synth_pending = root / "tags" / "memory" / ".pending"
-        (synth_pending / "synthesize.md").write_text("# Memory\n\nSynthesis from one source.")
+        (synth_pending / "synthesize.md").write_text(
+            "# Memory\n\nSynthesis from one source."
+        )
 
         # Resolve: processes synthesis -> synthesis.md exists
         run_resolve(root)
         assert (root / "tags" / "memory" / "synthesis.md").exists()
 
         # Now add a second source assigned to the same tag
-        src_b = pipeline.add("# New Memory Research\n\nFresh findings.", {"title": "New Memory"})
+        src_b = pipeline.add(
+            "# New Memory Research\n\nFresh findings.", {"title": "New Memory"}
+        )
         pending_b = root / "library" / "sources" / src_b.slug / ".pending"
         (pending_b / "tag.yaml").write_text("tags:\n  - memory\n")
 
@@ -571,7 +595,9 @@ class TestResolveStaleSynthesis:
         # Fill the re-synthesis sidecar
         synth_pending = root / "tags" / "memory" / ".pending"
         assert synth_pending.exists(), "Re-synthesis sidecar should have been generated"
-        (synth_pending / "synthesize.md").write_text("# Memory\n\nSynthesis v2 with both sources.")
+        (synth_pending / "synthesize.md").write_text(
+            "# Memory\n\nSynthesis v2 with both sources."
+        )
 
         # Final resolve: processes re-synthesis
         run_resolve(root)
@@ -618,10 +644,15 @@ class TestResolveCLI:
         runner = CliRunner()
 
         # Add a source
-        result = runner.invoke(main, [
-            "add", "--root", str(resolve_root),
-            "# Memory Research\\n\\nContent about agent memory.",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "add",
+                "--root",
+                str(resolve_root),
+                "# Memory Research\\n\\nContent about agent memory.",
+            ],
+        )
         assert result.exit_code == 0
 
         # Find the source slug
@@ -683,18 +714,29 @@ class TestResolveQueryStage:
             "created": "2026-03-30",
             "top_k": 1,
             "retrieval": [
-                {"slug": "alpha-paper", "kind": "source", "score": 0.87, "similarity": 0.92, "freshness_weight": 0.95},
+                {
+                    "slug": "alpha-paper",
+                    "kind": "source",
+                    "score": 0.87,
+                    "similarity": 0.92,
+                    "freshness_weight": 0.95,
+                },
             ],
             "cited_sources": ["alpha-paper"],
             "cited_tags": [],
             "investigation": None,
         }
         import yaml as _yaml
+
         (query_dir / "meta.yaml").write_text(
             _yaml.dump(meta, default_flow_style=False, sort_keys=False)
         )
-        (resolve_root / "library" / "sources" / "alpha-paper").mkdir(parents=True, exist_ok=True)
-        (pending / "query.md").write_text("# Answer\n\nMemory is fundamental (alpha-paper).")
+        (resolve_root / "library" / "sources" / "alpha-paper").mkdir(
+            parents=True, exist_ok=True
+        )
+        (pending / "query.md").write_text(
+            "# Answer\n\nMemory is fundamental (alpha-paper)."
+        )
 
         output = run_resolve(resolve_root)
 
@@ -719,20 +761,43 @@ class TestResolveQueryStage:
             "kind": "query-synthesis",
             "created": "2026-03-30",
             "retrieval": [
-                {"slug": "src-a", "kind": "source", "score": 0.9, "similarity": 0.95, "freshness_weight": 0.95},
-                {"slug": "src-b", "kind": "source", "score": 0.8, "similarity": 0.85, "freshness_weight": 0.94},
-                {"slug": "tag-x", "kind": "tag-synthesis", "score": 0.7, "similarity": 0.80, "freshness_weight": 0.88},
+                {
+                    "slug": "src-a",
+                    "kind": "source",
+                    "score": 0.9,
+                    "similarity": 0.95,
+                    "freshness_weight": 0.95,
+                },
+                {
+                    "slug": "src-b",
+                    "kind": "source",
+                    "score": 0.8,
+                    "similarity": 0.85,
+                    "freshness_weight": 0.94,
+                },
+                {
+                    "slug": "tag-x",
+                    "kind": "tag-synthesis",
+                    "score": 0.7,
+                    "similarity": 0.80,
+                    "freshness_weight": 0.88,
+                },
             ],
             "cited_sources": ["src-a", "src-b"],
             "cited_tags": ["tag-x"],
             "investigation": None,
         }
         import yaml as _yaml
+
         (query_dir / "meta.yaml").write_text(
             _yaml.dump(meta, default_flow_style=False, sort_keys=False)
         )
-        (resolve_root / "library" / "sources" / "src-a").mkdir(parents=True, exist_ok=True)
-        (resolve_root / "library" / "sources" / "src-b").mkdir(parents=True, exist_ok=True)
+        (resolve_root / "library" / "sources" / "src-a").mkdir(
+            parents=True, exist_ok=True
+        )
+        (resolve_root / "library" / "sources" / "src-b").mkdir(
+            parents=True, exist_ok=True
+        )
         (resolve_root / "tags" / "tag-x").mkdir(parents=True, exist_ok=True)
         (pending / "query.md").write_text("Synthesis text.")
 
@@ -758,22 +823,32 @@ class TestResolveQueryStage:
             "kind": "query-synthesis",
             "created": "2026-03-30",
             "retrieval": [
-                {"slug": "src-a", "kind": "source", "score": 0.9, "similarity": 0.95, "freshness_weight": 0.95},
+                {
+                    "slug": "src-a",
+                    "kind": "source",
+                    "score": 0.9,
+                    "similarity": 0.95,
+                    "freshness_weight": 0.95,
+                },
             ],
             "cited_sources": ["src-a"],
             "cited_tags": [],
             "investigation": None,
         }
         import yaml as _yaml
+
         (query_dir / "meta.yaml").write_text(
             _yaml.dump(meta, default_flow_style=False, sort_keys=False)
         )
-        (resolve_root / "library" / "sources" / "src-a").mkdir(parents=True, exist_ok=True)
+        (resolve_root / "library" / "sources" / "src-a").mkdir(
+            parents=True, exist_ok=True
+        )
         (pending / "query.md").write_text("Synthesis text.")
 
         run_resolve(resolve_root)
 
         from research_keeper.adapters.sqlite.index import SqliteIndex
+
         index = SqliteIndex(resolve_root / "rk.db")
         cur = index._conn.cursor()
         cur.execute("SELECT kind FROM nodes WHERE id = ?", (query_id,))
@@ -812,6 +887,7 @@ class TestResolveQueryStage:
             "investigation": None,
         }
         import yaml as _yaml
+
         (query_dir / "meta.yaml").write_text(
             _yaml.dump(meta, default_flow_style=False, sort_keys=False)
         )
@@ -843,6 +919,7 @@ class TestResolveQueryStage:
             "investigation": None,
         }
         import yaml as _yaml
+
         (query_dir / "meta.yaml").write_text(
             _yaml.dump(meta, default_flow_style=False, sort_keys=False)
         )
@@ -857,7 +934,9 @@ class TestResolveQueryStage:
 class TestResolveInvestigationSynthesis:
     def test_generates_sidecar_for_investigation_with_queries(self, resolve_root: Path):
         """When an investigation has linked queries and no synthesis, generate a sidecar."""
-        from research_keeper.adapters.filesystem.investigation_store import FilesystemInvestigationStore
+        from research_keeper.adapters.filesystem.investigation_store import (
+            FilesystemInvestigationStore,
+        )
         from research_keeper.resolve import run_resolve
 
         inv_store = FilesystemInvestigationStore(resolve_root)
@@ -869,16 +948,25 @@ class TestResolveInvestigationSynthesis:
         query_dir.mkdir(parents=True)
         (query_dir / "synthesis.md").write_text("Memory is key.")
         import yaml
-        (query_dir / "meta.yaml").write_text(yaml.dump({
-            "query_id": query_id, "query_text": "what is memory?",
-            "kind": "query-synthesis", "created": "2026-03-31",
-        }))
+
+        (query_dir / "meta.yaml").write_text(
+            yaml.dump(
+                {
+                    "query_id": query_id,
+                    "query_text": "what is memory?",
+                    "kind": "query-synthesis",
+                    "created": "2026-03-31",
+                }
+            )
+        )
         inv_store.link(inv_id, query_id, "query")
 
         output = run_resolve(resolve_root)
 
         # Should generate investigation synthesis sidecar
-        sidecar = resolve_root / "investigations" / inv_id / ".pending" / "synthesize.j2"
+        sidecar = (
+            resolve_root / "investigations" / inv_id / ".pending" / "synthesize.j2"
+        )
         assert sidecar.exists()
         content = sidecar.read_text()
         assert "memory" in content.lower()
@@ -886,7 +974,9 @@ class TestResolveInvestigationSynthesis:
 
     def test_processes_rendered_investigation_synthesis(self, resolve_root: Path):
         """When synthesize.md exists in .pending/, resolve writes synthesis.md."""
-        from research_keeper.adapters.filesystem.investigation_store import FilesystemInvestigationStore
+        from research_keeper.adapters.filesystem.investigation_store import (
+            FilesystemInvestigationStore,
+        )
         from research_keeper.resolve import run_resolve
 
         inv_store = FilesystemInvestigationStore(resolve_root)
@@ -895,7 +985,9 @@ class TestResolveInvestigationSynthesis:
         # Simulate a rendered sidecar
         pending = resolve_root / "investigations" / inv_id / ".pending"
         pending.mkdir(parents=True, exist_ok=True)
-        (pending / "synthesize.md").write_text("# Memory Overview\n\nComprehensive findings.")
+        (pending / "synthesize.md").write_text(
+            "# Memory Overview\n\nComprehensive findings."
+        )
 
         output = run_resolve(resolve_root)
 
@@ -906,7 +998,9 @@ class TestResolveInvestigationSynthesis:
 
     def test_closed_investigation_no_sidecar(self, resolve_root: Path):
         """Closed investigations don't get synthesis sidecars."""
-        from research_keeper.adapters.filesystem.investigation_store import FilesystemInvestigationStore
+        from research_keeper.adapters.filesystem.investigation_store import (
+            FilesystemInvestigationStore,
+        )
         from research_keeper.resolve import run_resolve
 
         inv_store = FilesystemInvestigationStore(resolve_root)
@@ -919,21 +1013,32 @@ class TestResolveInvestigationSynthesis:
         query_dir.mkdir(parents=True)
         (query_dir / "synthesis.md").write_text("New finding.")
         import yaml
-        (query_dir / "meta.yaml").write_text(yaml.dump({
-            "query_id": query_id, "query_text": "test",
-            "kind": "query-synthesis", "created": "2026-03-31",
-        }))
+
+        (query_dir / "meta.yaml").write_text(
+            yaml.dump(
+                {
+                    "query_id": query_id,
+                    "query_text": "test",
+                    "kind": "query-synthesis",
+                    "created": "2026-03-31",
+                }
+            )
+        )
         inv_store.link(inv_id, query_id, "query")
 
         output = run_resolve(resolve_root)
 
         # Should NOT generate sidecar
-        sidecar = resolve_root / "investigations" / inv_id / ".pending" / "synthesize.j2"
+        sidecar = (
+            resolve_root / "investigations" / inv_id / ".pending" / "synthesize.j2"
+        )
         assert not sidecar.exists()
 
     def test_no_sidecar_when_no_linked_content(self, resolve_root: Path):
         """Investigations with no linked content don't get sidecars."""
-        from research_keeper.adapters.filesystem.investigation_store import FilesystemInvestigationStore
+        from research_keeper.adapters.filesystem.investigation_store import (
+            FilesystemInvestigationStore,
+        )
         from research_keeper.resolve import run_resolve
 
         inv_store = FilesystemInvestigationStore(resolve_root)
@@ -942,5 +1047,108 @@ class TestResolveInvestigationSynthesis:
         output = run_resolve(resolve_root)
 
         # No investigation sidecars should exist
-        inv_sidecars = list(resolve_root.glob("investigations/*/.pending/synthesize.j2"))
+        inv_sidecars = list(
+            resolve_root.glob("investigations/*/.pending/synthesize.j2")
+        )
         assert len(inv_sidecars) == 0
+
+
+class TestResolveReconcileDBFilesystem:
+    """Reconcile DB with filesystem: remove orphan nodes when directories are missing."""
+
+    def test_removes_orphan_tag_node(self, resolve_root: Path):
+        """Tag node in DB with no directory on disk should be removed on resolve."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        index = SqliteIndex(resolve_root / "rk.db")
+        index.upsert_tag_node(
+            "phantom-tag", "Ghost synthesis content", model="test", tier="frontier"
+        )
+
+        assert "phantom-tag" in index.list_node_ids(kind="tag-synthesis")
+
+        output = run_resolve(resolve_root)
+
+        assert "phantom-tag" not in index.list_node_ids(kind="tag-synthesis")
+        assert "reconciled" in output.lower() or "orphan" in output.lower()
+
+    def test_removes_orphan_source_node(self, resolve_root: Path):
+        """Source node in DB with no directory on disk should be removed on resolve."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+        from research_keeper.models import Freshness, Provenance, Source
+
+        index = SqliteIndex(resolve_root / "rk.db")
+        phantom_source = Source(
+            slug="phantom-source",
+            content_path="library/sources/phantom-source/source.md",
+            content="# Phantom content",
+            freshness=Freshness(ingested=__import__("datetime").date.today()),
+            provenance=Provenance(origin="test"),
+            tags=[],
+            hash="deadbeef",
+        )
+        index.upsert_source(phantom_source)
+
+        assert "phantom-source" in index.list_node_ids(kind="source")
+
+        output = run_resolve(resolve_root)
+
+        assert "phantom-source" not in index.list_node_ids(kind="source")
+        assert "reconciled" in output.lower() or "orphan" in output.lower()
+
+    def test_removes_orphan_edges(self, resolve_root: Path):
+        """Edges referencing removed tag node should be cleaned up."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
+
+        store = FilesystemSourceStore(resolve_root)
+        index = SqliteIndex(resolve_root / "rk.db")
+
+        source = store.add("# Real content", {"title": "Real", "origin": "inline"})
+        index.upsert_edge(source.slug, "missing-tag", "tagged")
+
+        cur = index._conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM edges WHERE target_id = 'missing-tag'")
+        assert cur.fetchone()[0] == 1
+
+        output = run_resolve(resolve_root)
+
+        cur.execute("SELECT COUNT(*) FROM edges WHERE target_id = 'missing-tag'")
+        assert cur.fetchone()[0] == 0
+
+    def test_keeps_valid_tag_nodes(self, resolve_root: Path):
+        """Tag nodes with directories on disk should NOT be removed."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        tag_store = FilesystemTagStore(resolve_root)
+        index = SqliteIndex(resolve_root / "rk.db")
+
+        tag_store.ensure("real-tag")
+        index.upsert_tag_node(
+            "real-tag", "Real synthesis", model="test", tier="frontier"
+        )
+
+        run_resolve(resolve_root)
+
+        assert "real-tag" in index.list_node_ids(kind="tag-synthesis")
+
+    def test_idempotent_reconciliation(self, resolve_root: Path):
+        """Running resolve after reconciliation should be clean."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        index = SqliteIndex(resolve_root / "rk.db")
+        index.upsert_tag_node("ghost", "Ghost content", model="test", tier="frontier")
+
+        output1 = run_resolve(resolve_root)
+        assert "ghost" not in index.list_node_ids(kind="tag-synthesis")
+
+        output2 = run_resolve(resolve_root)
+        assert "reconciled" not in output2.lower() or "0" in output2

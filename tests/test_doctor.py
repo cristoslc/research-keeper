@@ -10,6 +10,7 @@ import yaml
 from research_keeper.doctor import (
     DiagnosticResult,
     Severity,
+    check_db_filesystem_drift,
     check_duplicate_hashes,
     check_embedding_coverage,
     check_metadata,
@@ -180,7 +181,9 @@ class TestRunDoctor:
         # Create a source with missing embedding
         src_dir = lib_root / "library" / "sources" / "test-src"
         src_dir.mkdir(parents=True)
-        (src_dir / "manifest.yaml").write_text(yaml.dump({"slug": "test-src", "hash": "abc"}))
+        (src_dir / "manifest.yaml").write_text(
+            yaml.dump({"slug": "test-src", "hash": "abc"})
+        )
 
         results = run_doctor(lib_root)
         assert isinstance(results, list)
@@ -323,3 +326,58 @@ class TestCheckMetadata:
     def test_no_sources_returns_empty(self, lib_root: Path):
         results = check_metadata(lib_root, fix=False)
         assert len(results) == 0
+
+
+class TestCheckDBFilesystemDrift:
+    """Tests for DB/filesystem drift detection."""
+
+    def test_detects_orphan_tag_in_db(self, lib_root: Path):
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        index = SqliteIndex(lib_root / "rk.db")
+        index.upsert_tag_node(
+            "ghost-tag", "Ghost synthesis", model="test", tier="frontier"
+        )
+
+        results = check_db_filesystem_drift(lib_root)
+        drift = [r for r in results if r.check == "db_filesystem_drift"]
+        assert len(drift) == 1
+        assert drift[0].severity == Severity.WARNING
+        assert "ghost-tag" in (drift[0].details or [])
+
+    def test_detects_orphan_source_in_db(self, lib_root: Path):
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        store = FilesystemSourceStore(lib_root)
+        index = SqliteIndex(lib_root / "rk.db")
+
+        source = store.add("# Content", {"title": "Tmp", "origin": "test"})
+        index.upsert_source(source)
+        store.remove(source.slug)
+
+        results = check_db_filesystem_drift(lib_root)
+        drift = [r for r in results if r.check == "db_filesystem_drift"]
+        assert len(drift) == 1
+        assert "source" in drift[0].message.lower()
+
+    def test_no_drift_when_aligned(self, lib_root: Path):
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        store = FilesystemSourceStore(lib_root)
+        index = SqliteIndex(lib_root / "rk.db")
+
+        source = store.add("# Content", {"title": "Aligned", "origin": "test"})
+        index.upsert_source(source)
+
+        results = check_db_filesystem_drift(lib_root)
+        assert len(results) == 0
+
+    def test_no_db_returns_empty(self, tmp_path: Path):
+        results = check_db_filesystem_drift(tmp_path)
+        assert results == []
