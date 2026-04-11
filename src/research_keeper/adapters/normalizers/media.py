@@ -82,11 +82,14 @@ def _fetch_youtube_info_and_subs(url: str) -> tuple[str | None, dict]:
                 [
                     "yt-dlp",
                     flag,
-                    "--sub-lang", "en",
+                    "--sub-lang",
+                    "en",
                     "--write-info-json",
                     "--skip-download",
-                    "--sub-format", "vtt",
-                    "-o", f"{tmpdir}/%(id)s",
+                    "--sub-format",
+                    "vtt",
+                    "-o",
+                    f"{tmpdir}/%(id)s",
                     url,
                 ],
                 capture_output=True,
@@ -117,7 +120,9 @@ def _fetch_youtube_info_and_subs(url: str) -> tuple[str | None, dict]:
     return None, info
 
 
-def _fetch_instagram_subtitles(url: str, browser: str | None) -> tuple[str | None, dict]:
+def _fetch_instagram_subtitles(
+    url: str, browser: str | None
+) -> tuple[str | None, dict]:
     """Fetch Instagram subtitles/captions and metadata using yt-dlp with browser cookies.
 
     Instagram requires authentication cookies. yt-dlp can extract these from
@@ -131,11 +136,14 @@ def _fetch_instagram_subtitles(url: str, browser: str | None) -> tuple[str | Non
         args = [
             "yt-dlp",
             "--write-auto-sub",
-            "--sub-lang", "en",
+            "--sub-lang",
+            "en",
             "--skip-download",
-            "--sub-format", "vtt",
+            "--sub-format",
+            "vtt",
             "--write-info-json",
-            "-o", output_base,
+            "-o",
+            output_base,
         ]
 
         if browser:
@@ -258,9 +266,12 @@ def _download_youtube_audio(url: str) -> tuple[str | None, str | None]:
     tmpdir = tempfile.mkdtemp()
     result = subprocess.run(
         [
-            "yt-dlp", "-x",
-            "--max-filesize", "50M",
-            "-o", f"{tmpdir}/audio.%(ext)s",
+            "yt-dlp",
+            "-x",
+            "--max-filesize",
+            "50M",
+            "-o",
+            f"{tmpdir}/audio.%(ext)s",
             url,
         ],
         capture_output=True,
@@ -281,8 +292,10 @@ def _download_youtube_video(url: str) -> tuple[str | None, str | None]:
     result = subprocess.run(
         [
             "yt-dlp",
-            "--max-filesize", "100M",  # Larger limit for video
-            "-o", f"{tmpdir}/video.%(ext)s",
+            "--max-filesize",
+            "100M",  # Larger limit for video
+            "-o",
+            f"{tmpdir}/video.%(ext)s",
             url,
         ],
         capture_output=True,
@@ -307,7 +320,7 @@ def _extract_frames_from_video(video_path: str, threshold: float = 0.85) -> list
         List of paths to extracted frame images (PNG format)
     """
     try:
-        import cv2
+        import cv2  # type: ignore[import-untyped]
     except ImportError:
         logger.warning("opencv-python-headless not installed — cannot extract frames")
         return []
@@ -388,7 +401,7 @@ def _ocr_frames(frame_paths: list[str]) -> str | None:
     # This is handled by the caller (MediaNormalizer) which has access
     # to the Read tool. Here we provide the EasyOCR fallback.
     try:
-        import easyocr
+        import easyocr  # type: ignore[import-untyped]
     except ImportError:
         logger.warning("EasyOCR not installed — cannot extract text from frames")
         return None
@@ -407,7 +420,9 @@ def _ocr_frames(frame_paths: list[str]) -> str | None:
                     all_text.append(line)
 
         text = "\n".join(all_text)
-        logger.info(f"OCR extracted {len(all_text)} unique lines from {len(frame_paths)} frames")
+        logger.info(
+            f"OCR extracted {len(all_text)} unique lines from {len(frame_paths)} frames"
+        )
         return text if text.strip() else None
 
     except Exception as exc:
@@ -468,7 +483,9 @@ def _detect_content_type(transcript: str) -> str:
             score += 2
 
     # Check for measurement patterns (e.g., "1/2 cup", "2 tablespoons")
-    if re.search(r"\b\d+(/\d+)?\s*(cup|tablespoon|teaspoon|pound|oz|gram|kg)\b", text_lower):
+    if re.search(
+        r"\b\d+(/\d+)?\s*(cup|tablespoon|teaspoon|pound|oz|gram|kg)\b", text_lower
+    ):
         score += 3
 
     # Recipe threshold: 5 or more signals
@@ -499,7 +516,10 @@ def _extract_recipe_metadata(transcript: str) -> dict:
 
     # Extract times
     time_patterns = [
-        (r"(?:prep(?:aration)?|prep\s+time)[^\d]*(\d+)\s*(?:minutes?|mins?)", "prep_time"),
+        (
+            r"(?:prep(?:aration)?|prep\s+time)[^\d]*(\d+)\s*(?:minutes?|mins?)",
+            "prep_time",
+        ),
         (r"(?:cook(?:ing)?|bake|baking)[^\d]*(\d+)\s*(?:minutes?|mins?)", "cook_time"),
         (r"(\d+)\s*(?:minutes?|mins?)(?:\s+(?:to|and)\s+(\d+))?", "time"),
     ]
@@ -595,6 +615,7 @@ class MediaNormalizer:
                 # Cleanup temp directory
                 if audio_tmpdir:
                     import shutil
+
                     shutil.rmtree(audio_tmpdir, ignore_errors=True)
 
         # Frame extraction fallback (opt-in only)
@@ -613,6 +634,7 @@ class MediaNormalizer:
                     # Cleanup temp directory
                     if video_tmpdir:
                         import shutil
+
                         shutil.rmtree(video_tmpdir, ignore_errors=True)
 
         # Nothing worked
@@ -655,7 +677,9 @@ class MediaNormalizer:
         # Frame extraction fallback (opt-in only)
         if enable_frame_extraction:
             # For Instagram, need to use browser cookies
-            video_path, video_tmpdir = _download_youtube_video(url)  # yt-dlp handles IG URLs too
+            video_path, video_tmpdir = _download_youtube_video(
+                url
+            )  # yt-dlp handles IG URLs too
             if video_path:
                 try:
                     frames = _extract_frames_from_video(video_path)
@@ -669,15 +693,17 @@ class MediaNormalizer:
                     # Cleanup temp directory
                     if video_tmpdir:
                         import shutil
+
                         shutil.rmtree(video_tmpdir, ignore_errors=True)
 
         content = f"# {extracted['title']}\n\n(No transcript available)"
         return content, extracted
 
-    def _normalize_audio(
-        self, path: Path, metadata: dict
-    ) -> tuple[str, dict]:
-        title = metadata.get("title") or path.stem.replace("-", " ").replace("_", " ").title()
+    def _normalize_audio(self, path: Path, metadata: dict) -> tuple[str, dict]:
+        title = (
+            metadata.get("title")
+            or path.stem.replace("-", " ").replace("_", " ").title()
+        )
 
         extracted: dict[str, str] = {"title": title}
 

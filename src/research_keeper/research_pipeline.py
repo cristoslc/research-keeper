@@ -1,9 +1,12 @@
 """Orchestrates seeded research: intake seeds -> plan branches -> expand -> persist."""
+
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from research_keeper.models import ResearchBranch, ResearchBudget, QueryNode
 from research_keeper.research_expansion import (
@@ -15,12 +18,19 @@ from research_keeper.research_expansion import (
     mark_branch_failed,
 )
 
+if TYPE_CHECKING:
+    from research_keeper.pipeline import IntakePipeline
+    from research_keeper.query_pipeline import QueryPipeline
+    from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
+    from research_keeper.ports.investigation_store import InvestigationStore
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class ResearchResult:
     """Result of a completed research run."""
+
     topic: str
     query_id: str | None = None
     sources_added: list[str] = field(default_factory=list)
@@ -34,10 +44,10 @@ class ResearchPipeline:
 
     def __init__(
         self,
-        intake_pipeline: object,
-        query_pipeline: object,
-        query_store: object,
-        investigation_store: object | None = None,
+        intake_pipeline: IntakePipeline,
+        query_pipeline: QueryPipeline,
+        query_store: FilesystemQueryStore,
+        investigation_store: InvestigationStore | None = None,
     ) -> None:
         self._intake = intake_pipeline
         self._query = query_pipeline
@@ -52,7 +62,7 @@ class ResearchPipeline:
         effort_budget: int | None = None,
         time_budget: int | None = None,
         no_prompt: bool = True,
-        on_progress: object | None = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> ResearchResult:
         """Execute a full research run."""
         budget = ResearchBudget(
@@ -121,8 +131,12 @@ class ResearchPipeline:
         if hasattr(self._query_store, "update_research_metadata"):
             try:
                 branch_dicts = [
-                    {"name": b.name, "status": b.status,
-                     "source_count": b.source_count, "depth": b.depth}
+                    {
+                        "name": b.name,
+                        "status": b.status,
+                        "source_count": b.source_count,
+                        "depth": b.depth,
+                    }
                     for b in state.branches
                 ]
                 budget_dict = {

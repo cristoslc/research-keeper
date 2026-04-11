@@ -39,6 +39,7 @@ class RemoteResolver:
             return Path(self._data_dir).resolve()
 
         clone_dir = self.cache_dir
+        assert clone_dir is not None
         if not self._clone_dir_exists():
             self.clone()
         return clone_dir
@@ -49,6 +50,7 @@ class RemoteResolver:
             return
 
         clone_dir = self.cache_dir
+        assert clone_dir is not None
         clone_dir.parent.mkdir(parents=True, exist_ok=True)
 
         logger.info("Cloning %s to %s", self._data_dir, clone_dir)
@@ -58,9 +60,7 @@ class RemoteResolver:
             text=True,
         )
         if result.returncode != 0:
-            raise RuntimeError(
-                f"git clone failed: {result.stderr.strip()}"
-            )
+            raise RuntimeError(f"git clone failed: {result.stderr.strip()}")
 
     def sync(self) -> None:
         """Pull latest changes from remote."""
@@ -72,6 +72,7 @@ class RemoteResolver:
             return
 
         clone_dir = self.cache_dir
+        assert clone_dir is not None
         logger.info("Syncing %s", clone_dir)
         result = subprocess.run(
             ["git", "pull", "--ff-only"],
@@ -90,6 +91,7 @@ class RemoteResolver:
             return
 
         clone_dir = self.cache_dir
+        assert clone_dir is not None
         if not self._clone_dir_exists():
             return
 
@@ -127,9 +129,7 @@ class RemoteResolver:
             text=True,
         )
         if result.returncode != 0:
-            raise RuntimeError(
-                f"git push failed: {result.stderr.strip()}"
-            )
+            raise RuntimeError(f"git push failed: {result.stderr.strip()}")
 
     def _clone_dir_exists(self) -> bool:
         if self.cache_dir is None:

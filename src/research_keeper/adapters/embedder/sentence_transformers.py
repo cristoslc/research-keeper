@@ -33,12 +33,14 @@ class SentenceTransformerEmbedder:
         """
         try:
             self._load_model()
+            model = self._model
+            assert model is not None
             truncated = (
                 content[:_MAX_EMBED_CHARS]
                 if len(content) > _MAX_EMBED_CHARS
                 else content
             )
-            embedding = self._model.encode(truncated, convert_to_numpy=True)
+            embedding = model.encode(truncated, convert_to_numpy=True)
             return struct.pack(f"{len(embedding)}f", *embedding)
         except Exception:
             logger.warning(

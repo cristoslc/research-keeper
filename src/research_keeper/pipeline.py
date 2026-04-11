@@ -13,7 +13,12 @@ from research_keeper.adapters.normalizers.identifier import (
 from research_keeper.adapters.sqlite.index import SqliteIndex
 from research_keeper.config import Config
 from research_keeper.models import Source
+from research_keeper.ports.embedder import Embedder
+from research_keeper.ports.investigation_store import InvestigationStore
 from research_keeper.ports.normalizer import NormalizationError
+from research_keeper.ports.source_store import SourceStore
+from research_keeper.ports.tag_store import TagStore
+from research_keeper.remote import RemoteResolver
 from research_keeper.sidecar import SidecarGenerator
 
 logger = logging.getLogger(__name__)
@@ -48,12 +53,12 @@ class IntakePipeline:
         self,
         source_store: FilesystemSourceStore,
         index: SqliteIndex,
-        embedder: object,
+        embedder: Embedder,
         normalizers: dict,
-        tag_store: object | None = None,
+        tag_store: TagStore | None = None,
         config: Config | None = None,
-        investigation_store: object | None = None,
-        remote_resolver: object | None = None,
+        investigation_store: InvestigationStore | None = None,
+        remote_resolver: RemoteResolver | None = None,
         sidecar_generator: SidecarGenerator | None = None,
     ) -> None:
         self._store = source_store
@@ -91,6 +96,7 @@ class IntakePipeline:
             raise ValueError(f"No normalizer for content type: {content_type}")
 
         normalization_failed = False
+        normalization_error_msg = ""
         original_file_path = Path(raw) if is_binary and Path(raw).exists() else None
 
         try:
@@ -104,6 +110,7 @@ class IntakePipeline:
                 exc,
             )
             normalization_failed = True
+            normalization_error_msg = str(exc)
             content = self._stub_content(raw, content_type, str(exc))
             extracted_meta = {"title": metadata.get("title", Path(raw).stem)}
 
@@ -119,6 +126,13 @@ class IntakePipeline:
         if original_file_path is not None:
             ext = original_file_path.suffix.lower()
             merged["original_file"] = f"original{ext}"
+
+        # Set normalization status in metadata for manifest
+        if normalization_failed:
+            merged["normalization_status"] = "failed"
+            merged["normalization_error"] = normalization_error_msg
+        elif original_file_path is not None:
+            merged["normalization_status"] = "ok"
 
         # File (dedup check happens inside store.add)
         source = self._store.add(
@@ -168,22 +182,31 @@ class IntakePipeline:
                     exc_info=True,
                 )
 
-        # Generate tag sidecar (unless --no-prompt)
+        # Generate sidecar (unless --no-prompt)
         if self._sidecar and not no_prompt:
             try:
-                existing_tags = self._tag_store.list() if self._tag_store else []
                 model_hint = self._config.completion.tasks.get("tagging", "medium")
-                self._sidecar.generate_tag_sidecar(
-                    source_slug=source.slug,
-                    source_content=content,
-                    existing_tags=existing_tags,
-                    model_hint=model_hint,
-                )
-                # Remove intake lock now that tag.j2 replaces it
-                self._sidecar.remove_intake_lock(source.slug)
+                if normalization_failed:
+                    original_file = merged.get("original_file", "")
+                    self._sidecar.generate_normalize_sidecar(
+                        source_slug=source.slug,
+                        original_file=original_file,
+                        error_message=normalization_error_msg,
+                        model_hint=model_hint,
+                    )
+                    self._sidecar.remove_intake_lock(source.slug)
+                else:
+                    existing_tags = self._tag_store.list() if self._tag_store else []
+                    self._sidecar.generate_tag_sidecar(
+                        source_slug=source.slug,
+                        source_content=content,
+                        existing_tags=existing_tags,
+                        model_hint=model_hint,
+                    )
+                    self._sidecar.remove_intake_lock(source.slug)
             except Exception:
                 logger.warning(
-                    "Tag sidecar generation failed for %s",
+                    "Sidecar generation failed for %s",
                     source.slug,
                     exc_info=True,
                 )

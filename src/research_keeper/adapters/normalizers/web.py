@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime
 import re
 from html.parser import HTMLParser
+from typing import Any
 
 from research_keeper.ports.normalizer import NormalizationError
 
@@ -103,13 +104,19 @@ class WebNormalizer:
         parser.feed(html)
         meta_tags = parser.meta
 
-        doc = trafilatura.bare_extraction(
+        # bare_extraction returns Document | dict | None; use Any to avoid
+        # type issues with the dynamically-typed trafilatura return value
+        bare: Any = trafilatura.bare_extraction(
             html,
             url=url or None,
             include_formatting=True,
         )
+        # Filter out plain-dict results — we only use Document objects
+        doc: Any = None
+        if not isinstance(bare, dict) and bare is not None:
+            doc = bare
 
-        if doc is None or not doc.text:
+        if doc is None or not getattr(doc, "text", None):
             content = trafilatura.extract(
                 html,
                 output_format="markdown",
@@ -128,7 +135,7 @@ class WebNormalizer:
 
         if "og_title" in meta_tags:
             extracted["title"] = meta_tags["og_title"]
-        elif doc and doc.title:
+        elif getattr(doc, "title", None):
             extracted["title"] = doc.title
         else:
             first_line = content.split("\n", 1)[0].strip().lstrip("#").strip()
@@ -141,37 +148,37 @@ class WebNormalizer:
 
         if "author" in meta_tags:
             extracted["author"] = meta_tags["author"]
-        elif doc and doc.author:
+        elif getattr(doc, "author", None):
             extracted["author"] = doc.author
 
         if "published_time" in meta_tags:
             pub = meta_tags["published_time"][:10]
             extracted["published"] = pub
-        elif doc and doc.date:
+        elif getattr(doc, "date", None):
             extracted["published"] = str(doc.date)[:10]
 
         if "site_name" in meta_tags:
             extracted["site_name"] = meta_tags["site_name"]
-        elif doc and doc.sitename:
+        elif getattr(doc, "sitename", None):
             extracted["site_name"] = doc.sitename
 
         if "description" in meta_tags:
             extracted["summary"] = meta_tags["description"]
-        elif doc and doc.description:
+        elif getattr(doc, "description", None):
             extracted["summary"] = doc.description
 
         if url:
             extracted["url"] = url
-        elif doc and doc.url:
+        elif getattr(doc, "url", None):
             extracted["url"] = doc.url
 
-        if doc and doc.categories:
+        if getattr(doc, "categories", None):
             cats = (
                 doc.categories if isinstance(doc.categories, list) else [doc.categories]
             )
             extracted["categories"] = ", ".join(str(c) for c in cats if c)
 
-        if doc and doc.tags:
+        if getattr(doc, "tags", None):
             tags = doc.tags if isinstance(doc.tags, list) else [doc.tags]
             extracted["tags"] = ", ".join(str(t) for t in tags if t)
 

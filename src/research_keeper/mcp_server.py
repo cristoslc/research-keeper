@@ -13,10 +13,19 @@ TOOL_DEFINITIONS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "content": {"type": "string", "description": "Raw content, URL, or file path to ingest"},
-                "root": {"type": "string", "description": "Path to research-keeper instance"},
+                "content": {
+                    "type": "string",
+                    "description": "Raw content, URL, or file path to ingest",
+                },
+                "root": {
+                    "type": "string",
+                    "description": "Path to research-keeper instance",
+                },
                 "origin": {"type": "string", "description": "Source URL or provenance"},
-                "investigation": {"type": "string", "description": "Investigation ID to link to"},
+                "investigation": {
+                    "type": "string",
+                    "description": "Investigation ID to link to",
+                },
             },
             "required": ["content"],
         },
@@ -27,10 +36,22 @@ TOOL_DEFINITIONS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Natural language search query"},
-                "root": {"type": "string", "description": "Path to research-keeper instance"},
-                "top_k": {"type": "integer", "description": "Number of results to retrieve"},
-                "investigation": {"type": "string", "description": "Investigation ID to link to"},
+                "query": {
+                    "type": "string",
+                    "description": "Natural language search query",
+                },
+                "root": {
+                    "type": "string",
+                    "description": "Path to research-keeper instance",
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "Number of results to retrieve",
+                },
+                "investigation": {
+                    "type": "string",
+                    "description": "Investigation ID to link to",
+                },
             },
             "required": ["query"],
         },
@@ -41,7 +62,10 @@ TOOL_DEFINITIONS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "root": {"type": "string", "description": "Path to research-keeper instance"},
+                "root": {
+                    "type": "string",
+                    "description": "Path to research-keeper instance",
+                },
             },
         },
     },
@@ -51,14 +75,23 @@ TOOL_DEFINITIONS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "topic": {"type": "string", "description": "Investigation topic (for create)"},
-                "root": {"type": "string", "description": "Path to research-keeper instance"},
+                "topic": {
+                    "type": "string",
+                    "description": "Investigation topic (for create)",
+                },
+                "root": {
+                    "type": "string",
+                    "description": "Path to research-keeper instance",
+                },
                 "action": {
                     "type": "string",
                     "enum": ["create", "list", "close"],
                     "description": "Action to perform",
                 },
-                "inv_id": {"type": "string", "description": "Investigation ID (for close)"},
+                "inv_id": {
+                    "type": "string",
+                    "description": "Investigation ID (for close)",
+                },
             },
         },
     },
@@ -68,7 +101,10 @@ TOOL_DEFINITIONS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "root": {"type": "string", "description": "Path to research-keeper instance"},
+                "root": {
+                    "type": "string",
+                    "description": "Path to research-keeper instance",
+                },
             },
         },
     },
@@ -78,20 +114,22 @@ TOOL_DEFINITIONS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "root": {"type": "string", "description": "Path to research-keeper instance"},
+                "root": {
+                    "type": "string",
+                    "description": "Path to research-keeper instance",
+                },
             },
         },
     },
 ]
 
 
-def handle_tool_call(tool_name: str, arguments: dict, completer=None) -> str:
+def handle_tool_call(tool_name: str, arguments: dict) -> str:
     """Dispatch a tool call to the appropriate handler.
 
     Args:
         tool_name: Name of the MCP tool to invoke.
         arguments: Tool-specific arguments.
-        completer: Optional Completer instance for LLM delegation.
     """
     handlers = {
         "rk_add": _handle_add,
@@ -106,14 +144,14 @@ def handle_tool_call(tool_name: str, arguments: dict, completer=None) -> str:
     if handler is None:
         raise ValueError(f"Unknown tool: {tool_name}")
 
-    return handler(arguments, completer=completer)
+    return handler(arguments)
 
 
-def _handle_add(args: dict, completer=None) -> str:
+def _handle_add(args: dict) -> str:
     from research_keeper.cli import _build_pipeline
 
     root = Path(args.get("root", ".")).resolve()
-    pipeline = _build_pipeline(root, completer=completer)
+    pipeline = _build_pipeline(root)
 
     metadata: dict = {}
     if args.get("origin"):
@@ -127,7 +165,7 @@ def _handle_add(args: dict, completer=None) -> str:
     return json.dumps({"slug": source.slug, "tags": source.tags})
 
 
-def _handle_search(args: dict, completer=None) -> str:
+def _handle_search(args: dict) -> str:
     from research_keeper.cli import _build_search_pipeline
 
     root = Path(args.get("root", ".")).resolve()
@@ -138,14 +176,16 @@ def _handle_search(args: dict, completer=None) -> str:
         top_k=args.get("top_k"),
         investigation_id=args.get("investigation"),
     )
-    return json.dumps({
-        "query_id": result.query_id,
-        "sidecar_path": str(result.sidecar_path),
-        "retrieved": len(result.scored_nodes),
-    })
+    return json.dumps(
+        {
+            "query_id": result.query_id,
+            "sidecar_path": str(result.sidecar_path),
+            "retrieved": len(result.scored_nodes),
+        }
+    )
 
 
-def _handle_tags(args: dict, completer=None) -> str:
+def _handle_tags(args: dict) -> str:
     from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
 
     root = Path(args.get("root", ".")).resolve()
@@ -154,32 +194,36 @@ def _handle_tags(args: dict, completer=None) -> str:
     for slug in tag_store.list():
         sources = tag_store.sources_for_tag(slug)
         has_synth = (tag_store.tag_dir(slug) / "synthesis.md").exists()
-        tags.append({"slug": slug, "source_count": len(sources), "has_synthesis": has_synth})
+        tags.append(
+            {"slug": slug, "source_count": len(sources), "has_synthesis": has_synth}
+        )
     return json.dumps({"tags": tags})
 
 
-def _handle_investigate(args: dict, completer=None) -> str:
+def _handle_investigate(args: dict) -> str:
     from research_keeper.cli import _build_investigation_pipeline
 
     root = Path(args.get("root", ".")).resolve()
-    pipeline = _build_investigation_pipeline(root, completer=completer)
+    pipeline = _build_investigation_pipeline(root)
 
     action = args.get("action", "create")
 
     if action == "list":
         invs = pipeline._inv_store.list()
-        return json.dumps({
-            "investigations": [
-                {
-                    "inv_id": i.inv_id,
-                    "topic": i.topic,
-                    "status": i.status,
-                    "sources": len(i.linked_sources),
-                    "queries": len(i.linked_queries),
-                }
-                for i in invs
-            ]
-        })
+        return json.dumps(
+            {
+                "investigations": [
+                    {
+                        "inv_id": i.inv_id,
+                        "topic": i.topic,
+                        "status": i.status,
+                        "sources": len(i.linked_sources),
+                        "queries": len(i.linked_queries),
+                    }
+                    for i in invs
+                ]
+            }
+        )
 
     if action == "close":
         inv_id = args.get("inv_id", "")
@@ -192,7 +236,7 @@ def _handle_investigate(args: dict, completer=None) -> str:
     return json.dumps({"inv_id": inv_id})
 
 
-def _handle_rebuild(args: dict, completer=None) -> str:
+def _handle_rebuild(args: dict) -> str:
     from click.testing import CliRunner
     from research_keeper.cli import main
 
@@ -202,7 +246,7 @@ def _handle_rebuild(args: dict, completer=None) -> str:
     return result.output
 
 
-def _handle_status(args: dict, completer=None) -> str:
+def _handle_status(args: dict) -> str:
     root = Path(args.get("root", ".")).resolve()
 
     source_count = 0
@@ -228,13 +272,15 @@ def _handle_status(args: dict, completer=None) -> str:
 
     index_exists = (root / "rk.db").exists()
 
-    return json.dumps({
-        "sources": source_count,
-        "tags": tag_count,
-        "queries": query_count,
-        "investigations": inv_count,
-        "index_exists": index_exists,
-    })
+    return json.dumps(
+        {
+            "sources": source_count,
+            "tags": tag_count,
+            "queries": query_count,
+            "investigations": inv_count,
+            "index_exists": index_exists,
+        }
+    )
 
 
 def run_server(root: Path) -> None:
@@ -271,6 +317,13 @@ def run_server(root: Path) -> None:
 
     async def main():
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(read_stream, write_stream)
+            from mcp.server.models import InitializationOptions
+
+            init_options = InitializationOptions(
+                server_name="research-keeper",
+                server_version="0.1.0",
+                capabilities=types.ServerCapabilities(),
+            )
+            await server.run(read_stream, write_stream, init_options)
 
     asyncio.run(main())

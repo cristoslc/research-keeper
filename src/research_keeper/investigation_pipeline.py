@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Protocol
 
 from research_keeper.adapters.filesystem.investigation_store import (
     FilesystemInvestigationStore,
 )
 from research_keeper.models import Freshness, Provenance, Source
+from research_keeper.ports.embedder import Embedder
 
 logger = logging.getLogger(__name__)
+
+
+class Synthesizer(Protocol):
+    def synthesize(self, sources: list[Source], *, steering: str) -> str: ...
 
 
 class InvestigationPipeline:
@@ -17,8 +23,8 @@ class InvestigationPipeline:
     def __init__(
         self,
         investigation_store: FilesystemInvestigationStore,
-        synthesizer: object | None = None,
-        embedder: object | None = None,
+        synthesizer: Synthesizer | None = None,
+        embedder: Embedder | None = None,
     ) -> None:
         self._inv_store = investigation_store
         self._synthesizer = synthesizer
@@ -28,9 +34,7 @@ class InvestigationPipeline:
         """Create a new investigation."""
         return self._inv_store.create(topic, brief)
 
-    def link_and_update(
-        self, inv_id: str, node_slug: str, node_kind: str
-    ) -> None:
+    def link_and_update(self, inv_id: str, node_slug: str, node_kind: str) -> None:
         """Link a node to an investigation and update rolling synthesis."""
         self._inv_store.link(inv_id, node_slug, node_kind)
 
@@ -99,4 +103,5 @@ class InvestigationPipeline:
             )
 
         steering = f"{'Final synthesis' if final else 'Rolling update'} for investigation: {inv.topic}"
+        assert self._synthesizer is not None
         return self._synthesizer.synthesize(sources, steering=steering)

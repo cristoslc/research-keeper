@@ -9,6 +9,10 @@ from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
 from research_keeper.adapters.retriever.semantic import SemanticRetriever
 from research_keeper.adapters.sqlite.index import SqliteIndex
 from research_keeper.models import ScoredNode
+from research_keeper.ports.embedder import Embedder
+from research_keeper.ports.investigation_store import InvestigationStore
+from research_keeper.ports.tag_store import TagStore
+from research_keeper.remote import RemoteResolver
 from research_keeper.sidecar import SidecarGenerator
 
 logger = logging.getLogger(__name__)
@@ -30,12 +34,12 @@ class QueryPipeline:
         retriever: SemanticRetriever,
         query_store: FilesystemQueryStore,
         sidecar_gen: SidecarGenerator,
-        embedder: object,
+        embedder: Embedder,
         index: SqliteIndex,
         top_k: int = 20,
-        investigation_store: object | None = None,
-        remote_resolver: object | None = None,
-        tag_store: object | None = None,
+        investigation_store: InvestigationStore | None = None,
+        remote_resolver: RemoteResolver | None = None,
+        tag_store: TagStore | None = None,
         tag_expansion_tags: int = 5,
         tag_expansion_sources: int = 20,
     ) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from research_keeper.ports.normalizer import NormalizationError
 
@@ -36,6 +37,17 @@ class DocumentNormalizer:
                 stage="document-normalize",
             )
 
+        try:
+            return self._do_normalize(path, metadata)
+        except NormalizationError:
+            raise
+        except Exception as exc:
+            raise NormalizationError(
+                f"Failed to process document: {exc}",
+                stage="document-normalize",
+            ) from exc
+
+    def _do_normalize(self, path: str, metadata: dict) -> tuple[str, dict]:
         page_count, doc_meta = self._get_doc_info(path)
 
         if pymupdf4llm is not None:
@@ -87,7 +99,7 @@ class DocumentNormalizer:
         try:
             doc = fitz.open(path)
             page_count = len(doc)
-            doc_meta = doc.metadata or {}
+            doc_meta: dict[str, Any] = dict(doc.metadata or {})
             doc.close()
             return page_count, doc_meta
         except Exception:
@@ -95,8 +107,13 @@ class DocumentNormalizer:
             return 0, {}
 
     def _extract_markdown(self, path: str) -> str:
+        if pymupdf4llm is None:
+            raise NormalizationError(
+                "pymupdf4llm not installed",
+                stage="document-normalize",
+            )
         try:
-            md = pymupdf4llm.to_markdown(path, page_chunks=True)
+            md: Any = pymupdf4llm.to_markdown(path, page_chunks=True)
         except Exception:
             logger.warning(
                 "pymupdf4llm extraction failed, falling back to basic extraction",
@@ -106,7 +123,11 @@ class DocumentNormalizer:
 
         pages: list[str] = []
         for page_dict in md:
-            text = str(page_dict.get("text", "")).strip()
+            text = (
+                str(page_dict.get("text", "")).strip()
+                if isinstance(page_dict, dict)
+                else str(page_dict).strip()
+            )
             if text:
                 pages.append(text)
 
@@ -122,11 +143,14 @@ class DocumentNormalizer:
         doc = fitz.open(path)
         pages_text: list[str] = []
         for page in doc:
-            text = page.get_text().strip()
+            raw_text: Any = page.get_text()
+            text = (
+                raw_text.strip() if isinstance(raw_text, str) else str(raw_text).strip()
+            )
             if text:
-                pages_text.append(f"## Page {page.number + 1}\n\n{text}")
+                pages_text.append(f"## Page {(page.number or 0) + 1}\n\n{text}")
 
-        doc_meta = doc.metadata or {}
+        doc_meta: dict[str, Any] = dict(doc.metadata or {})
         doc.close()
 
         if not pages_text:

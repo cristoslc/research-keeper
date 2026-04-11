@@ -4,12 +4,21 @@ from __future__ import annotations
 import traceback
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 import yaml
 from tqdm import tqdm
 
 from research_keeper.config import Config, load_config
+
+if TYPE_CHECKING:
+    from research_keeper.adapters.filesystem.source_store import (
+        FilesystemSourceStore,
+    )
+    from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+    from research_keeper.adapters.sqlite.index import SqliteIndex
+    from research_keeper.pipeline import IntakePipeline
 
 # Stored by the --verbose flag callback for use in commands
 _verbose = False
@@ -110,7 +119,19 @@ def init(path: str) -> None:
 @click.option(
     "--no-prompt", is_flag=True, default=False, help="Skip sidecar generation"
 )
-@click.option("--content", default=None, help="Pre-fetched content (use '-' for stdin)")
+@click.option(
+    "--text",
+    "text_content",
+    default=None,
+    help="Inline text content (use '-' for stdin)",
+)
+@click.option(
+    "--content",
+    "content_deprecated",
+    default=None,
+    hidden=True,
+    help="Deprecated: use --text instead",
+)
 def add(
     sources: tuple[str, ...],
     root: str,
@@ -118,14 +139,27 @@ def add(
     published: str | None,
     investigation: str | None,
     no_prompt: bool,
-    content: str | None,
+    text_content: str | None,
+    content_deprecated: str | None,
 ) -> None:
     """Add one or more sources to the library.
 
-    Use --content to add pre-fetched content.
-    Use --content - to read content from stdin.
-    Use --origin to set the source URL (optional with --content).
+    Supports transport prefixes:
+      file:path/to/doc.pdf     Local file (explicit)
+      url:https://example.com  URL (explicit)
+      text:"inline content"    Raw text content
+      text:-                   Read text from stdin
+      wormhole:7-purple-elephant  Receive file via wormhole
+
+    Bare paths and URLs are auto-detected when no prefix is given.
+
+    Use --text for inline content or --text - for stdin.
+    Use --origin to set the source URL (optional with --text).
     """
+    if content_deprecated is not None and text_content is None:
+        text_content = content_deprecated
+        click.echo("Warning: --content is deprecated, use --text instead.", err=True)
+
     try:
         root_path = Path(root).resolve()
         pipeline = _build_pipeline(root_path)
@@ -133,25 +167,17 @@ def add(
         added: list[tuple[str, Path | None]] = []
         errors: list[tuple[str, Exception]] = []
 
-        # Handle --content flag (SPEC-054)
-        if content is not None:
-            # Read content from stdin if "-" is passed
-            if content == "-":
+        from research_keeper.adapters.transports.resolver import resolve_transport
+
+        # Handle --text flag
+        if text_content is not None:
+            if text_content == "-":
                 import sys
 
                 actual_content = sys.stdin.read()
             else:
-                actual_content = content
+                actual_content = text_content
 
-            # Read content from stdin if "-" is passed
-            if content == "-":
-                import sys
-
-                actual_content = sys.stdin.read()
-            else:
-                actual_content = content
-
-            # Add pre-fetched content with optional origin metadata
             metadata: dict = {}
             if origin:
                 metadata["origin"] = origin
@@ -166,7 +192,6 @@ def add(
                     no_prompt=no_prompt,
                 )
 
-                # Find the sidecar path if it was generated
                 sidecar_path = None
                 pending_dir = pipeline._store.source_dir(source.slug) / ".pending"
                 tag_j2 = pending_dir / "tag.j2"
@@ -175,93 +200,39 @@ def add(
 
                 added.append((source.slug, sidecar_path))
             except Exception as exc:
-                errors.append(("content", exc))
+                errors.append(("text", exc))
 
-            # Output summary for --content
-            if added:
-                click.echo(f"Added 1 source:")
-                for slug, sidecar in added:
-                    if sidecar:
-                        model_hint = pipeline._config.completion.tasks.get(
-                            "tagging", "medium"
-                        )
-                        rel = (
-                            sidecar.relative_to(root_path)
-                            if sidecar.is_relative_to(root_path)
-                            else sidecar
-                        )
-                        click.echo(f"  {slug:<20s} {rel} ({model_hint})")
-                    else:
-                        click.echo(f"  {slug}")
-
-                sidecar_count = sum(1 for _, s in added if s is not None)
-                if sidecar_count > 0:
-                    click.echo(
-                        f"\n{sidecar_count} tag sidecar(s) pending (parallelizable). Run: rk resolve"
-                    )
-
-            # Report notes
-            notes: list[str] = []
-            if pipeline.embedding_failed:
-                notes.append("embeddings skipped -- embedder failed")
-            if no_prompt:
-                notes.append("sidecar generation skipped (--no-prompt)")
-            elif pipeline._sidecar is None:
-                notes.append("sidecar generation skipped -- no sidecar generator")
-
-            if notes:
-                click.echo(f"({'; '.join(notes)})")
-
-            for raw_prefix, exc in errors:
-                error_msg = str(exc)
-                click.echo(f"  Error adding '{raw_prefix}': {error_msg}", err=True)
-
-                # SPEC-053: If error looks like a fetch failure and input is a URL, provide fallback hint
-                if ("fetch" in error_msg.lower() or "url" in error_msg.lower()) and (
-                    raw_prefix.startswith("http://")
-                    or raw_prefix.startswith("https://")
-                ):
-                    click.echo(
-                        "\n  Hint: If this page requires JavaScript rendering, try:\n"
-                        f'    rk add --content "<content>" --origin "{raw_prefix}"\n'
-                        "\n  Use Playwright or Chrome to fetch the content first.",
-                        err=True,
-                    )
-
-            if investigation:
-                click.echo(f"Linked to investigation: {investigation}")
+            _print_add_summary(added, errors, pipeline, root_path, investigation)
 
             if errors and not added:
                 raise SystemExit(1)
 
-            return  # Exit early after processing --content
+            return
 
         for raw in sources:
             try:
-                # Interpret common escape sequences from CLI input
                 raw_decoded = raw.replace("\\n", "\n").replace("\\t", "\t")
+
+                transport_result = resolve_transport(raw_decoded)
 
                 metadata: dict = {}
                 if origin:
                     metadata["origin"] = origin
                 if published:
                     metadata["published"] = published
+                metadata.update(transport_result.metadata)
 
-                # If raw looks like a URL, set it as origin
-                if (
-                    raw_decoded.startswith(("http://", "https://"))
-                    and "origin" not in metadata
-                ):
-                    metadata["origin"] = raw_decoded
+                if not origin and "origin" not in metadata:
+                    if raw_decoded.startswith(("http://", "https://")):
+                        metadata["origin"] = raw_decoded
 
                 source = pipeline.add(
-                    raw_decoded,
+                    transport_result.resolved,
                     metadata,
                     investigation_id=investigation,
                     no_prompt=no_prompt,
                 )
 
-                # Find the sidecar path if it was generated
                 sidecar_path = None
                 pending_dir = pipeline._store.source_dir(source.slug) / ".pending"
                 tag_j2 = pending_dir / "tag.j2"
@@ -273,58 +244,7 @@ def add(
             except Exception as exc:
                 errors.append((raw[:50], exc))
 
-        # Output summary
-        if added:
-            click.echo(f"Added {len(added)} source(s):")
-            for slug, sidecar in added:
-                if sidecar:
-                    model_hint = pipeline._config.completion.tasks.get(
-                        "tagging", "medium"
-                    )
-                    rel = (
-                        sidecar.relative_to(root_path)
-                        if sidecar.is_relative_to(root_path)
-                        else sidecar
-                    )
-                    click.echo(f"  {slug:<20s} {rel} ({model_hint})")
-                else:
-                    click.echo(f"  {slug}")
-
-            sidecar_count = sum(1 for _, s in added if s is not None)
-            if sidecar_count > 0:
-                click.echo(
-                    f"\n{sidecar_count} tag sidecar(s) pending (parallelizable). Run: rk resolve"
-                )
-
-        # Report notes
-        notes: list[str] = []
-        if pipeline.embedding_failed:
-            notes.append("embeddings skipped -- embedder failed")
-        if no_prompt:
-            notes.append("sidecar generation skipped (--no-prompt)")
-        elif pipeline._sidecar is None:
-            notes.append("sidecar generation skipped -- no sidecar generator")
-
-        if notes:
-            click.echo(f"({'; '.join(notes)})")
-
-        for raw_prefix, exc in errors:
-            error_msg = str(exc)
-            click.echo(f"  Error adding '{raw_prefix}': {error_msg}", err=True)
-
-            # SPEC-053: If error looks like a fetch failure and input is a URL, provide fallback hint
-            if ("fetch" in error_msg.lower() or "url" in error_msg.lower()) and (
-                raw_prefix.startswith("http://") or raw_prefix.startswith("https://")
-            ):
-                click.echo(
-                    "\n  Hint: If this page requires JavaScript rendering, try:\n"
-                    f'    rk add --content "<content>" --origin "{raw_prefix}"\n'
-                    "\n  Use Playwright or Chrome to fetch the content first.",
-                    err=True,
-                )
-
-        if investigation:
-            click.echo(f"Linked to investigation: {investigation}")
+        _print_add_summary(added, errors, pipeline, root_path, investigation)
 
         if errors and not added:
             raise SystemExit(1)
@@ -333,6 +253,65 @@ def add(
         raise
     except Exception as exc:
         _handle_error(exc)
+
+
+def _print_add_summary(
+    added: list[tuple[str, Path | None]],
+    errors: list[tuple[str, Exception]],
+    pipeline: IntakePipeline,
+    root_path: Path,
+    investigation: str | None,
+    no_prompt: bool = False,
+) -> None:
+    if added:
+        count = len(added)
+        label = "1 source" if count == 1 else f"{count} source(s)"
+        click.echo(f"Added {label}:")
+        for slug, sidecar in added:
+            if sidecar:
+                model_hint = pipeline._config.completion.tasks.get("tagging", "medium")
+                rel = (
+                    sidecar.relative_to(root_path)
+                    if sidecar.is_relative_to(root_path)
+                    else sidecar
+                )
+                click.echo(f"  {slug:<20s} {rel} ({model_hint})")
+            else:
+                click.echo(f"  {slug}")
+
+        sidecar_count = sum(1 for _, s in added if s is not None)
+        if sidecar_count > 0:
+            click.echo(
+                f"\n{sidecar_count} tag sidecar(s) pending (parallelizable). Run: rk resolve"
+            )
+
+    notes: list[str] = []
+    if pipeline.embedding_failed:
+        notes.append("embeddings skipped -- embedder failed")
+    if no_prompt:
+        notes.append("sidecar generation skipped (--no-prompt)")
+    elif pipeline._sidecar is None:
+        notes.append("sidecar generation skipped -- no sidecar generator")
+
+    if notes:
+        click.echo(f"({'; '.join(notes)})")
+
+    for raw_prefix, exc in errors:
+        error_msg = str(exc)
+        click.echo(f"  Error adding '{raw_prefix}': {error_msg}", err=True)
+
+        if ("fetch" in error_msg.lower() or "url" in error_msg.lower()) and (
+            raw_prefix.startswith("http://") or raw_prefix.startswith("https://")
+        ):
+            click.echo(
+                "\n  Hint: If this page requires JavaScript rendering, try:\n"
+                f'    rk add text:"<content>" --origin "{raw_prefix}"\n'
+                "\n  Use Playwright or Chrome to fetch the content first.",
+                err=True,
+            )
+
+    if investigation:
+        click.echo(f"Linked to investigation: {investigation}")
 
 
 @main.command()
