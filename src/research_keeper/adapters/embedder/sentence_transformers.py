@@ -14,16 +14,15 @@ _MAX_EMBED_CHARS = 24_000
 class SentenceTransformerEmbedder:
     """Generate embeddings via sentence-transformers library."""
 
-    _model: SentenceTransformer | None = None
-
     def __init__(self, model_name: str = "nomic-ai/nomic-embed-text-v1.5"):
         self._model_name = model_name
+        self._model: SentenceTransformer | None = None
 
     def _load_model(self) -> None:
         """Lazy-load model on first use."""
         if self._model is None:
             logger.info(f"Loading embedding model: {self._model_name}")
-            self._model = SentenceTransformer(self._model_name)
+            self._model = SentenceTransformer(self._model_name, local_files_only=True)
 
     def embed(self, content: str) -> bytes:
         """Generate embedding for content.
