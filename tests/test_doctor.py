@@ -137,6 +137,16 @@ class TestCheckMissingEmbeddings:
         assert len(results) == 1
         assert results[0].severity == Severity.WARNING
 
+    def test_finds_zero_length(self, lib_root: Path):
+        src_dir = lib_root / "library" / "sources" / "test-src"
+        src_dir.mkdir(parents=True)
+        (src_dir / "manifest.yaml").write_text("slug: test-src")
+        (src_dir / "embedding.bin").write_bytes(b"")
+
+        results = check_missing_embeddings(lib_root)
+        assert len(results) == 1
+        assert results[0].severity == Severity.WARNING
+
 
 class TestCheckStaleNodes:
     def test_no_stale(self, lib_root: Path):

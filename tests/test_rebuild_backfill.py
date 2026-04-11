@@ -28,7 +28,11 @@ def lib_root(tmp_path: Path) -> Path:
         "models": {"embedder": "nomic-embed-text"},
         "freshness": {"default_ttl": "30d", "synthesis_demotion_days": 30},
         "retrieval": {"top_k": 20, "freshness_decay": "exponential"},
-        "embeddings": {"provider": "ollama", "model": "nomic-embed-text", "ollama_url": "http://localhost:11434"},
+        "embeddings": {
+            "provider": "ollama",
+            "model": "nomic-embed-text",
+            "ollama_url": "http://localhost:11434",
+        },
         "intake": {"dedup": True, "auto_tag": True, "auto_synthesize": True},
     }
     (root / "rk.yaml").write_text(yaml.dump(config))
@@ -41,22 +45,27 @@ def lib_root(tmp_path: Path) -> Path:
     (src_dir / "source.md").write_text(content)
 
     import hashlib
+
     content_hash = hashlib.sha256(content.encode()).hexdigest()
-    (src_dir / "manifest.yaml").write_text(yaml.dump({
-        "slug": slug,
-        "hash": content_hash,
-        "title": "Test Source",
-        "tags": [],
-        "freshness": {
-            "ingested": "2025-01-01",
-            "ttl": "30d",
-        },
-        "provenance": {
-            "origin": "manual",
-            "model": None,
-            "model_tier": None,
-        },
-    }))
+    (src_dir / "manifest.yaml").write_text(
+        yaml.dump(
+            {
+                "slug": slug,
+                "hash": content_hash,
+                "title": "Test Source",
+                "tags": [],
+                "freshness": {
+                    "ingested": "2025-01-01",
+                    "ttl": "30d",
+                },
+                "provenance": {
+                    "origin": "manual",
+                    "model": None,
+                    "model_tier": None,
+                },
+            }
+        )
+    )
 
     return root
 
@@ -149,6 +158,41 @@ class TestRebuildEmbeddingBackfill:
         assert cur.fetchone()["cnt"] == 0
 
 
+class TestRebuildEmbeddingBinWrite:
+    def test_rebuild_writes_missing_embedding_bin(self, lib_root: Path):
+        source_dir = lib_root / "library" / "sources" / "test-source-one"
+        assert not (source_dir / "embedding.bin").exists()
+
+        mock_embedder = MagicMock()
+        mock_embedder._model = "test-model"
+        fake_emb = _fake_embedding()
+        mock_embedder.embed.return_value = fake_emb
+
+        with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
+            runner = CliRunner()
+            result = runner.invoke(main, ["rebuild", "--root", str(lib_root)])
+
+        assert result.exit_code == 0, result.output
+        assert (source_dir / "embedding.bin").exists()
+        assert (source_dir / "embedding.bin").read_bytes() == fake_emb
+
+    def test_rebuild_does_not_overwrite_existing_embedding_bin(self, lib_root: Path):
+        source_dir = lib_root / "library" / "sources" / "test-source-one"
+        original_emb = b"\x00" * 16
+        (source_dir / "embedding.bin").write_bytes(original_emb)
+
+        mock_embedder = MagicMock()
+        mock_embedder._model = "test-model"
+        mock_embedder.embed.return_value = _fake_embedding()
+
+        with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
+            runner = CliRunner()
+            result = runner.invoke(main, ["rebuild", "--root", str(lib_root)])
+
+        assert result.exit_code == 0, result.output
+        assert (source_dir / "embedding.bin").read_bytes() == original_emb
+
+
 class TestRebuildChunkMigration:
     def test_rebuild_creates_chunk_embeddings(self, lib_root):
         mock_embedder = MagicMock()
@@ -184,5 +228,7 @@ class TestRebuildChunkMigration:
         assert result.exit_code == 0, result.output
         index = SqliteIndex(lib_root / "rk.db")
         cur = index._conn.cursor()
-        cur.execute("SELECT node_id FROM embeddings WHERE node_id = ?", ("test-source-one",))
+        cur.execute(
+            "SELECT node_id FROM embeddings WHERE node_id = ?", ("test-source-one",)
+        )
         assert cur.fetchone() is None  # bare slug should be gone

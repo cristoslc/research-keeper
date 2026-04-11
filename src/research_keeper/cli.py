@@ -766,6 +766,7 @@ def _rebuild_impl(root: str) -> None:
         try:
             chunks = chunk_markdown(source.content, title=source.title)
             model_name = getattr(embedder, "_model", "unknown")
+            first_embedding: bytes | None = None
             for chunk in chunks:
                 emb_bytes = embedder.embed(chunk.content)
                 if emb_bytes:
@@ -773,6 +774,15 @@ def _rebuild_impl(root: str) -> None:
                     index.upsert_embedding(
                         chunk_id, model_name, emb_bytes, content=chunk.content
                     )
+                    if chunk.index == 0:
+                        first_embedding = emb_bytes
+            # Write embedding.bin for sources missing it
+            if first_embedding:
+                emb_file = (
+                    root_path / "library" / "sources" / source.slug / "embedding.bin"
+                )
+                if not emb_file.exists():
+                    emb_file.write_bytes(first_embedding)
             backfilled += 1
         except Exception:
             skipped += 1

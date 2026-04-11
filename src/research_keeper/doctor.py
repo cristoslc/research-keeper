@@ -103,7 +103,8 @@ def check_missing_embeddings(root: Path, fix: bool = False) -> list[DiagnosticRe
             continue
         if not (src_dir / "manifest.yaml").exists():
             continue
-        if not (src_dir / "embedding.bin").exists():
+        emb_file = src_dir / "embedding.bin"
+        if not emb_file.exists() or emb_file.stat().st_size == 0:
             results.append(
                 DiagnosticResult(
                     severity=Severity.WARNING,
