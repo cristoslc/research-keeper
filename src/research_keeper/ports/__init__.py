@@ -6,5 +6,23 @@ from research_keeper.ports.tag_store import TagStore
 from research_keeper.ports.retriever import Retriever
 from research_keeper.ports.query_store import QueryStore
 from research_keeper.ports.investigation_store import InvestigationStore
+from research_keeper.ports.transport import (
+    Transport,
+    TransportResult,
+    TRANSPORT_PREFIXES,
+)
 
-__all__ = ["SourceStore", "Normalizer", "NormalizationError", "Embedder", "Index", "TagStore", "Retriever", "QueryStore", "InvestigationStore"]
+__all__ = [
+    "SourceStore",
+    "Normalizer",
+    "NormalizationError",
+    "Embedder",
+    "Index",
+    "TagStore",
+    "Retriever",
+    "QueryStore",
+    "InvestigationStore",
+    "Transport",
+    "TransportResult",
+    "TRANSPORT_PREFIXES",
+]

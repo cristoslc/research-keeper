@@ -1,6 +1,7 @@
 # src/research_keeper/cli.py
 from __future__ import annotations
 
+import hashlib
 import traceback
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
@@ -312,6 +313,208 @@ def _print_add_summary(
 
     if investigation:
         click.echo(f"Linked to investigation: {investigation}")
+
+
+@main.command()
+@click.argument("slug", required=True)
+@click.option("--root", type=click.Path(exists=True), default=".")
+def normalize(slug: str, root: str) -> None:
+    """Re-normalize a source from its preserved original file."""
+    try:
+        root_path = Path(root).resolve()
+        config = load_config(root_path / "rk.yaml")
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
+        from research_keeper.adapters.normalizers.identifier import (
+            identify_content_type,
+        )
+
+        store = FilesystemSourceStore(root_path)
+        source_dir = store.source_dir(slug)
+
+        if not source_dir.is_dir():
+            click.echo(f"Source '{slug}' not found.", err=True)
+            raise SystemExit(1)
+
+        manifest_path = source_dir / "manifest.yaml"
+        if not manifest_path.exists():
+            click.echo(f"Manifest not found for '{slug}'.", err=True)
+            raise SystemExit(1)
+
+        manifest = yaml.safe_load(manifest_path.read_text()) or {}
+        original_filename = manifest.get("original-file")
+
+        if not original_filename:
+            click.echo(
+                f"Source '{slug}' has no preserved original file. "
+                "Re-normalization requires an original binary to re-process.",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        original_path = source_dir / original_filename
+        if not original_path.exists():
+            click.echo(
+                f"Original file '{original_filename}' not found in source directory.",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        content_type = identify_content_type(str(original_path), {})
+
+        normalizers: dict = {}
+        try:
+            from research_keeper.adapters.normalizers.notes import NotesNormalizer
+
+            normalizers["note"] = NotesNormalizer()
+        except ImportError:
+            pass
+        try:
+            from research_keeper.adapters.normalizers.web import WebNormalizer
+
+            normalizers["web"] = WebNormalizer()
+        except ImportError:
+            pass
+        try:
+            from research_keeper.adapters.normalizers.documents import (
+                DocumentNormalizer,
+            )
+
+            normalizers["document"] = DocumentNormalizer()
+        except ImportError:
+            pass
+        try:
+            from research_keeper.adapters.normalizers.media import MediaNormalizer
+
+            normalizers["media"] = MediaNormalizer()
+        except ImportError:
+            pass
+
+        normalizer = normalizers.get(content_type)
+        if normalizer is None:
+            click.echo(
+                f"No normalizer available for content type '{content_type}'. "
+                f"Install the appropriate optional dependency.",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        from research_keeper.ports.normalizer import NormalizationError
+
+        click.echo(f"Re-normalizing {slug} from {original_filename}...")
+        try:
+            content, extracted_meta = normalizer.normalize(str(original_path), {})
+        except NormalizationError as exc:
+            click.echo(f"Normalization failed: {exc}", err=True)
+            click.echo(
+                "Consider using the sidecar mechanism: "
+                f"write a normalize.md file in {source_dir / '.pending'}/",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        (source_dir / "source.md").write_text(content)
+
+        content_hash = hashlib.sha256(content.encode()).hexdigest()
+        manifest["hash"] = content_hash
+        manifest["normalization-status"] = "ok"
+        manifest.pop("normalization-error", None)
+        manifest["word_count"] = str(len(content.split()))
+        if extracted_meta.get("title") and not manifest.get("title"):
+            manifest["title"] = extracted_meta["title"]
+        manifest_path.write_text(
+            yaml.dump(manifest, default_flow_style=False, sort_keys=False)
+        )
+
+        try:
+            from research_keeper.adapters.sqlite.index import SqliteIndex
+            from research_keeper.adapters.embedder.sentence_transformers import (
+                SentenceTransformerEmbedder,
+            )
+            from research_keeper.chunker import chunk_markdown
+
+            emb_cfg = getattr(config, "embeddings", None)
+            model_name = emb_cfg.model if emb_cfg else "nomic-ai/nomic-embed-text-v1.5"
+            embedder = SentenceTransformerEmbedder(model_name=model_name)
+
+            index = SqliteIndex(root_path / "rk.db")
+
+            index._conn.execute(
+                "DELETE FROM embeddings WHERE node_id = ? OR node_id LIKE ?",
+                (slug, f"{slug}#chunk-%"),
+            )
+            index._conn.commit()
+
+            title = manifest.get("title")
+            chunks = chunk_markdown(content, title=title)
+            first_embedding: bytes | None = None
+            for chunk in chunks:
+                embedding = embedder.embed(chunk.content)
+                chunk_id = f"{slug}#chunk-{chunk.index}"
+                model_label = getattr(embedder, "_model", model_name)
+                if not isinstance(model_label, str):
+                    model_label = model_name
+                index.upsert_embedding(
+                    chunk_id, model_label, embedding, content=chunk.content
+                )
+                if chunk.index == 0:
+                    first_embedding = embedding
+            if first_embedding:
+                (source_dir / "embedding.bin").write_bytes(first_embedding)
+
+            source = store.get(slug)
+            if source:
+                index.upsert_source(source)
+
+            click.echo(f"Embeddings updated ({len(chunks)} chunk(s)).")
+            index._conn.close()
+        except Exception as exc:
+            click.echo(f"Embedding update failed: {exc}", err=True)
+            click.echo(
+                "Source content was updated but embeddings were not regenerated."
+            )
+
+        try:
+            from research_keeper.sidecar import SidecarGenerator
+            from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+
+            tag_store = FilesystemTagStore(root_path)
+            existing_tags = tag_store.list()
+            model_hint = config.completion.tasks.get("tagging", "medium")
+            sidecar = SidecarGenerator(root_path, config.completion)
+            sidecar.generate_tag_sidecar(
+                source_slug=slug,
+                source_content=content,
+                existing_tags=existing_tags,
+                model_hint=model_hint,
+            )
+            click.echo("Tag sidecar generated. Run: rk resolve")
+        except Exception as exc:
+            click.echo(f"Tag sidecar generation failed: {exc}", err=True)
+
+        pending_dir = source_dir / ".pending"
+        if pending_dir.exists():
+            for f in [
+                pending_dir / "normalize.j2",
+                pending_dir / "normalize.md",
+                pending_dir / "intake.lock",
+            ]:
+                if f.exists():
+                    f.unlink()
+            try:
+                remaining = list(pending_dir.iterdir())
+                if not remaining:
+                    pending_dir.rmdir()
+            except OSError:
+                pass
+
+        click.echo(f"Re-normalized: {slug}")
+
+    except SystemExit:
+        raise
+    except Exception as exc:
+        _handle_error(exc)
 
 
 @main.command()
@@ -1179,6 +1382,8 @@ def doctor(root: str, fix: bool) -> None:
             result.severity.value
         ]
         click.echo(f"  [{icon}] {result.check}: {result.message}")
+        if result.remediation:
+            click.echo(f"         → {result.remediation}")
 
     click.echo(
         f"\nSummary: {error_count} error(s), {warning_count} warning(s), {info_count} info(s)"

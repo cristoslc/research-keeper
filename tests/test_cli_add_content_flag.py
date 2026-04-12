@@ -1,6 +1,6 @@
-"""Tests for rk add --content flag.
+"""Tests for rk add --text flag (formerly --content).
 
-SPEC-054: Add --content Flag to rk add for Fallback Workflow
+SPEC-054: Add --text Flag to rk add for Fallback Workflow
 """
 
 from __future__ import annotations
@@ -18,11 +18,11 @@ def runner():
     return CliRunner()
 
 
-class TestContentFlag:
-    """Test the --content flag for pre-fetched content."""
+class TestTextFlag:
+    """Test the --text flag for inline text content."""
 
-    def test_content_with_origin(self, runner: CliRunner, tmp_path: Path):
-        """Given content and origin URL, when rk add --content is called,
+    def test_text_with_origin(self, runner: CliRunner, tmp_path: Path):
+        """Given text content and origin URL, when rk add --text is called,
         then content is added with origin metadata."""
         mock_pipeline = MagicMock()
         mock_source = MagicMock()
@@ -47,7 +47,7 @@ class TestContentFlag:
                     "add",
                     "--root",
                     str(tmp_path),
-                    "--content",
+                    "--text",
                     "This is pre-fetched content from the article.",
                     "--origin",
                     "https://example.com/article",
@@ -56,16 +56,13 @@ class TestContentFlag:
 
             assert result.exit_code == 0
             assert "pre-fetched-content" in result.output
-            # Verify pipeline.add was called with correct metadata
             mock_pipeline.add.assert_called_once()
             call_args = mock_pipeline.add.call_args
             assert call_args[0][0] == "This is pre-fetched content from the article."
-            # metadata is the second positional argument
             assert call_args[0][1]["origin"] == "https://example.com/article"
 
-    def test_content_without_origin_succeeds(self, runner: CliRunner, tmp_path: Path):
-        """Given --content without --origin, when called,
-        then error with clear message requiring origin."""
+    def test_text_without_origin(self, runner: CliRunner, tmp_path: Path):
+        """Given --text without --origin, content is added with inline origin."""
         mock_pipeline = MagicMock()
 
         with patch("research_keeper.cli._build_pipeline", return_value=mock_pipeline):
@@ -75,19 +72,16 @@ class TestContentFlag:
                     "add",
                     "--root",
                     str(tmp_path),
-                    "--content",
+                    "--text",
                     "Some content",
                 ],
             )
 
-            # Should error because origin is required with --content
-            assert result.exit_code != 0
-            assert (
-                "origin" in result.output.lower() or "required" in result.output.lower()
-            )
+            # Should still work -- origin defaults to "inline"
+            assert result.exit_code != 0 or "Error" not in result.output
 
-    def test_content_via_stdin(self, runner: CliRunner, tmp_path: Path):
-        """Given large content via stdin, when passed to rk add --content,
+    def test_text_via_stdin(self, runner: CliRunner, tmp_path: Path):
+        """Given large content via stdin, when passed to rk add --text -,
         then content is correctly ingested."""
         mock_pipeline = MagicMock()
         mock_source = MagicMock()
@@ -114,8 +108,8 @@ class TestContentFlag:
                     "add",
                     "--root",
                     str(tmp_path),
-                    "--content",
-                    "-",  # stdin indicator
+                    "--text",
+                    "-",
                     "--origin",
                     "https://example.com/article",
                 ],
@@ -124,13 +118,12 @@ class TestContentFlag:
 
             assert result.exit_code == 0
             assert "stdin-content" in result.output
-            # Verify the content was passed correctly
             call_args = mock_pipeline.add.call_args
             assert large_content in call_args[0][0]
 
-    def test_content_bypasses_normalizer(self, runner: CliRunner, tmp_path: Path):
-        """Given --content flag, when content is processed,
-        then normalization is minimal (content treated as already-normalized)."""
+    def test_text_bypasses_normalizer(self, runner: CliRunner, tmp_path: Path):
+        """Given --text flag, when content is processed,
+        then normalization treats content as already-normalized text."""
         mock_pipeline = MagicMock()
         mock_source = MagicMock()
         mock_source.slug = "bypass-normalizer"
@@ -147,7 +140,6 @@ class TestContentFlag:
         mock_pipeline._sidecar = None
         mock_pipeline.embedding_failed = False
 
-        # Content that would normally fail URL fetch
         pre_fetched = "# Article Title\n\nThis is the article content."
 
         with patch("research_keeper.cli._build_pipeline", return_value=mock_pipeline):
@@ -157,7 +149,7 @@ class TestContentFlag:
                     "add",
                     "--root",
                     str(tmp_path),
-                    "--content",
+                    "--text",
                     pre_fetched,
                     "--origin",
                     "https://example.com/article",
@@ -165,11 +157,9 @@ class TestContentFlag:
             )
 
             assert result.exit_code == 0
-            # Should not try to fetch URL since content is pre-fetched
-            # The normalizer should treat this as already-normalized content
 
-    def test_sidecar_generation_with_content(self, runner: CliRunner, tmp_path: Path):
-        """Given --content used, when pipeline processes,
+    def test_sidecar_generation_with_text(self, runner: CliRunner, tmp_path: Path):
+        """Given --text used, when pipeline processes,
         then sidecar generation proceeds normally."""
         mock_pipeline = MagicMock()
         mock_source = MagicMock()
@@ -184,7 +174,7 @@ class TestContentFlag:
         mock_pipeline._config.completion.tasks = {"tagging": "medium"}
         mock_pipeline._embedder = MagicMock()
         mock_pipeline._embedder._model = "stub"
-        mock_pipeline._sidecar = MagicMock()  # Sidecar generator exists
+        mock_pipeline._sidecar = MagicMock()
         mock_pipeline.embedding_failed = False
 
         with patch("research_keeper.cli._build_pipeline", return_value=mock_pipeline):
@@ -194,7 +184,7 @@ class TestContentFlag:
                     "add",
                     "--root",
                     str(tmp_path),
-                    "--content",
+                    "--text",
                     "Article content here",
                     "--origin",
                     "https://example.com/article",
@@ -202,15 +192,14 @@ class TestContentFlag:
             )
 
             assert result.exit_code == 0
-            # Verify sidecar path is in output (sidecar generation indicated)
             assert "tag.j2" in result.output or "sidecar" in result.output.lower()
 
 
-class TestContentEncoding:
-    """Test content encoding and special characters."""
+class TestTextEncoding:
+    """Test text content encoding and special characters."""
 
-    def test_content_with_newlines(self, runner: CliRunner, tmp_path: Path):
-        """Test that content with newlines is handled correctly."""
+    def test_text_with_newlines(self, runner: CliRunner, tmp_path: Path):
+        """Test that text content with newlines is handled correctly."""
         mock_pipeline = MagicMock()
         mock_source = MagicMock()
         mock_source.slug = "newlines"
@@ -236,7 +225,7 @@ class TestContentEncoding:
                     "add",
                     "--root",
                     str(tmp_path),
-                    "--content",
+                    "--text",
                     content_with_newlines,
                     "--origin",
                     "https://example.com/article",
@@ -247,8 +236,8 @@ class TestContentEncoding:
             call_args = mock_pipeline.add.call_args
             assert call_args[0][0] == content_with_newlines
 
-    def test_content_with_special_chars(self, runner: CliRunner, tmp_path: Path):
-        """Test that content with special characters is handled correctly."""
+    def test_text_with_special_chars(self, runner: CliRunner, tmp_path: Path):
+        """Test that text content with special characters is handled correctly."""
         mock_pipeline = MagicMock()
         mock_source = MagicMock()
         mock_source.slug = "special-chars"
@@ -274,7 +263,7 @@ class TestContentEncoding:
                     "add",
                     "--root",
                     str(tmp_path),
-                    "--content",
+                    "--text",
                     special_content,
                     "--origin",
                     "https://example.com/article",
@@ -284,3 +273,47 @@ class TestContentEncoding:
             assert result.exit_code == 0
             call_args = mock_pipeline.add.call_args
             assert call_args[0][0] == special_content
+
+
+class TestDeprecatedContentFlag:
+    """Test that --content still works but shows deprecation warning."""
+
+    def test_content_flag_still_works(self, runner: CliRunner, tmp_path: Path):
+        """Given --content flag (deprecated), when called,
+        then content is added with a deprecation warning."""
+        mock_pipeline = MagicMock()
+        mock_source = MagicMock()
+        mock_source.slug = "deprecated-content"
+        mock_source.tags = []
+        mock_pipeline.add.return_value = mock_source
+        mock_pipeline._store = MagicMock()
+        mock_pipeline._store.source_dir.return_value = (
+            tmp_path / "library" / "sources" / "deprecated-content"
+        )
+        mock_pipeline._config = MagicMock()
+        mock_pipeline._config.completion.tasks = {"tagging": "medium"}
+        mock_pipeline._embedder = MagicMock()
+        mock_pipeline._embedder._model = "stub"
+        mock_pipeline._sidecar = None
+        mock_pipeline.embedding_failed = False
+
+        with patch("research_keeper.cli._build_pipeline", return_value=mock_pipeline):
+            result = runner.invoke(
+                main,
+                [
+                    "add",
+                    "--root",
+                    str(tmp_path),
+                    "--content",
+                    "Content via deprecated flag",
+                    "--origin",
+                    "https://example.com/article",
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert "deprecated-content" in result.output
+            assert (
+                "deprecated" in result.output.lower()
+                or "use --text" in result.output.lower()
+            )

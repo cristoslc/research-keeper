@@ -49,7 +49,8 @@ class TestFallbackTrigger:
             # Should provide actionable hint for LLM (check stderr too)
             full_output = result.output + (getattr(result, "stderr", "") or "")
             assert (
-                "--content" in full_output
+                "text:" in full_output
+                or "--text" in full_output
                 or "fallback" in full_output.lower()
                 or "alternative" in full_output.lower()
                 or "playwright" in full_output.lower()
@@ -74,7 +75,8 @@ class TestFallbackTrigger:
             assert "example.com" in full_output
             # Error should be actionable with fallback hint
             assert (
-                "--content" in full_output
+                "text:" in full_output
+                or "--text" in full_output
                 or "fallback" in full_output.lower()
                 or "alternative" in full_output.lower()
             )
@@ -105,7 +107,7 @@ class TestFallbackWorkflow:
 
         # Step 1: Initial add fails (tested in TestFallbackTrigger)
 
-        # Step 2: LLM uses --content flag (SPEC-054)
+        # Step 2: LLM uses --text flag (formerly --content)
         with patch("research_keeper.cli._build_pipeline", return_value=mock_pipeline):
             result = runner.invoke(
                 main,
@@ -113,14 +115,14 @@ class TestFallbackWorkflow:
                     "add",
                     "--root",
                     str(tmp_path),
-                    "--content",
+                    "--text",
                     "Pre-fetched content from JavaScript page",
                     "--origin",
                     "https://javascript-heavy.com",
                 ],
             )
 
-            # Should succeed with --content flag
+            # Should succeed with --text flag
             assert result.exit_code == 0
             assert "fallback-content" in result.output
 
@@ -141,8 +143,10 @@ class TestFallbackWorkflow:
             # Should show the exact command format (check stderr too)
             full_output = result.output + (getattr(result, "stderr", "") or "")
             assert (
-                "--content" in full_output and "--origin" in full_output
-            ) or "rk add --content" in full_output
+                ("text:" in full_output and "--origin" in full_output)
+                or "rk add --text" in full_output
+                or "rk add text:" in full_output
+            )
 
 
 class TestNormalFetchUnaffected:
@@ -178,4 +182,4 @@ class TestNormalFetchUnaffected:
             assert result.exit_code == 0
             # Should not mention fallback (no overhead)
             assert "fallback" not in result.output.lower()
-            assert "--content" not in result.output
+            assert "--text" not in result.output
