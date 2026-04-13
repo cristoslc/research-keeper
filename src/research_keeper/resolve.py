@@ -26,6 +26,7 @@ from research_keeper.adapters.filesystem.investigation_store import (
 )
 from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
 from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
+from research_keeper.adapters.normalizers.identifier import identify_content_type
 from research_keeper.adapters.sqlite.index import SqliteIndex
 from research_keeper.config import load_config
 from research_keeper.sidecar import SidecarGenerator
@@ -100,6 +101,32 @@ def _resolve_impl(root: Path, config) -> str:
     index = SqliteIndex(root / "rk.db")
     sidecar_gen = SidecarGenerator(root, config.completion)
 
+    normalizers: dict = {}
+    try:
+        from research_keeper.adapters.normalizers.notes import NotesNormalizer
+
+        normalizers["note"] = NotesNormalizer()
+    except ImportError:
+        pass
+    try:
+        from research_keeper.adapters.normalizers.web import WebNormalizer
+
+        normalizers["web"] = WebNormalizer()
+    except ImportError:
+        pass
+    try:
+        from research_keeper.adapters.normalizers.documents import DocumentNormalizer
+
+        normalizers["document"] = DocumentNormalizer()
+    except ImportError:
+        pass
+    try:
+        from research_keeper.adapters.normalizers.media import MediaNormalizer
+
+        normalizers["media"] = MediaNormalizer()
+    except ImportError:
+        pass
+
     lines: list[str] = []
     resolved_count = 0
 
@@ -134,6 +161,66 @@ def _resolve_impl(root: Path, config) -> str:
         lines.append("")
 
     # --- Phase 1: Process any rendered output files ---
+
+    # Process rendered normalize.md files (re-normalize failed binary sources)
+    normalize_results: list[str] = []
+    for source_dir in _iter_source_dirs(root):
+        pending = source_dir / ".pending"
+        normalize_md = pending / "normalize.md"
+        if not normalize_md.exists():
+            continue
+        slug = source_dir.name
+        try:
+            new_content = normalize_md.read_text()
+            result = _apply_normalize(
+                root, store, index, slug, new_content, sidecar_gen, config
+            )
+            if result:
+                normalize_results.append(slug)
+                resolved_count += 1
+                _cleanup_pending(pending)
+        except Exception as exc:
+            logger.warning("Failed to process normalize.md for %s: %s", slug, exc)
+
+    # Auto-retry normalization for sources with normalize.j2 but no normalize.md
+    auto_normalize_results: list[str] = []
+    for source_dir in _iter_source_dirs(root):
+        pending = source_dir / ".pending"
+        normalize_j2 = pending / "normalize.j2"
+        normalize_md = pending / "normalize.md"
+        if not normalize_j2.exists() or normalize_md.exists():
+            continue
+        manifest_path = source_dir / "manifest.yaml"
+        if not manifest_path.exists():
+            continue
+        manifest = yaml.safe_load(manifest_path.read_text()) or {}
+        original_filename = manifest.get("original-file")
+        if not original_filename:
+            continue
+        original_path = source_dir / original_filename
+        if not original_path.exists():
+            continue
+        slug = source_dir.name
+        try:
+            content_type = identify_content_type(str(original_path), {})
+            normalizer = normalizers.get(content_type)
+            if normalizer is None:
+                continue
+            content, extracted_meta = normalizer.normalize(str(original_path), {})
+            result = _apply_normalize(
+                root, store, index, slug, content, sidecar_gen, config
+            )
+            if result:
+                auto_normalize_results.append(slug)
+                resolved_count += 1
+                _cleanup_pending(pending)
+        except Exception as exc:
+            logger.info(
+                "Auto-re-normalization failed for %s, "
+                "leaving normalize.j2 for manual resolution: %s",
+                slug,
+                exc,
+            )
 
     # Process rendered tag.yaml files
     tag_results: dict[str, list[str]] = {}  # source_slug -> tags
@@ -215,6 +302,18 @@ def _resolve_impl(root: Path, config) -> str:
                 )
 
     # Report what was resolved
+    if normalize_results:
+        lines.append(f"Re-normalized {len(normalize_results)} source(s) from sidecar:")
+        for slug in normalize_results:
+            lines.append(f"  {slug}")
+        lines.append("")
+
+    if auto_normalize_results:
+        lines.append(f"Auto-re-normalized {len(auto_normalize_results)} source(s):")
+        for slug in auto_normalize_results:
+            lines.append(f"  {slug}")
+        lines.append("")
+
     if tag_results:
         lines.append(f"Resolved {len(tag_results)} tag sidecar(s):")
         for slug, tags in tag_results.items():
@@ -237,7 +336,9 @@ def _resolve_impl(root: Path, config) -> str:
             lines.append(f"  {inv_id}")
         lines.append("")
 
-    # --- Phase 2: Determine current stage ---
+    # --- Phase 2: Generate sidecars (eager — no batch gates) ---
+
+    has_pending = False
 
     # Check for intake locks
     intake_locks = _find_intake_locks(root)
@@ -247,17 +348,44 @@ def _resolve_impl(root: Path, config) -> str:
             f"{len(intake_locks)} source(s) still being filed (intake in progress)."
         )
         lines.append("Wait for intake to complete, then run: rk resolve")
-        return "\n".join(lines)
+        lines.append("")
+        has_pending = True
 
-    # Check for pending tag sidecars
+    # Collect pending normalize sidecars
+    pending_normalizes: list[Path] = []
+    for source_dir in _iter_source_dirs(root):
+        pending = source_dir / ".pending"
+        if (pending / "normalize.j2").exists() and not (
+            pending / "normalize.md"
+        ).exists():
+            pending_normalizes.append(pending / "normalize.j2")
+    if pending_normalizes:
+        lines.append("Stage: normalize")
+        lines.append(f"{len(pending_normalizes)} source(s) need re-normalization:")
+        for path in pending_normalizes:
+            slug = path.parent.parent.name
+            lines.append(f"  {slug}")
+        lines.append("")
+        lines.append("AGENT ACTION: For each source needing normalization:")
+        lines.append(
+            "  1. Run: rk normalize <slug> --root <root> (retries the normalizer)"
+        )
+        lines.append(
+            "  2. Or: write a normalize.md file in the .pending/ directory with corrected content"
+        )
+        lines.append("  3. Then run: rk resolve")
+        lines.append("")
+        has_pending = True
+
+    # Collect pending tag sidecars
     pending_tags = _find_pending_tags(root)
     if pending_tags:
-        model_hint = config.completion.tasks.get("tagging", "medium")
+        tag_model_hint = config.completion.tasks.get("tagging", "medium")
         lines.append(f"Stage: tagging")
         lines.append(f"{len(pending_tags)} tag sidecar(s) pending (parallelizable):")
         for path in pending_tags:
             rel = path.relative_to(root) if path.is_relative_to(root) else path
-            lines.append(f"  {rel} ({model_hint})")
+            lines.append(f"  {rel} ({tag_model_hint})")
         lines.append("")
         lines.append("AGENT ACTION: For each tag.j2 sidecar:")
         lines.append(
@@ -268,80 +396,56 @@ def _resolve_impl(root: Path, config) -> str:
         )
         lines.append("  3. YAML format: tags: [tag-one, tag-two, ...]")
         lines.append("")
-        lines.append(
-            "NEXT RESOLVE: rk resolve will read tag.yaml, apply tags to sources,"
+        has_pending = True
+
+    # Eagerly generate synthesis sidecars, gated by volume threshold (ADR-006).
+    # If pending tag count >= threshold, defer synthesis to avoid synthesizing
+    # incomplete source sets when a large batch is still being tagged.
+    gate_threshold = config.intake.synthesis_gate_threshold
+    if len(pending_tags) >= gate_threshold:
+        tags_needing_synthesis = []
+    else:
+        tags_needing_synthesis = _find_tags_needing_synthesis(
+            root, tag_store, tags_with_new_sources
         )
+    synth_model_hint = config.completion.tasks.get("synthesis", "heavy")
+    generated_synth: list[tuple[str, Path, int]] = []
+    for tag_slug in tags_needing_synthesis:
+        source_slugs = tag_store.sources_for_tag(tag_slug)
+        sources = []
+        for s_slug in source_slugs:
+            src = store.get(s_slug)
+            if src:
+                sources.append({"slug": src.slug, "content": src.content})
+        if sources:
+            path = sidecar_gen.generate_synthesis_sidecar(
+                tag_slug=tag_slug,
+                sources=sources,
+                model_hint=synth_model_hint,
+            )
+            generated_synth.append((tag_slug, path, len(sources)))
+
+    if generated_synth:
+        lines.append(f"Stage: synthesis")
         lines.append(
-            "              then delete the .pending/ directory (including tag.j2 and tag.yaml)"
+            f"{len(generated_synth)} synthesis sidecar(s) generated (parallelizable):"
         )
+        for tag_slug, path, src_count in generated_synth:
+            rel = path.relative_to(root) if path.is_relative_to(root) else path
+            lines.append(f"  {rel} ({synth_model_hint}) -- {src_count} source(s)")
         lines.append("")
-        lines.append("After filling all tag.yaml files, run: rk resolve")
-        return "\n".join(lines)
+        has_pending = True
 
-    # BATCH GATE: all tags resolved -> generate synthesis sidecars
-    # Find tags that have sources but no synthesis.md (or have new sources since last synthesis)
-    tags_needing_synthesis = _find_tags_needing_synthesis(
-        root, tag_store, tags_with_new_sources
-    )
-    if tags_needing_synthesis:
-        model_hint = config.completion.tasks.get("synthesis", "heavy")
-        generated: list[tuple[str, Path, int]] = []
-        for tag_slug in tags_needing_synthesis:
-            source_slugs = tag_store.sources_for_tag(tag_slug)
-            sources = []
-            for s_slug in source_slugs:
-                src = store.get(s_slug)
-                if src:
-                    sources.append({"slug": src.slug, "content": src.content})
-            if sources:
-                path = sidecar_gen.generate_synthesis_sidecar(
-                    tag_slug=tag_slug,
-                    sources=sources,
-                    model_hint=model_hint,
-                )
-                generated.append((tag_slug, path, len(sources)))
-
-        if generated:
-            lines.append(f"Stage: synthesis")
-            lines.append(
-                f"{len(generated)} synthesis sidecar(s) generated (parallelizable):"
-            )
-            for tag_slug, path, src_count in generated:
-                rel = path.relative_to(root) if path.is_relative_to(root) else path
-                lines.append(f"  {rel} ({model_hint}) -- {src_count} source(s)")
-            lines.append("")
-            lines.append("AGENT ACTION: For each synthesize.j2 sidecar:")
-            lines.append(
-                "  1. Read the .j2 file — Jinja2 comments contain the prompt and all source content"
-            )
-            lines.append(
-                "  2. Write a NEW file 'synthesize.md' in the same .pending/ directory (DO NOT move/rename the .j2)"
-            )
-            lines.append(
-                "  3. Markdown format: organize by theme, cite sources as (source-slug)"
-            )
-            lines.append("")
-            lines.append(
-                "NEXT RESOLVE: rk resolve will read synthesize.md, write tags/<tag>/synthesis.md,"
-            )
-            lines.append(
-                "              index in SQLite, then delete the .pending/ directory"
-            )
-            lines.append("")
-            lines.append("After filling all synthesize.md files, run: rk resolve")
-            return "\n".join(lines)
-
-    # Check for pending synthesis sidecars
+    # Collect pending synthesis sidecars (pre-existing or just-generated)
     pending_synth = _find_pending_syntheses(root)
     if pending_synth:
-        model_hint = config.completion.tasks.get("synthesis", "heavy")
         lines.append(f"Stage: synthesis")
         lines.append(
             f"{len(pending_synth)} synthesis sidecar(s) pending (parallelizable):"
         )
         for path in pending_synth:
             rel = path.relative_to(root) if path.is_relative_to(root) else path
-            lines.append(f"  {rel} ({model_hint})")
+            lines.append(f"  {rel} ({synth_model_hint})")
         lines.append("")
         lines.append("AGENT ACTION: For each synthesize.j2 sidecar:")
         lines.append(
@@ -354,73 +458,66 @@ def _resolve_impl(root: Path, config) -> str:
             "  3. Markdown format: organize by theme, cite sources as (source-slug)"
         )
         lines.append("")
-        lines.append(
-            "NEXT RESOLVE: rk resolve will read synthesize.md, write tags/<tag>/synthesis.md,"
-        )
-        lines.append(
-            "              index in SQLite, then delete the .pending/ directory"
-        )
-        lines.append("")
-        lines.append("After filling all synthesize.md files, run: rk resolve")
-        return "\n".join(lines)
+        has_pending = True
 
-    # Check for investigations needing (re-)synthesis
+    # Eagerly generate investigation sidecars for investigations that need them
     inv_store = FilesystemInvestigationStore(root)
     invs_needing_synthesis = _find_investigations_needing_synthesis(root, inv_store)
-    if invs_needing_synthesis:
-        model_hint = config.completion.tasks.get("synthesis", "heavy")
-        generated_inv: list[tuple[str, Path]] = []
-        for inv in invs_needing_synthesis:
-            # Gather linked content
-            sources_content = _gather_investigation_sources(root, inv)
-            query_syntheses = _gather_investigation_queries(root, inv)
+    generated_inv: list[tuple[str, Path]] = []
+    for inv in invs_needing_synthesis:
+        sources_content = _gather_investigation_sources(root, inv)
+        query_syntheses = _gather_investigation_queries(root, inv)
 
-            path = sidecar_gen.generate_investigation_sidecar(
-                inv_id=inv.inv_id,
-                topic=inv.topic,
-                brief=inv.brief,
-                sources_content=sources_content,
-                query_syntheses=query_syntheses,
-                prior_synthesis=inv.synthesis,
-                model_hint=model_hint,
-            )
-            generated_inv.append((inv.inv_id, path))
+        path = sidecar_gen.generate_investigation_sidecar(
+            inv_id=inv.inv_id,
+            topic=inv.topic,
+            brief=inv.brief,
+            sources_content=sources_content,
+            query_syntheses=query_syntheses,
+            prior_synthesis=inv.synthesis,
+            model_hint=synth_model_hint,
+        )
+        generated_inv.append((inv.inv_id, path))
 
-        if generated_inv:
-            lines.append(f"Stage: investigation synthesis")
-            lines.append(
-                f"{len(generated_inv)} investigation synthesis sidecar(s) generated:"
-            )
-            for inv_id, path in generated_inv:
-                rel = path.relative_to(root) if path.is_relative_to(root) else path
-                lines.append(f"  {rel} ({model_hint})")
-            lines.append("")
-            lines.append(
-                "AGENT ACTION: For each synthesize.j2 sidecar in investigations/:"
-            )
-            lines.append(
-                "  1. Read the .j2 file — contains investigation brief, linked sources, and query syntheses"
-            )
-            lines.append(
-                "  2. Write a NEW file 'synthesize.md' in the same .pending/ directory (DO NOT move/rename the .j2)"
-            )
-            lines.append(
-                "  3. Markdown format: rolling synthesis integrating all findings, cite sources as (source-slug)"
-            )
-            lines.append("")
-            lines.append(
-                "NEXT RESOLVE: rk resolve will read synthesize.md, write investigations/<id>/synthesis.md,"
-            )
-            lines.append(
-                "              update meta.yaml with last_synthesized timestamp, index in SQLite,"
-            )
-            lines.append("              then delete the .pending/ directory")
-            lines.append("")
-            lines.append("After filling all synthesize.md files, run: rk resolve")
-            return "\n".join(lines)
+    if generated_inv:
+        lines.append(f"Stage: investigation synthesis")
+        lines.append(
+            f"{len(generated_inv)} investigation synthesis sidecar(s) generated:"
+        )
+        for inv_id, path in generated_inv:
+            rel = path.relative_to(root) if path.is_relative_to(root) else path
+            lines.append(f"  {rel} ({synth_model_hint})")
+        lines.append("")
+        lines.append("AGENT ACTION: For each synthesize.j2 sidecar in investigations/:")
+        lines.append(
+            "  1. Read the .j2 file — contains investigation brief, linked sources, and query syntheses"
+        )
+        lines.append(
+            "  2. Write a NEW file 'synthesize.md' in the same .pending/ directory (DO NOT move/rename the .j2)"
+        )
+        lines.append(
+            "  3. Markdown format: rolling synthesis integrating all findings, cite sources as (source-slug)"
+        )
+        lines.append("")
+        has_pending = True
 
-    # --- Phase 3: Nothing pending -> Done ---
-    if resolved_count > 0:
+    # Collect pending investigation synthesis sidecars (pre-existing or just-generated)
+    pending_inv_synth = _find_pending_investigation_syntheses(root)
+    if pending_inv_synth:
+        lines.append(f"Stage: investigation synthesis")
+        lines.append(
+            f"{len(pending_inv_synth)} investigation synthesis sidecar(s) pending:"
+        )
+        for path in pending_inv_synth:
+            rel = path.relative_to(root) if path.is_relative_to(root) else path
+            lines.append(f"  {rel}")
+        lines.append("")
+        has_pending = True
+
+    # --- Phase 3: Report result ---
+    if has_pending:
+        lines.append("Fill sidecar outputs, then run: rk resolve")
+    elif resolved_count > 0:
         lines.append("Done. All sources tagged and synthesized.")
     else:
         lines.append("Done. Nothing pending.")
@@ -531,6 +628,21 @@ def _find_tags_needing_synthesis(
         elif is_stale:
             tags_needing.append(tag_slug)
     return tags_needing
+
+
+def _find_pending_investigation_syntheses(root: Path) -> list[Path]:
+    """Find all .pending/synthesize.j2 without a matching synthesize.md in investigations."""
+    pending = []
+    inv_dir = root / "investigations"
+    if not inv_dir.exists():
+        return pending
+    for d in inv_dir.iterdir():
+        if d.is_dir():
+            synth_j2 = d / ".pending" / "synthesize.j2"
+            synth_md = d / ".pending" / "synthesize.md"
+            if synth_j2.exists() and not synth_md.exists():
+                pending.append(synth_j2)
+    return sorted(pending)
 
 
 def _apply_tags(
@@ -923,6 +1035,119 @@ def _tombstone_query_source(query_dir: Path, source_slug: str) -> None:
     if updated != cited:
         meta["cited_sources"] = updated
         meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))
+
+
+def _apply_normalize(
+    root: Path,
+    store: FilesystemSourceStore,
+    index: SqliteIndex,
+    slug: str,
+    new_content: str,
+    sidecar_gen: SidecarGenerator,
+    config,
+) -> bool:
+    """Re-normalize a source from a filled normalize.md sidecar.
+
+    Replaces source.md, updates manifest, re-runs embedding, generates tag sidecar.
+    Returns True if successful.
+    """
+    import hashlib
+
+    from research_keeper.chunker import chunk_markdown
+
+    source_dir = store.source_dir(slug)
+    if not source_dir.is_dir():
+        logger.warning("Source directory not found for %s during normalize", slug)
+        return False
+
+    manifest_path = source_dir / "manifest.yaml"
+    if not manifest_path.exists():
+        logger.warning("Manifest not found for %s during normalize", slug)
+        return False
+
+    manifest = yaml.safe_load(manifest_path.read_text()) or {}
+
+    # Write new source.md
+    (source_dir / "source.md").write_text(new_content)
+
+    # Update manifest
+    content_hash = hashlib.sha256(new_content.encode()).hexdigest()
+    manifest["hash"] = content_hash
+    manifest["normalization-status"] = "ok"
+    manifest.pop("normalization-error", None)
+    manifest.pop("word_count", None)
+    manifest_path.write_text(
+        yaml.dump(manifest, default_flow_style=False, sort_keys=False)
+    )
+
+    # Remove old embeddings
+    try:
+        index._conn.execute(
+            "DELETE FROM embeddings WHERE node_id = ? OR node_id LIKE ?",
+            (slug, f"{slug}#chunk-%"),
+        )
+        index._conn.commit()
+    except Exception:
+        logger.warning("Failed to remove old embeddings for %s", slug, exc_info=True)
+
+    # Re-run embedding
+    try:
+        from research_keeper.adapters.embedder.sentence_transformers import (
+            SentenceTransformerEmbedder,
+        )
+
+        emb_cfg = getattr(config, "embeddings", None)
+        model_name = emb_cfg.model if emb_cfg else "nomic-ai/nomic-embed-text-v1.5"
+        embedder = SentenceTransformerEmbedder(model_name=model_name)
+
+        title = manifest.get("title")
+        chunks = chunk_markdown(new_content, title=title)
+        first_embedding: bytes | None = None
+        for chunk in chunks:
+            embedding = embedder.embed(chunk.content)
+            chunk_id = f"{slug}#chunk-{chunk.index}"
+            model_label = getattr(embedder, "_model", model_name)
+            if not isinstance(model_label, str):
+                model_label = model_name
+            index.upsert_embedding(
+                chunk_id, model_label, embedding, content=chunk.content
+            )
+            if chunk.index == 0:
+                first_embedding = embedding
+        if first_embedding:
+            (source_dir / "embedding.bin").write_bytes(first_embedding)
+    except Exception:
+        logger.warning("Embedding failed for %s during normalize", slug, exc_info=True)
+
+    # Update FTS index
+    try:
+        source = store.get(slug)
+        if source:
+            index.upsert_source(source)
+    except Exception:
+        logger.warning(
+            "FTS index update failed for %s during normalize", slug, exc_info=True
+        )
+
+    # Generate tag sidecar
+    try:
+        existing_tags = []
+        tag_store = FilesystemTagStore(root)
+        existing_tags = tag_store.list()
+        model_hint = config.completion.tasks.get("tagging", "medium")
+        sidecar_gen.generate_tag_sidecar(
+            source_slug=slug,
+            source_content=new_content,
+            existing_tags=existing_tags,
+            model_hint=model_hint,
+        )
+    except Exception:
+        logger.warning(
+            "Tag sidecar generation failed for %s during normalize", slug, exc_info=True
+        )
+
+    logger.info("Re-normalized source %s from normalize.md sidecar", slug)
+    return True
 
 
 def _tombstone_investigation_source(inv_dir: Path, source_slug: str) -> None:

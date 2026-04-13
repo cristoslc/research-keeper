@@ -193,39 +193,62 @@ class TestFullSidecarCycle:
         assert src_a.slug in content
         assert src_b.slug in content
 
-    def test_batch_gate_prevents_premature_synthesis(self, rk_root: Path):
-        """Synthesis should not start until ALL tag sidecars are resolved."""
+    def test_volume_threshold_gates_synthesis(self, rk_root: Path):
+        """Synthesis is deferred when pending tag count >= synthesis_gate_threshold (ADR-006).
+
+        Default threshold is 3. With 4 sources, filling 1 leaves 3 pending — gate holds.
+        Filling the remainder drops below the threshold, allowing synthesis generation.
+        """
         pipeline = _make_pipeline(rk_root)
 
         src_a = pipeline.add("# Source A\n\nContent A.", {"title": "Source A"})
         src_b = pipeline.add("# Source B\n\nContent B.", {"title": "Source B"})
+        src_c = pipeline.add("# Source C\n\nContent C.", {"title": "Source C"})
+        src_d = pipeline.add("# Source D\n\nContent D.", {"title": "Source D"})
 
-        # Fill only A's tags
+        # Fill only A's tags — 3 still pending, which equals the default threshold
         pending_a = rk_root / "library" / "sources" / src_a.slug / ".pending"
         (pending_a / "tag.yaml").write_text("tags:\n  - shared-tag\n")
 
-        # Resolve: A is processed, B is still pending -> no synthesis
+        # Resolve: A processed, 3 pending remain → gate holds, no synthesis yet
         output = run_resolve(rk_root)
         assert "pending" in output.lower()
-
-        # No synthesis sidecars should exist
         synth_files = list(rk_root.glob("tags/*/.pending/synthesize.j2"))
-        assert len(synth_files) == 0
+        assert len(synth_files) == 0, "synthesis should be deferred when pending >= threshold"
 
-        # Now fill B's tags
-        pending_b = rk_root / "library" / "sources" / src_b.slug / ".pending"
-        (pending_b / "tag.yaml").write_text("tags:\n  - shared-tag\n")
+        # Fill the remaining sources
+        for src in [src_b, src_c, src_d]:
+            pending = rk_root / "library" / "sources" / src.slug / ".pending"
+            (pending / "tag.yaml").write_text("tags:\n  - shared-tag\n")
 
-        # Resolve: both done -> synthesis generated
+        # Resolve: all tags done (0 pending < threshold) → synthesis generated
         output2 = run_resolve(rk_root)
-
         synth_j2 = rk_root / "tags" / "shared-tag" / ".pending" / "synthesize.j2"
-        assert synth_j2.exists()
-
-        # The sidecar should reference both sources
+        assert synth_j2.exists(), "synthesis should be generated when pending < threshold"
         content = synth_j2.read_text()
         assert src_a.slug in content
         assert src_b.slug in content
+
+    def test_eager_synthesis_below_threshold(self, rk_root: Path):
+        """Synthesis is generated eagerly when pending tag count < threshold (ADR-006).
+
+        With 2 sources, filling 1 leaves 1 pending — below the default threshold of 3.
+        Synthesis is generated immediately for the tagged source's tags.
+        """
+        pipeline = _make_pipeline(rk_root)
+
+        src_a = pipeline.add("# Source A\n\nContent A.", {"title": "Source A"})
+        pipeline.add("# Source B\n\nContent B.", {"title": "Source B"})
+
+        # Fill only A's tags — 1 still pending, which is below the default threshold
+        pending_a = rk_root / "library" / "sources" / src_a.slug / ".pending"
+        (pending_a / "tag.yaml").write_text("tags:\n  - eager-tag\n")
+
+        # Resolve: A processed, 1 pending < threshold → synthesis generated eagerly
+        run_resolve(rk_root)
+        synth_j2 = rk_root / "tags" / "eager-tag" / ".pending" / "synthesize.j2"
+        assert synth_j2.exists(), "synthesis should be generated eagerly below threshold"
+        assert src_a.slug in synth_j2.read_text()
 
 
 class TestFullCycleCLI:

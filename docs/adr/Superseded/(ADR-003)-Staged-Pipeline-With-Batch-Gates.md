@@ -2,15 +2,16 @@
 title: "Staged Pipeline with Batch Gates"
 artifact: ADR-003
 track: standing
-status: Active
+status: Superseded
 author: cristos
 created: 2026-03-30
-last-updated: 2026-03-30
+last-updated: 2026-04-13
 linked-artifacts:
   - ADR-001
   - DESIGN-002
 depends-on-artifacts:
   - ADR-001
+superseded-by: ADR-006
 evidence-pool: ""
 ---
 

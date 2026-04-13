@@ -22,5 +22,6 @@ node_modules/
 # Vendored swain skills (managed by swain-update)
 .claude/skills/swain/
 .claude/skills/swain-*/
+.claude/skills/research-keeper/
 .agents/skills/swain/
 .agents/skills/swain-*/

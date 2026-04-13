@@ -82,6 +82,10 @@ class FilesystemSourceStore:
             manifest["summary"] = metadata["summary"]
         if original_filename:
             manifest["original-file"] = original_filename
+        if metadata.get("normalization_status"):
+            manifest["normalization-status"] = metadata["normalization_status"]
+        if metadata.get("normalization_error"):
+            manifest["normalization-error"] = metadata["normalization_error"]
         (source_dir / "manifest.yaml").write_text(
             yaml.dump(manifest, default_flow_style=False, sort_keys=False)
         )

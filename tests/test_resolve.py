@@ -388,8 +388,8 @@ class TestResolveTagStage:
         assert "memory" in manifest["tags"]
         assert "agents" in manifest["tags"]
 
-    def test_batch_gate_blocks_synthesis(self, pipeline_and_root):
-        """If some tag sidecars are pending, synthesis should NOT be generated."""
+    def test_eager_synthesis_despite_pending_tags(self, pipeline_and_root):
+        """Synthesis sidecars should be generated eagerly, even when some tag sidecars are pending."""
         from research_keeper.resolve import run_resolve
 
         pipeline, root = pipeline_and_root
@@ -401,12 +401,15 @@ class TestResolveTagStage:
         (pending_a / "tag.yaml").write_text("tags:\n  - memory\n")
 
         output = run_resolve(root)
-        # Should process src_a's tags but report src_b as pending
+        # Should process src_a's tags and still report src_b as pending
         assert "pending" in output.lower()
 
-        # Should NOT have generated synthesis sidecars
+        # Should HAVE generated synthesis sidecar for "memory" tag eagerly
         synth_files = list(root.glob("tags/*/.pending/synthesize.j2"))
-        assert len(synth_files) == 0
+        assert len(synth_files) >= 1, (
+            f"Expected at least 1 synthesis sidecar generated eagerly, got {len(synth_files)}. "
+            f"Output: {output}"
+        )
 
     def test_all_tags_resolved_generates_synthesis(self, pipeline_and_root):
         """When all tag sidecars are resolved, synthesis sidecars should be generated."""
@@ -427,6 +430,58 @@ class TestResolveTagStage:
         synth_j2 = root / "tags" / "memory" / ".pending" / "synthesize.j2"
         assert synth_j2.exists(), f"Expected synthesis sidecar at {synth_j2}"
         assert "synthesis" in output.lower() or "synthesize" in output.lower()
+
+    def test_resolve_reports_all_pending_stages(self, pipeline_and_root):
+        """Resolve reports tag, synthesis, and investigation pending stages in one pass."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.filesystem.investigation_store import (
+            FilesystemInvestigationStore,
+        )
+
+        pipeline, root = pipeline_and_root
+
+        # Add two sources, fill both tags so synthesis sidecars get generated
+        src_a = pipeline.add("# Memory\n\nContent about memory.", {"title": "Memory"})
+        src_b = pipeline.add("# Agents\n\nContent about agents.", {"title": "Agents"})
+
+        # Fill tag sidecar for src_a only (src_b stays pending)
+        pending_a = root / "library" / "sources" / src_a.slug / ".pending"
+        (pending_a / "tag.yaml").write_text("tags:\n  - memory\n")
+
+        # Create an open investigation with a linked query (needs synthesis)
+        inv_store = FilesystemInvestigationStore(root)
+        inv_id = inv_store.create("test topic", "test brief")
+
+        query_id = "qry-eagertest"
+        query_dir = root / "queries" / query_id
+        query_dir.mkdir(parents=True)
+        (query_dir / "synthesis.md").write_text("Query answer.")
+        import yaml as _yaml
+
+        (query_dir / "meta.yaml").write_text(
+            _yaml.dump(
+                {
+                    "query_id": query_id,
+                    "query_text": "test",
+                    "kind": "query-synthesis",
+                    "created": "2026-04-11",
+                },
+                default_flow_style=False,
+            )
+        )
+        inv_store.link(inv_id, query_id, "query")
+
+        output = run_resolve(root)
+
+        # Should report pending tags, generated synthesis sidecars,
+        # and generated investigation sidecar — all in one pass
+        assert "tag" in output.lower(), f"Expected 'tag' in output:\n{output}"
+        assert "synthesis" in output.lower(), (
+            f"Expected 'synthesis' in output:\n{output}"
+        )
+        assert "investigation" in output.lower(), (
+            f"Expected 'investigation' in output:\n{output}"
+        )
 
 
 class TestResolveSynthesisStage:

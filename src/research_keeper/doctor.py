@@ -25,6 +25,7 @@ class DiagnosticResult:
     message: str
     count: int = 1
     details: list[str] | None = None
+    remediation: str | None = None
 
 
 def check_duplicate_hashes(root: Path) -> list[DiagnosticResult]:
@@ -55,6 +56,7 @@ def check_duplicate_hashes(root: Path) -> list[DiagnosticResult]:
                     message=f"Duplicate content hash {content_hash[:12]}... in: {', '.join(slugs)}",
                     count=len(slugs),
                     details=slugs,
+                    remediation="Remove duplicate sources, keeping the most complete one. Run 'rk resolve' afterward to clean up links.",
                 )
             )
 
@@ -82,6 +84,7 @@ def check_orphaned_symlinks(root: Path, fix: bool = False) -> list[DiagnosticRes
                                 severity=Severity.WARNING,
                                 check="orphaned_symlinks",
                                 message=f"Broken symlink: {symlink.relative_to(root)}",
+                                remediation="Run 'rk doctor --fix' to remove orphaned symlinks, or delete manually.",
                             )
                         )
                         if fix:
@@ -110,6 +113,7 @@ def check_missing_embeddings(root: Path, fix: bool = False) -> list[DiagnosticRe
                     severity=Severity.WARNING,
                     check="missing_embeddings",
                     message=f"Missing embedding: {src_dir.name}",
+                    remediation="Run 'rk rebuild' to regenerate missing embeddings.",
                 )
             )
 
@@ -149,6 +153,7 @@ def check_stale_nodes(root: Path) -> list[DiagnosticResult]:
                         severity=Severity.INFO,
                         check="stale_nodes",
                         message=f"Stale node (past {ttl_str} TTL): {src_dir.name}",
+                        remediation="Consider pruning stale sources with 'rk prune', or update freshness.ttl in the manifest.",
                     )
                 )
         except (ValueError, AttributeError):
@@ -186,6 +191,7 @@ def check_divergent_syntheses(root: Path) -> list[DiagnosticResult]:
                                 severity=Severity.WARNING,
                                 check="divergent_syntheses",
                                 message=f"Tag {tag_dir.name} synthesis may be stale (source {link.name} is newer)",
+                                remediation="Run 'rk resolve' to regenerate the tag synthesis from its current sources.",
                             )
                         )
                         break  # One warning per tag is enough
@@ -220,6 +226,7 @@ def check_stale_sidecars(
                             severity=Severity.WARNING,
                             check="stale_sidecars",
                             message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar.relative_to(root)}",
+                            remediation="Read the .j2 file, produce the expected output file (tag.yaml or synthesize.md) in the same .pending/ directory, then run 'rk resolve'. If stale work is no longer needed, delete the .pending/ directory.",
                         )
                     )
 
@@ -241,6 +248,7 @@ def check_stale_sidecars(
                             severity=Severity.WARNING,
                             check="stale_sidecars",
                             message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar.relative_to(root)}",
+                            remediation="Read the .j2 file, produce the expected output file (synthesize.md) in the same .pending/ directory, then run 'rk resolve'. If stale work is no longer needed, delete the .pending/ directory.",
                         )
                     )
 
@@ -269,6 +277,7 @@ def check_orphaned_locks(root: Path) -> list[DiagnosticResult]:
                                 severity=Severity.WARNING,
                                 check="orphaned_locks",
                                 message=f"Orphaned resolve lock (PID {pid} dead): .rk-resolve.lock",
+                                remediation="Delete .rk-resolve.lock to allow 'rk resolve' to proceed.",
                             )
                         )
                     except PermissionError:
@@ -279,6 +288,7 @@ def check_orphaned_locks(root: Path) -> list[DiagnosticResult]:
                     severity=Severity.WARNING,
                     check="orphaned_locks",
                     message="Unparseable resolve lock: .rk-resolve.lock",
+                    remediation="Delete .rk-resolve.lock to allow 'rk resolve' to proceed.",
                 )
             )
 
@@ -303,6 +313,7 @@ def check_orphaned_locks(root: Path) -> list[DiagnosticResult]:
                                         severity=Severity.WARNING,
                                         check="orphaned_locks",
                                         message=f"Orphaned intake lock (PID {pid} dead): {lock_file.relative_to(root)}",
+                                        remediation="Delete the intake.lock file to unblock the source for processing.",
                                     )
                                 )
                             except PermissionError:
@@ -337,6 +348,7 @@ def check_embedding_coverage(root: Path) -> list[DiagnosticResult]:
             check="embedding_coverage",
             message=f"{count} node(s) missing embeddings — run rk rebuild to backfill",
             count=count,
+            remediation="Run 'rk rebuild' to regenerate embeddings for all sources.",
         )
     ]
 
@@ -361,6 +373,7 @@ def check_unresolved_sidecars(root: Path) -> list[DiagnosticResult]:
                             severity=Severity.INFO,
                             check="unresolved_sidecars",
                             message=f"Unresolved tag sidecar: {tag_j2.relative_to(root)}",
+                            remediation="Read the .j2 file, produce a tag.yaml file in the same .pending/ directory, then run 'rk resolve'.",
                         )
                     )
 
@@ -380,6 +393,7 @@ def check_unresolved_sidecars(root: Path) -> list[DiagnosticResult]:
                             severity=Severity.INFO,
                             check="unresolved_sidecars",
                             message=f"Unresolved synthesis sidecar: {synth_j2.relative_to(root)}",
+                            remediation="Read the .j2 file, produce a synthesize.md file in the same .pending/ directory, then run 'rk resolve'.",
                         )
                     )
 
@@ -415,19 +429,33 @@ def check_metadata(root: Path, fix: bool = False) -> list[DiagnosticResult]:
                 if fix_fn and fix:
                     fixed = fix_fn(src_dir, manifest, manifest_path)
                     if not fixed:
+                        field_remediations = {
+                            "snapshot-date": "Run 'rk doctor --fix' to backfill from freshness.ingested, or set snapshot-date manually in the manifest.",
+                        }
                         results.append(
                             DiagnosticResult(
                                 severity=severity,
                                 check="metadata",
                                 message=f"Missing {field_name} in {src_dir.name} (backfill unavailable)",
+                                remediation=field_remediations.get(
+                                    field_name,
+                                    f"Add {field_name} to the manifest manually.",
+                                ),
                             )
                         )
                 else:
+                    field_remediations = {
+                        "snapshot-date": "Run 'rk doctor --fix' to backfill from freshness.ingested, or set snapshot-date manually in the manifest.",
+                    }
                     results.append(
                         DiagnosticResult(
                             severity=severity,
                             check="metadata",
                             message=f"Missing {field_name} in {src_dir.name}",
+                            remediation=field_remediations.get(
+                                field_name,
+                                f"Add {field_name} to the manifest manually.",
+                            ),
                         )
                     )
 
@@ -492,6 +520,7 @@ def check_db_filesystem_drift(root: Path) -> list[DiagnosticResult]:
                     message=f"{len(orphan_tags)} tag node(s) in index with no directory on disk",
                     count=len(orphan_tags),
                     details=sorted(orphan_tags),
+                    remediation="Run 'rk resolve' to reconcile the index with the filesystem, or delete orphan nodes manually.",
                 )
             )
 
@@ -503,12 +532,47 @@ def check_db_filesystem_drift(root: Path) -> list[DiagnosticResult]:
                     message=f"{len(orphan_sources)} source node(s) in index with no directory on disk",
                     count=len(orphan_sources),
                     details=sorted(orphan_sources),
+                    remediation="Run 'rk resolve' to reconcile the index with the filesystem, or delete orphan nodes manually.",
                 )
             )
 
         return results
     finally:
         index._conn.close()
+
+
+def check_normalization_status(root: Path) -> list[DiagnosticResult]:
+    """Check for sources with failed normalization."""
+    sources_dir = root / "library" / "sources"
+    if not sources_dir.exists():
+        return []
+
+    failed: list[str] = []
+    for source_dir in sources_dir.iterdir():
+        if not source_dir.is_dir():
+            continue
+        manifest_path = source_dir / "manifest.yaml"
+        if not manifest_path.exists():
+            continue
+        manifest = yaml.safe_load(manifest_path.read_text())
+        if not manifest:
+            continue
+        if manifest.get("normalization-status") == "failed":
+            failed.append(source_dir.name)
+
+    if not failed:
+        return []
+
+    return [
+        DiagnosticResult(
+            severity=Severity.WARNING,
+            check="normalization_status",
+            message=f"{len(failed)} source(s) with failed normalization",
+            count=len(failed),
+            details=sorted(failed),
+            remediation="Each failed source has a .pending/normalize.j2 sidecar. Render it to normalize.md with a cleaned markdown version of the document, then run 'rk resolve'.",
+        )
+    ]
 
 
 def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
@@ -525,4 +589,5 @@ def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     results.extend(check_embedding_coverage(root))
     results.extend(check_metadata(root, fix=fix))
     results.extend(check_db_filesystem_drift(root))
+    results.extend(check_normalization_status(root))
     return results

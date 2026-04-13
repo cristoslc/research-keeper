@@ -44,13 +44,28 @@ class TestCLIDoctor:
     def test_doctor_reports_missing_embeddings(self, lib_root: Path):
         src_dir = lib_root / "library" / "sources" / "test-src"
         src_dir.mkdir(parents=True)
-        (src_dir / "manifest.yaml").write_text(yaml.dump({"slug": "test-src", "hash": "abc"}))
+        (src_dir / "manifest.yaml").write_text(
+            yaml.dump({"slug": "test-src", "hash": "abc"})
+        )
 
         runner = CliRunner()
         result = runner.invoke(main, ["doctor", "--root", str(lib_root)])
-        assert "missing" in result.output.lower() or "embedding" in result.output.lower()
+        assert (
+            "missing" in result.output.lower() or "embedding" in result.output.lower()
+        )
 
     def test_doctor_fix_flag(self, lib_root: Path):
         runner = CliRunner()
         result = runner.invoke(main, ["doctor", "--fix", "--root", str(lib_root)])
         assert result.exit_code == 0
+
+    def test_doctor_shows_remediation(self, lib_root: Path):
+        src_dir = lib_root / "library" / "sources" / "no-emb"
+        src_dir.mkdir(parents=True)
+        (src_dir / "manifest.yaml").write_text(
+            yaml.dump({"slug": "no-emb", "hash": "abc"})
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["doctor", "--root", str(lib_root)])
+        assert "→" in result.output

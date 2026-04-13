@@ -29,6 +29,7 @@ class IntakeConfig:
     dedup: bool = True
     auto_tag: bool = True
     auto_synthesize: bool = True
+    synthesis_gate_threshold: int = 3
 
 
 @dataclass

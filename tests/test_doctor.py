@@ -44,6 +44,23 @@ class TestDiagnosticResult:
         assert r.severity == Severity.ERROR
         assert r.count == 2
 
+    def test_remediation_default(self):
+        r = DiagnosticResult(
+            severity=Severity.ERROR,
+            check="test",
+            message="msg",
+        )
+        assert r.remediation is None
+
+    def test_remediation_set(self):
+        r = DiagnosticResult(
+            severity=Severity.WARNING,
+            check="orphaned_symlinks",
+            message="Broken symlink",
+            remediation="Run 'rk doctor --fix' to remove.",
+        )
+        assert r.remediation == "Run 'rk doctor --fix' to remove."
+
 
 class TestCheckDuplicateHashes:
     def test_no_duplicates(self, lib_root: Path):
@@ -391,3 +408,91 @@ class TestCheckDBFilesystemDrift:
     def test_no_db_returns_empty(self, tmp_path: Path):
         results = check_db_filesystem_drift(tmp_path)
         assert results == []
+
+
+class TestRemediations:
+    """Every DiagnosticResult that signals a problem should include a remediation."""
+
+    def test_duplicate_hashes_has_remediation(self, lib_root: Path):
+        content_hash = hashlib.sha256(b"same").hexdigest()
+        for slug in ["x", "y"]:
+            src_dir = lib_root / "library" / "sources" / slug
+            src_dir.mkdir()
+            (src_dir / "manifest.yaml").write_text(yaml.dump({"hash": content_hash}))
+        results = check_duplicate_hashes(lib_root)
+        assert len(results) == 1
+        assert results[0].remediation is not None
+
+    def test_orphaned_symlinks_has_remediation(self, lib_root: Path):
+        tag_dir = lib_root / "tags" / "t"
+        tag_dir.mkdir(parents=True)
+        (tag_dir / "sources").mkdir()
+        (tag_dir / "meta.yaml").write_text("slug: t")
+        symlink = tag_dir / "sources" / "ghost"
+        symlink.symlink_to("../../../library/sources/ghost")
+        results = check_orphaned_symlinks(lib_root)
+        assert len(results) == 1
+        assert results[0].remediation is not None
+
+    def test_missing_embeddings_has_remediation(self, lib_root: Path):
+        src_dir = lib_root / "library" / "sources" / "s"
+        src_dir.mkdir(parents=True)
+        (src_dir / "manifest.yaml").write_text("slug: s")
+        results = check_missing_embeddings(lib_root)
+        assert len(results) == 1
+        assert "rebuild" in (results[0].remediation or "").lower()
+
+    def test_stale_nodes_has_remediation(self, lib_root: Path):
+        src_dir = lib_root / "library" / "sources" / "old"
+        src_dir.mkdir(parents=True)
+        old_date = datetime.date.today() - datetime.timedelta(days=60)
+        (src_dir / "manifest.yaml").write_text(
+            yaml.dump(
+                {
+                    "freshness": {"ingested": str(old_date), "ttl": "30d"},
+                }
+            )
+        )
+        results = check_stale_nodes(lib_root)
+        assert len(results) == 1
+        assert results[0].remediation is not None
+
+    def test_embedding_coverage_has_remediation(self, lib_root: Path):
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        db_path = lib_root / "rk.db"
+        index = SqliteIndex(db_path)
+        index._conn.execute(
+            "INSERT INTO nodes (id, kind, content_path, content) VALUES (?, ?, ?, ?)",
+            ("node-x", "source", "sources/node-x/source.md", "content"),
+        )
+        index._conn.commit()
+        index._conn.close()
+        results = check_embedding_coverage(lib_root)
+        assert len(results) == 1
+        assert "rebuild" in (results[0].remediation or "").lower()
+
+    def test_metadata_has_remediation(self, lib_root: Path):
+        src_dir = lib_root / "library" / "sources" / "ms"
+        src_dir.mkdir(parents=True)
+        (src_dir / "manifest.yaml").write_text(
+            yaml.dump(
+                {
+                    "slug": "ms",
+                    "freshness": {"ingested": "2026-01-01"},
+                }
+            )
+        )
+        results = check_metadata(lib_root, fix=False)
+        assert len(results) == 1
+        assert results[0].remediation is not None
+
+    def test_db_drift_has_remediation(self, lib_root: Path):
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        index = SqliteIndex(lib_root / "rk.db")
+        index.upsert_tag_node("ghost", "synth", model="test", tier="frontier")
+        results = check_db_filesystem_drift(lib_root)
+        drift = [r for r in results if r.check == "db_filesystem_drift"]
+        assert len(drift) == 1
+        assert drift[0].remediation is not None

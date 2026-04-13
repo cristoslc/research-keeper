@@ -148,34 +148,37 @@ class TestMultiSourceAdd:
 
 class TestPartialBatchResolve:
 
-    def test_batch_gate_holds_until_all_tags_filled(self, rk_root_manual: Path):
-        """Filling 1 of 3 tag sidecars processes it but batch gate blocks synthesis."""
+    def test_volume_gate_holds_until_pending_drops_below_threshold(self, rk_root_manual: Path):
+        """Filling 1 of 4 tag sidecars processes it, but 3 remain — gate holds (ADR-006).
+
+        Default synthesis_gate_threshold is 3. With 4 sources and 1 filled,
+        3 tag sidecars remain pending (== threshold), so synthesis is deferred.
+        """
         pipeline = _make_pipeline(rk_root_manual)
 
         src_a = pipeline.add("# Source A\n\nAlpha content.", {"title": "Source A"})
         src_b = pipeline.add("# Source B\n\nBeta content.", {"title": "Source B"})
         src_c = pipeline.add("# Source C\n\nGamma content.", {"title": "Source C"})
+        src_d = pipeline.add("# Source D\n\nDelta content.", {"title": "Source D"})
 
-        # Fill only source A
+        # Fill only source A — 3 remain pending (== threshold)
         _fill_tag_yaml(rk_root_manual, src_a.slug, ["shared-topic"])
 
-        # First resolve: processes A, reports B & C pending
+        # First resolve: processes A, reports B, C & D pending; gate holds
         output1 = run_resolve(rk_root_manual)
         assert "Resolved 1 tag sidecar" in output1
         assert "pending" in output1.lower()
-
-        # No synthesis sidecars generated (batch gate holds)
         synth_files = list(rk_root_manual.glob("tags/*/.pending/synthesize.j2"))
-        assert len(synth_files) == 0
+        assert len(synth_files) == 0, "synthesis should be deferred when pending >= threshold"
 
-        # Fill remaining two
+        # Fill remaining three
         _fill_tag_yaml(rk_root_manual, src_b.slug, ["shared-topic"])
         _fill_tag_yaml(rk_root_manual, src_c.slug, ["shared-topic"])
+        _fill_tag_yaml(rk_root_manual, src_d.slug, ["shared-topic"])
 
-        # Second resolve: all tags done -> synthesis sidecars generated
+        # Second resolve: all tags done (0 pending) -> synthesis sidecars generated
         output2 = run_resolve(rk_root_manual)
         assert "Resolved" in output2 or "synthesis" in output2.lower()
-
         synth_files = list(rk_root_manual.glob("tags/*/.pending/synthesize.j2"))
         assert len(synth_files) >= 1
 

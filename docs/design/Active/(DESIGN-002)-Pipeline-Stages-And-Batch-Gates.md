@@ -1,47 +1,52 @@
 ---
-title: "Pipeline Stages and Batch Gates"
+title: "Pipeline Stages and Eager Sidecar Generation"
 artifact: DESIGN-002
 track: standing
 domain: system
 status: Active
 author: cristos
 created: 2026-03-30
-last-updated: 2026-03-30
+last-updated: 2026-04-13
 superseded-by: ""
 linked-artifacts:
+  - ADR-006
   - ADR-003
   - ADR-001
   - DESIGN-001
   - SPEC-019
   - PERSONA-004
 artifact-refs:
-  - artifact: ADR-003
+  - artifact: ADR-006
     rel: [decided-by]
+  - artifact: ADR-003
+    rel: [superseded-by-adr-006]
   - artifact: DESIGN-001
     rel: [aligned]
 sourcecode-refs: []
 depends-on-artifacts: []
 ---
 
-# Pipeline Stages and Batch Gates
+# Pipeline Stages and Eager Sidecar Generation
 
 ## Design Intent
 
-**Context:** rk's pipeline has stages where work is parallelizable and stages where work must wait for all prior work to complete. This design defines the stage sequence, batch gate rules, and `rk resolve` behavior.
+**Context:** rk's pipeline has stages where work is parallelizable and stages that should wait for related prior work to finish. This design defines the stage sequence, gating rules, and `rk resolve` behavior. The gating model was updated in ADR-006 from global batch gates (ADR-003) to eager generation with a volume threshold.
 
 ### Goals
 
 - Agent's job is simple: fill sidecars, call resolve, repeat until done
 - rk owns the pipeline intelligence — agents don't need to know the stage sequence
-- Synthesis always sees the complete picture (all sources for a tag)
+- Synthesis sees a complete (or near-complete) source set for each tag
+- Unrelated work in different stages does not block each other
 - Concurrent agents coordinate through the filesystem, not messaging
 
 ### Constraints
 
-- Stage advancement is determined by tree scan, not manifests or counters (per ADR-003)
-- h Both `.lock` and `.j2` files block stage advancement (per DESIGN-001)
+- Stage advancement is determined by tree scan, not manifests or counters (per ADR-006)
+- Both `.lock` and `.j2` files communicate pending work (per DESIGN-001)
 - `rk resolve` takes a lockfile — only one resolve at a time
 - `rk add` accepts a list of sources — all are filed before any tagging starts
+- Synthesis generation is gated by `intake.synthesis_gate_threshold` (default 3)
 
 ### Non-goals
 
@@ -87,21 +92,25 @@ The pipeline state machine. Each call processes what's ready, reports what's nex
 ```
 1. Acquire resolve lockfile (fail if held by another process)
 2. Scan entire tree for rendered output files → process each:
-   - tag.yaml  → create tags, symlinks, update manifest
+   - normalize.md → re-normalize source, update manifest
+   - tag.yaml     → create tags, symlinks, update manifest
    - synthesize.md → write synthesis.md, update meta.yaml, embed
-   - query.md → write query synthesis, index
+   - query.md     → write query synthesis, index
    - Delete .pending/ contents after processing
-3. Determine current stage by scanning for pending work:
+3. Report pending work and generate new sidecars:
    a. Any .lock files anywhere? → report "intake in progress, waiting"
-   b. Any .pending/tag.j2 without tag.yaml? → report pending tags, STOP
-   c. Zero pending tags? → BATCH GATE: generate synthesis sidecars
-      for all tags that have new sources since last synthesis
-   d. Any .pending/synthesize.j2 without synthesize.md? → report pending syntheses, STOP
-   e. Zero pending syntheses? → BATCH GATE: generate investigation
-      sidecars if applicable
-   f. Nothing pending? → "Done. All sources tagged and synthesized."
+   b. Any .pending/normalize.j2 without normalize.md? → report, provide agent instructions
+   c. Any .pending/tag.j2 without tag.yaml? → report pending tags
+   d. pending_tag_count < synthesis_gate_threshold?
+        YES → generate synthesis sidecars for tags with new/stale sources (eager)
+        NO  → defer synthesis generation (gate holds)
+   e. Any .pending/synthesize.j2 without synthesize.md? → report pending syntheses
+   f. Zero pending syntheses? → GATE: generate investigation sidecars if applicable
+   g. Nothing pending? → "Done. All sources tagged and synthesized."
 4. Release resolve lockfile
 ```
+
+Note: steps b–e run in the same pass. Tags and syntheses can both be pending simultaneously. The threshold gate in step d prevents synthesis generation when many tag assignments are unknown.
 
 **Output (example — tags pending):**
 ```
@@ -171,14 +180,16 @@ sequenceDiagram
 
 ## Behavioral Guarantees
 
-### Stage order (per ADR-003)
+### Stage behavior (per ADR-006)
 
-| Stage | Parallelizable | Gate condition to advance |
-|-------|---------------|--------------------------|
-| 1. Intake | Yes (each source independent) | All `.lock` files cleared, all `tag.j2` generated |
-| 2. Tagging | Yes (each source's tags independent) | Zero `tag.j2` without `tag.yaml` anywhere in tree |
-| 3. Synthesis | Yes (each tag's synthesis independent) | Zero `synthesize.j2` without `synthesize.md` anywhere |
-| 4. Query/Investigation | Yes | Zero `query.j2`/`synthesize.j2` pending |
+| Stage | Parallelizable | Generation condition |
+|-------|---------------|---------------------|
+| 1. Intake | Yes (each source independent) | `rk add` always generates `tag.j2` immediately |
+| 2. Tagging | Yes (each source's tags independent) | Always reported if pending; no gate |
+| 3. Synthesis | Yes (each tag's synthesis independent) | Generated when `pending_tag_count < synthesis_gate_threshold`; deferred otherwise |
+| 4. Query/Investigation | Yes | Generated only when zero `synthesize.j2` pending (gate retained) |
+
+Stages 2 and 3 can both be active simultaneously — tags can be filled while earlier synthesis sidecars are still outstanding.
 
 ### Locking
 
@@ -257,3 +268,4 @@ None yet.
 | Phase | Date | Commit | Notes |
 |-------|------|--------|-------|
 | Active | 2026-03-30 | -- | Initial creation — reflects ADR-001, ADR-002, ADR-003 |
+| Updated | 2026-04-13 | -- | Revised for ADR-006 — eager generation with volume-threshold gating |

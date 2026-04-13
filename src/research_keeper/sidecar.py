@@ -4,6 +4,7 @@
 Generates .j2 template files that agents render to produce completed outputs.
 Parses rendered outputs (tag.yaml, synthesize.md) for rk resolve.
 """
+
 from __future__ import annotations
 
 import re
@@ -18,9 +19,48 @@ from research_keeper.slugify import slugify
 class SidecarGenerator:
     """Generate sidecar templates and parse rendered responses."""
 
-    def __init__(self, root: Path, completion_config: CompletionConfig | None = None) -> None:
+    def __init__(
+        self, root: Path, completion_config: CompletionConfig | None = None
+    ) -> None:
         self._root = root
         self._completion = completion_config or CompletionConfig()
+
+    def generate_normalize_sidecar(
+        self,
+        source_slug: str,
+        original_file: str,
+        error_message: str,
+        model_hint: str,
+    ) -> Path:
+        """Write a normalize.j2 sidecar template for a source with failed normalization.
+
+        original_file: relative path like 'original.pdf' inside the source dir
+        error_message: the NormalizationError message
+        model_hint: model hint from config
+        """
+        pending_dir = self._root / "library" / "sources" / source_slug / ".pending"
+        pending_dir.mkdir(parents=True, exist_ok=True)
+
+        template = (
+            f"{{# rk:normalize | model_hint: {model_hint} | target: {source_slug} #}}\n"
+            "{#\n"
+            "This source failed normalization. The original file is preserved at:\n"
+            f"  library/sources/{source_slug}/{original_file}\n"
+            "\n"
+            f"Error: {error_message}\n"
+            "\n"
+            "If the normalizer or its dependencies have been updated, re-try:\n"
+            f"  rk normalize {source_slug} --root <root>\n"
+            "\n"
+            "Otherwise, provide a cleaned markdown version of the document below.\n"
+            "Preserve headings, lists, tables, and other structure as markdown.\n"
+            "#}\n"
+            "{{ content }}\n"
+        )
+
+        path = pending_dir / "normalize.j2"
+        path.write_text(template)
+        return path
 
     def generate_tag_sidecar(
         self,
@@ -51,7 +91,7 @@ class SidecarGenerator:
             "Rules:\n"
             "- 3-7 tags, lowercase hyphenated slugs\n"
             "- Prefer reusing existing tags when they apply\n"
-            "- Avoid overly generic tags like \"technology\" or \"research\"\n"
+            '- Avoid overly generic tags like "technology" or "research"\n'
             "#}\n"
             "tags:\n"
             "{% for tag in tags %}\n"
@@ -168,7 +208,9 @@ class SidecarGenerator:
 
         prior_text = ""
         if prior_synthesis:
-            prior_text = f"\nPrior synthesis (update, don't repeat):\n{prior_synthesis}\n"
+            prior_text = (
+                f"\nPrior synthesis (update, don't repeat):\n{prior_synthesis}\n"
+            )
 
         template = (
             f"{{# rk:investigation | model_hint: {model_hint} | target: {inv_id} #}}\n"
@@ -219,7 +261,7 @@ class SidecarGenerator:
 
         if tag_section_start is not None:
             tag_lines = []
-            for line in lines[tag_section_start + 1:]:
+            for line in lines[tag_section_start + 1 :]:
                 stripped = line.strip()
                 if stripped.startswith("- "):
                     tag_lines.append(stripped[2:].strip())
@@ -290,7 +332,12 @@ class SidecarGenerator:
     def remove_intake_lock(self, source_slug: str) -> None:
         """Remove the intake.lock for a source."""
         lock_path = (
-            self._root / "library" / "sources" / source_slug / ".pending" / "intake.lock"
+            self._root
+            / "library"
+            / "sources"
+            / source_slug
+            / ".pending"
+            / "intake.lock"
         )
         if lock_path.exists():
             lock_path.unlink()
