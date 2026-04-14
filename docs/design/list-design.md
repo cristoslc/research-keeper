@@ -13,7 +13,7 @@
 | Artifact | Title | Last Updated | Commit |
 |----------|-------|-------------|--------|
 | DESIGN-001 | Sidecar Completion Contract | 2026-03-30 | -- |
-| DESIGN-002 | Pipeline Stages and Batch Gates | 2026-03-30 | -- |
+| DESIGN-002 | Pipeline Stages and Eager Sidecar Generation | 2026-04-13 | -- |
 | DESIGN-003 | Query Sidecar and Search Synthesis | 2026-03-30 | -- |
 | DESIGN-004 | Embedding Backfill and Search Degradation | 2026-03-31 | -- |
 | DESIGN-005 | Homepage Information Architecture | 2026-03-31 | — |
