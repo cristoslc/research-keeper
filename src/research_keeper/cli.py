@@ -390,6 +390,12 @@ def normalize(slug: str, root: str) -> None:
             normalizers["media"] = MediaNormalizer()
         except ImportError:
             pass
+        try:
+            from research_keeper.adapters.normalizers.x_thread import XThreadNormalizer
+
+            normalizers["x-thread"] = XThreadNormalizer()
+        except ImportError:
+            pass
 
         normalizer = normalizers.get(content_type)
         if normalizer is None:
@@ -1700,6 +1706,12 @@ def _build_pipeline(root: Path):
         from research_keeper.adapters.normalizers.media import MediaNormalizer
 
         normalizers["media"] = MediaNormalizer()
+    except ImportError:
+        pass
+    try:
+        from research_keeper.adapters.normalizers.x_thread import XThreadNormalizer
+
+        normalizers["x-thread"] = XThreadNormalizer()
     except ImportError:
         pass
 

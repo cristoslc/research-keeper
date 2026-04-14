@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 URL_PATTERNS: dict[str, str] = {
+    r"(?:x|twitter|fxtwitter|fixupx)\.com/\w+/status/\d+": "x-thread",
     r"youtube\.com/watch": "media",
     r"youtu\.be/": "media",
     r"youtube\.com/playlist": "media",
