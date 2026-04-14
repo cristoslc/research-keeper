@@ -1207,3 +1207,127 @@ class TestResolveReconcileDBFilesystem:
 
         output2 = run_resolve(resolve_root)
         assert "reconciled" not in output2.lower() or "0" in output2
+
+
+class TestTagSynthesisTwoCycleGate:
+    """gh#12: Two-cycle stability gate for sources added after synthesis.md was written.
+
+    The in-memory tags_with_new_sources signal is lost when a resolve cycle completes
+    without synthesizing (e.g. because ADR-006 volume gate deferred it). This class
+    tests the persistent pending_synthesis_check key in meta.yaml that bridges cycles.
+    """
+
+    def _make_tag_with_old_synthesis(
+        self,
+        root: Path,
+        tag_slug: str,
+        source_slugs: list[str],
+    ) -> Path:
+        """Create a tag with synthesis.md and symlinks all backdated 10 seconds."""
+        tag_store = FilesystemTagStore(root)
+        tag_store.ensure(tag_slug)
+        for slug in source_slugs:
+            (root / "library" / "sources" / slug).mkdir(parents=True, exist_ok=True)
+            tag_store.link_source(tag_slug, slug)
+
+        tag_dir = tag_store.tag_dir(tag_slug)
+        synthesis_path = tag_dir / "synthesis.md"
+        synthesis_path.write_text(f"# {tag_slug}\n\nOriginal synthesis.")
+
+        past = __import__("time").time() - 10
+        os.utime(synthesis_path, (past, past))
+        for slug in source_slugs:
+            os.utime(tag_dir / "sources" / slug, (past, past), follow_symlinks=False)
+
+        return tag_dir
+
+    def _add_newer_symlink(self, root: Path, tag_slug: str, source_slug: str) -> None:
+        """Add a source symlink with the current timestamp (newer than synthesis.md)."""
+        tag_store = FilesystemTagStore(root)
+        (root / "library" / "sources" / source_slug).mkdir(parents=True, exist_ok=True)
+        tag_store.link_source(tag_slug, source_slug)
+
+    def test_first_cycle_defers_and_writes_snapshot(self, resolve_root: Path):
+        """First cycle with a post-synthesis source does NOT synthesize; writes snapshot."""
+        from research_keeper.resolve import _find_tags_needing_synthesis
+
+        tag_store = FilesystemTagStore(resolve_root)
+        self._make_tag_with_old_synthesis(resolve_root, "ml", ["source-a"])
+        self._add_newer_symlink(resolve_root, "ml", "source-b")
+
+        result = _find_tags_needing_synthesis(resolve_root, tag_store, set())
+
+        assert "ml" not in result, "First cycle should defer, not synthesize."
+        meta = tag_store.get_meta("ml")
+        assert "pending_synthesis_check" in meta, "Snapshot should be written."
+        check = meta["pending_synthesis_check"]
+        assert sorted(check["source_slugs"]) == ["source-a", "source-b"]
+        assert "recorded_at" in check
+
+    def test_second_stable_cycle_triggers_synthesis(self, resolve_root: Path):
+        """Second cycle with unchanged source set adds tag to synthesis list."""
+        from research_keeper.resolve import _find_tags_needing_synthesis
+
+        tag_store = FilesystemTagStore(resolve_root)
+        self._make_tag_with_old_synthesis(resolve_root, "ml", ["source-a"])
+        self._add_newer_symlink(resolve_root, "ml", "source-b")
+
+        # First cycle: defers, writes snapshot.
+        _find_tags_needing_synthesis(resolve_root, tag_store, set())
+        assert "pending_synthesis_check" in (tag_store.get_meta("ml") or {})
+
+        # Second cycle: source set unchanged — should synthesize.
+        result = _find_tags_needing_synthesis(resolve_root, tag_store, set())
+        assert "ml" in result, "Second stable cycle should trigger synthesis."
+
+        meta = tag_store.get_meta("ml")
+        assert "pending_synthesis_check" not in meta, "Snapshot should be cleared."
+
+    def test_unstable_second_cycle_defers_again(self, resolve_root: Path):
+        """When a new source arrives between cycles, snapshot updates and defers."""
+        from research_keeper.resolve import _find_tags_needing_synthesis
+
+        tag_store = FilesystemTagStore(resolve_root)
+        self._make_tag_with_old_synthesis(resolve_root, "ml", ["source-a"])
+        self._add_newer_symlink(resolve_root, "ml", "source-b")
+
+        # First cycle: snapshot = [source-a, source-b].
+        _find_tags_needing_synthesis(resolve_root, tag_store, set())
+
+        # Another source arrives before the second cycle.
+        self._add_newer_symlink(resolve_root, "ml", "source-c")
+
+        # Second cycle: source set differs from snapshot — defer again.
+        result = _find_tags_needing_synthesis(resolve_root, tag_store, set())
+        assert "ml" not in result, "Unstable second cycle should still defer."
+
+        meta = tag_store.get_meta("ml")
+        check = meta["pending_synthesis_check"]
+        assert sorted(check["source_slugs"]) == ["source-a", "source-b", "source-c"]
+
+    def test_synthesis_clears_pending_synthesis_check(self, resolve_root: Path):
+        """_apply_synthesis removes pending_synthesis_check from meta.yaml."""
+        from research_keeper.resolve import _apply_synthesis
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+        from research_keeper.config import load_config
+
+        tag_store = FilesystemTagStore(resolve_root)
+        tag_store.ensure("ml")
+
+        meta_path = resolve_root / "tags" / "ml" / "meta.yaml"
+        meta = yaml.safe_load(meta_path.read_text()) or {}
+        meta["pending_synthesis_check"] = {
+            "source_slugs": ["source-a"],
+            "recorded_at": "2026-04-14T12:00:00Z",
+        }
+        meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))
+
+        index = SqliteIndex(resolve_root / "rk.db")
+        config = load_config(resolve_root / "rk.yaml")
+
+        _apply_synthesis(resolve_root, tag_store, index, "ml", "# ML\n\nSynth.", config)
+
+        updated = tag_store.get_meta("ml")
+        assert "pending_synthesis_check" not in updated, (
+            "pending_synthesis_check should be cleared after synthesis."
+        )

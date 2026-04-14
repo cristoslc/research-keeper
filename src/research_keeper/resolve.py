@@ -604,7 +604,10 @@ def _find_tags_needing_synthesis(
     A tag needs synthesis if:
     - It has sources linked but no synthesis.md at all, OR
     - It is in tags_with_new_sources (just had new sources added this cycle), OR
-    - It has stale: true in meta.yaml (needs re-synthesis after prune)
+    - It has stale: true in meta.yaml (needs re-synthesis after prune), OR
+    - It passes the two-cycle stability gate: source symlinks are newer than
+      synthesis.md AND the source set has been stable for one full cycle
+      (tracked via pending_synthesis_check in meta.yaml).
     """
     if tags_with_new_sources is None:
         tags_with_new_sources = set()
@@ -621,13 +624,63 @@ def _find_tags_needing_synthesis(
         meta = tag_store.get_meta(tag_slug) or {}
         is_stale = meta.get("stale", False)
 
-        if not (tag_dir / "synthesis.md").exists():
+        synthesis_path = tag_dir / "synthesis.md"
+        if not synthesis_path.exists():
             tags_needing.append(tag_slug)
         elif tag_slug in tags_with_new_sources:
             tags_needing.append(tag_slug)
         elif is_stale:
             tags_needing.append(tag_slug)
+        else:
+            # Two-cycle stability gate (gh#12): detect sources added after synthesis.md.
+            synthesis_mtime = synthesis_path.stat().st_mtime
+            sources_dir = tag_dir / "sources"
+            has_newer = any(
+                (sources_dir / s).lstat().st_mtime > synthesis_mtime
+                for s in source_slugs
+            )
+            if has_newer:
+                current_slugs = sorted(source_slugs)
+                pending_check = meta.get("pending_synthesis_check")
+                if pending_check and sorted(pending_check.get("source_slugs", [])) == current_slugs:
+                    # Source set stable for one full cycle — synthesize now.
+                    tags_needing.append(tag_slug)
+                    _clear_pending_synthesis_check(tag_store, tag_slug)
+                else:
+                    # First detection or set changed — record snapshot, defer.
+                    _record_pending_synthesis_check(tag_store, tag_slug, current_slugs)
     return tags_needing
+
+
+def _record_pending_synthesis_check(
+    tag_store: FilesystemTagStore,
+    tag_slug: str,
+    source_slugs: list[str],
+) -> None:
+    """Write a pending_synthesis_check snapshot to meta.yaml (gh#12)."""
+    tag_dir = tag_store.tag_dir(tag_slug)
+    meta_path = tag_dir / "meta.yaml"
+    meta = yaml.safe_load(meta_path.read_text()) if meta_path.exists() else {}
+    meta["pending_synthesis_check"] = {
+        "source_slugs": source_slugs,
+        "recorded_at": datetime.datetime.now(datetime.UTC).isoformat(),
+    }
+    meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))
+
+
+def _clear_pending_synthesis_check(
+    tag_store: FilesystemTagStore,
+    tag_slug: str,
+) -> None:
+    """Remove pending_synthesis_check from meta.yaml if present (gh#12)."""
+    tag_dir = tag_store.tag_dir(tag_slug)
+    meta_path = tag_dir / "meta.yaml"
+    if not meta_path.exists():
+        return
+    meta = yaml.safe_load(meta_path.read_text()) or {}
+    if "pending_synthesis_check" in meta:
+        del meta["pending_synthesis_check"]
+        meta_path.write_text(yaml.dump(meta, default_flow_style=False, sort_keys=False))
 
 
 def _find_pending_investigation_syntheses(root: Path) -> list[Path]:
@@ -694,13 +747,17 @@ def _apply_synthesis(
     tag_store.write_synthesis(tag_slug, synthesis, model=model_hint, tier="frontier")
     index.upsert_tag_node(tag_slug, synthesis, model=model_hint, tier="frontier")
 
-    # Clear stale flag after successful synthesis (SPEC-049)
+    # Clear stale and pending_synthesis_check after successful synthesis.
     tag_dir = tag_store.tag_dir(tag_slug)
     meta_path = tag_dir / "meta.yaml"
     if meta_path.exists():
         meta = yaml.safe_load(meta_path.read_text()) or {}
-        if "stale" in meta:
-            del meta["stale"]
+        changed = False
+        for key in ("stale", "pending_synthesis_check"):
+            if key in meta:
+                del meta[key]
+                changed = True
+        if changed:
             meta_path.write_text(
                 yaml.dump(meta, default_flow_style=False, sort_keys=False)
             )
