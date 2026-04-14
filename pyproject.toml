@@ -23,7 +23,7 @@ documents = [
 ]
 mcp = ["mcp>=1.0"]
 all = ["research-keeper[web,media,documents,mcp]"]
-dev = ["pytest>=8.0", "pytest-tmp-files>=0.0.2"]
+dev = ["pytest>=9.0.3", "pytest-tmp-files>=0.0.2"]
 
 [project.scripts]
 rk = "research_keeper.cli:main"
