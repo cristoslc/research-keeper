@@ -157,3 +157,45 @@ class TestSkillInstall:
         content = read_text(skill_path)
         assert "old content" not in content
         assert "research-keeper" in content
+
+    def test_global_flag_installs_to_home_not_cwd(self, tmp_path: Path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        (fake_home / ".claude").mkdir()
+        monkeypatch.setattr(Path, "home", staticmethod(lambda: fake_home))
+        runner = CliRunner()
+
+        result = runner.invoke(main, ["skill", "install", "--global"])
+
+        assert result.exit_code == 0
+        assert "Claude Code" in result.output
+        assert (fake_home / ".claude" / "skills" / "research-keeper" / "SKILL.md").exists()
+        assert not (tmp_path / ".claude").exists()
+
+    def test_global_flag_with_runtime_override_installs_to_home(self, tmp_path: Path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setattr(Path, "home", staticmethod(lambda: fake_home))
+        runner = CliRunner()
+
+        result = runner.invoke(main, ["skill", "install", "--global", "--runtime", "claude-code"])
+
+        assert result.exit_code == 0
+        assert (fake_home / ".claude" / "skills" / "research-keeper" / "SKILL.md").exists()
+        assert not (tmp_path / ".claude").exists()
+
+    def test_global_flag_generic_fallback_uses_home(self, tmp_path: Path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setattr(Path, "home", staticmethod(lambda: fake_home))
+        runner = CliRunner()
+
+        result = runner.invoke(main, ["skill", "install", "--global"])
+
+        assert result.exit_code == 0
+        assert "No supported runtime detected" in result.output
+        assert (fake_home / ".agents" / "skills" / "research-keeper" / "SKILL.md").exists()
+        assert not (tmp_path / ".agents").exists()

@@ -1475,31 +1475,38 @@ def skill() -> None:
     type=click.Choice(["claude-code", "codex", "crush", "gemini"]),
     help="Install for an explicit runtime target. Repeat to install for multiple runtimes.",
 )
-def install(runtime_slugs: tuple[str, ...]) -> None:
-    """Install agent skill for the current project."""
+@click.option(
+    "--global",
+    "global_install",
+    is_flag=True,
+    default=False,
+    help="Install into the user home directory instead of the current project.",
+)
+def install(runtime_slugs: tuple[str, ...], global_install: bool) -> None:
+    """Install agent skill for the current project, or globally with --global."""
     from research_keeper.skill_template import SKILL_CONTENT
 
-    cwd = Path.cwd()
+    base = Path.home() if global_install else Path.cwd()
     runtime_specs = {
         "claude-code": (
             "Claude Code",
-            cwd / ".claude",
-            cwd / ".claude" / "skills" / "research-keeper" / "SKILL.md",
+            base / ".claude",
+            base / ".claude" / "skills" / "research-keeper" / "SKILL.md",
         ),
         "codex": (
             "Codex",
-            cwd / ".codex",
-            cwd / ".codex" / "skills" / "research-keeper.md",
+            base / ".codex",
+            base / ".codex" / "skills" / "research-keeper.md",
         ),
         "crush": (
             "Crush",
-            cwd / ".crush",
-            cwd / ".crush" / "skills" / "research-keeper" / "SKILL.md",
+            base / ".crush",
+            base / ".crush" / "skills" / "research-keeper" / "SKILL.md",
         ),
         "gemini": (
             "Gemini",
-            cwd / ".gemini",
-            cwd / ".gemini" / "skills" / "research-keeper.md",
+            base / ".gemini",
+            base / ".gemini" / "skills" / "research-keeper.md",
         ),
     }
     install_order = ["claude-code", "codex", "crush", "gemini"]
@@ -1519,7 +1526,7 @@ def install(runtime_slugs: tuple[str, ...]) -> None:
         installed.append(name)
 
     if not installed:
-        generic_path = cwd / ".agents" / "skills" / "research-keeper" / "SKILL.md"
+        generic_path = base / ".agents" / "skills" / "research-keeper" / "SKILL.md"
         generic_path.parent.mkdir(parents=True, exist_ok=True)
         generic_path.write_text(SKILL_CONTENT)
         click.echo(
