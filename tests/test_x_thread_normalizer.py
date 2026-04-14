@@ -155,6 +155,13 @@ class TestRenderMarkdown:
         md = _render_markdown(thread, {}, "Hello", thread[0]["author"])
         assert "**Posted:** 2026-01-01" in md
 
+    def test_twitter_legacy_date_parsed(self):
+        from research_keeper.adapters.normalizers.x_thread import _parse_date
+        assert _parse_date("Sat Nov 11 00:48:08 +0000 2023") == "2023-11-11"
+        assert _parse_date("Mon Jan 01 12:00:00 +0000 2024") == "2024-01-01"
+        assert _parse_date("") == ""
+        assert _parse_date("2026-03-15T10:00:00Z") == "2026-03-15"
+
 
 # ---------------------------------------------------------------------------
 # Cited ID collection

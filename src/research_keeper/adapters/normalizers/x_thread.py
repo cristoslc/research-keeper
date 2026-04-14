@@ -11,6 +11,7 @@ import logging
 import re
 import urllib.error
 import urllib.request
+from datetime import datetime
 
 from research_keeper.ports.normalizer import NormalizationError
 
@@ -137,7 +138,7 @@ def _render_markdown(
 ) -> str:
     handle = author.get("screen_name", "unknown")
     name = author.get("name", handle)
-    created = (thread[0].get("created_at") or "")[:10] if thread else ""
+    created = _parse_date(thread[0].get("created_at") or "") if thread else ""
     total = len(thread)
 
     lines: list[str] = [
@@ -159,8 +160,9 @@ def _render_markdown(
                 continue
             quoted = (c.get("text") or "").strip().replace("\n", "\n> ")
             lines.append("")
+            cited_date = _parse_date(c.get("created_at") or "") or c.get("created_at", "")
             lines.append(
-                f"> **@{c.get('author_handle', '?')} ({c.get('created_at', '')}):**"
+                f"> **@{c.get('author_handle', '?')} ({cited_date}):**"
                 f" {quoted}"
             )
             lines.append(f"> — {c.get('url', '')}")
@@ -174,6 +176,24 @@ def _render_markdown(
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _parse_date(created_at: str) -> str:
+    """Parse fxtwitter's date format to ISO YYYY-MM-DD.
+
+    fxtwitter returns Twitter's legacy format: 'Sat Nov 11 00:48:08 +0000 2023'.
+    Falls back to empty string if unparseable.
+    """
+    if not created_at:
+        return ""
+    try:
+        dt = datetime.strptime(created_at, "%a %b %d %H:%M:%S +0000 %Y")
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        # If it's already ISO-like, take first 10 chars
+        if len(created_at) >= 10 and created_at[4] == "-":
+            return created_at[:10]
+        return ""
 
 
 def _make_title(root: dict) -> str:
@@ -256,6 +276,8 @@ class XThreadNormalizer:
             "source_url": source_url,
         }
         if created_at:
-            extracted_meta["published"] = created_at[:10]
+            iso_date = _parse_date(created_at)
+            if iso_date:
+                extracted_meta["published"] = iso_date
 
         return content, extracted_meta
