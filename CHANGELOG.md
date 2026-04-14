@@ -1,4 +1,67 @@
 # Changelog
+## [1.0.0-alpha.5] - 2026-04-14
+
+### Features
+
+#### Eager sidecar generation — no more batch gate blocking
+
+`rk resolve` no longer blocks at batch gates. Previously, pending
+tag sidecars prevented synthesis sidecars from being generated, and
+pending synthesis sidecars blocked investigation sidecars. Now resolve
+generates all sidecars eagerly — tags with resolved sources get
+synthesis sidecars immediately, regardless of what other tags are still
+pending. Agents see the full picture of all pending work in a single
+resolve cycle, matching the "intake never stops" principle.
+
+#### Two-cycle stability gate for tag synthesis
+
+Tags whose source set changed across multiple resolve cycles now use a
+snapshot-based mtime check. If sources were added or removed since the
+last synthesis, resolve writes a pending snapshot and defers. On the
+next cycle, if the source set matches the snapshot, synthesis proceeds.
+If it changed again, the snapshot updates and defers once more. This
+prevents premature synthesis of an unstable tag.
+
+#### X/Twitter thread normalizer
+
+`rk add` now normalizes X/Twitter URLs into threaded markdown via the
+fxtwitter `/2/thread/` API. Thread tweets are collected, deduplicated,
+and rendered in chronological order with author attribution and metadata.
+
+#### Normalization failure recovery
+
+Sources that fail normalization are no longer dead ends. `rk resolve`
+auto-retries normalization when the normalizer has been updated, and
+agents can write a normalize.md sidecar to manually re-normalize
+binary sources that the pipeline couldn't handle. Original files are
+preserved alongside stubs.
+
+#### Transport prefixes and wormhole support in rk add
+
+`rk add` now accepts `wormhole:` and other transport-prefixed paths.
+Sources can be added from wormhole transfers, local files, URLs, and
+inline content through a unified interface.
+
+#### PDF normalization with original preservation
+
+PDF normalization now preserves the original binary file alongside the
+normalized markdown, enabling re-normalization if the normalizer
+improves. Improved content extraction produces cleaner headings, tables,
+and structure.
+
+#### Global flag for rk skill install
+
+`rk skill install --global` installs the rk skill to the user-level
+configuration directory instead of the project-local one.
+
+### Supporting Changes
+
+- LSP type errors fixed across 11 source files
+- embedding.bin now written during rebuild; zero-length embeddings detected and reported
+- HuggingFace Hub check skipped with `local_files_only=True`, preventing spurious network calls during rebuild
+- DB/filesystem drift reconciled in `rk resolve` and `rk doctor` — orphan nodes and edges cleaned automatically
+- fxtwitter legacy date format parsed to ISO YYYY-MM-DD
+
 ## [1.0.0-alpha.4] - 2026-04-10
 
 ### Features
