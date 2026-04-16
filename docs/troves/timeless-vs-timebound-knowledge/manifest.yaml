@@ -1,0 +1,68 @@
+id: timeless-vs-timebound-knowledge
+created: 2026-04-16
+tags:
+  - knowledge-classification
+  - retention-policy
+  - timeless
+  - timebound
+  - ttl-assignment
+  - episodic-semantic
+  - memory-consolidation
+  - domain-decay
+  - information-lifecycle
+freshness-ttl: 730d
+
+sources:
+  - source-id: ncbi-comte-hierarchy
+    title: "Comte's Hierarchy of the Sciences and Core vs Frontier Knowledge"
+    url: "https://www.ncbi.nlm.nih.gov/books/NBK26378/"
+    type: web
+    fetched: 2026-04-16
+    hash: 7c997d6a13a69e122e37cc32fcdfbc4428cd77242236fc2343ce4eeed994b3f8
+    freshness-ttl: never
+
+  - source-id: pmc-memory-consolidation
+    title: "Memory Consolidation"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC4526749/"
+    type: web
+    fetched: 2026-04-16
+    hash: d4d41e8ab4265720db139f3992c6a3d19dffcfd950fcc35954cd437e857a1d66
+    freshness-ttl: never
+
+  - source-id: egnyte-retention-policy
+    title: "Document Retention Policy: Compliance & Best Practices"
+    url: "https://www.egnyte.com/guides/governance/document-retention-policy-guide"
+    type: web
+    fetched: 2026-04-16
+    hash: 09f65ebd40d4db66cc242060e8a1d7003d12cc87777ca8dc69bc994e737a727e
+    freshness-ttl: 365d
+
+  - source-id: intrasleep-episodic-semantic
+    title: "Memory Architectures Explained: Episodic vs Semantic Storage"
+    url: "https://intrasleep.com/blog/article/memory-architectures-explained-episodic-vs-semantic-storage"
+    type: web
+    fetched: 2026-04-16
+    hash: a9d0271d49b7f1e4dca6b768308e1e612a9d4b100dfa321cbcf4215d0c6f3096
+    freshness-ttl: 365d
+
+  - source-id: ncbi-scientific-knowledge-stability
+    title: "Scientific Knowledge Stability: Which Facts Change Fastest"
+    url: "https://www.ncbi.nlm.nih.gov/books/NBK26378/"
+    type: web
+    fetched: 2026-04-16
+    hash: 44d43450b3c7a3a283db4b47151e75960941dff448c4068b516a4038bbd78fe2
+    freshness-ttl: never
+
+  - source-id: records-policy-iastate
+    title: "University Records Retention Schedule — Definitions"
+    url: "https://records.policy.iastate.edu/def"
+    type: web
+    fetched: 2026-04-16
+    hash: d1f497c9a6e1c300c683ed11523f903492f104d4256fcea7d569cb9e43fc4e05
+    freshness-ttl: 730d
+
+history:
+  - event: created
+    date: 2026-04-16
+    commit: "--"
+    sources: 6
