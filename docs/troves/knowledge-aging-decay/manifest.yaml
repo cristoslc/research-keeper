@@ -1,0 +1,83 @@
+id: knowledge-aging-decay
+created: 2026-04-16
+tags:
+  - knowledge-decay
+  - half-life
+  - forgetting
+  - agent-memory
+  - obsolescence
+  - retention
+  - epistemology
+  - information-retrieval
+freshness-ttl: 365d
+
+sources:
+  - source-id: wikipedia-half-life-of-knowledge
+    title: "Half-life of knowledge"
+    url: "https://en.wikipedia.org/wiki/Half-life_of_knowledge"
+    type: web
+    fetched: 2026-04-16
+    hash: 6698c45aa3dcfa51fe1e95552df2a8c6df5c0424bcc76f62f407ade10e499312
+    freshness-ttl: 730d
+
+  - source-id: farnam-street-half-life-of-facts
+    title: "The Half-life of Facts"
+    url: "https://fs.blog/the-half-life-of-facts/"
+    type: web
+    fetched: 2026-04-16
+    hash: 20aaafb5dec124e870f32741a788f79d0ccd276fe7c9a03ed1960688bcdada1d
+    freshness-ttl: 730d
+
+  - source-id: fazm-memory-triage
+    title: "Memory Triage for AI Agents - Why 100% Retention Is a Bug"
+    url: "https://fazm.ai/blog/ai-agent-memory-triage-retention-decay"
+    type: web
+    fetched: 2026-04-16
+    hash: e02487b24f0e4d5cd330deef59db80e835fdb029dc9f16ba29a6efd6b4b43aeb
+    freshness-ttl: 180d
+
+  - source-id: tianpan-three-memory-systems
+    title: "The Three Memory Systems Every Production AI Agent Needs"
+    url: "https://tianpan.co/blog/long-term-memory-types-ai-agents"
+    type: web
+    fetched: 2026-04-16
+    hash: f31ed6f8313651e4672e3fe4e9cff6abce2734cd883c1365a191e1021ea36901
+    freshness-ttl: 180d
+
+  - source-id: oracle-agent-memory
+    title: "Agent Memory: Why Your AI Has Amnesia and How to Fix It"
+    url: "https://blogs.oracle.com/developers/agent-memory-why-your-ai-has-amnesia-and-how-to-fix-it"
+    type: web
+    fetched: 2026-04-16
+    hash: 9d4c235c6660a5ef471027d0576b16ff3ebef46c258fa20b018aca6b0793e0f9
+    freshness-ttl: 180d
+
+  - source-id: uplatz-half-life-framework
+    title: "The Half-Life of Knowledge: A Framework for Measuring Obsolescence and Architecting Temporally-Aware Information Systems"
+    url: "https://uplatz.com/blog/the-half-life-of-knowledge-a-framework-for-measuring-obsolescence-and-architecting-temporally-aware-information-systems/"
+    type: web
+    fetched: 2026-04-16
+    hash: 5b52b8621b36f3d7e141a9f9d3d1b1800d7a922f0540dbb186cf1bf32cdb98b4
+    freshness-ttl: 730d
+
+  - source-id: mlm-seven-steps-memory
+    title: "7 Steps to Mastering Memory in Agentic AI Systems"
+    url: "https://machinelearningmastery.com/7-steps-to-mastering-memory-in-agentic-ai-systems/"
+    type: web
+    fetched: 2026-04-16
+    hash: 102e1c23e2ac61d7156a10e3f4f3f39d001d593c3d67f1cea658dc56a3b7cc8d
+    freshness-ttl: 180d
+
+  - source-id: arxiv-forgetting-techniques
+    title: "Novel Memory Forgetting Techniques for Autonomous AI Agents: Balancing Relevance and Efficiency"
+    url: "https://arxiv.org/abs/2604.02280"
+    type: web
+    fetched: 2026-04-16
+    hash: f811f52e9ffba5f637448010dd47fb204a565878bcf95ae831ea8adda11fff9d
+    freshness-ttl: 365d
+
+history:
+  - event: created
+    date: 2026-04-16
+    commit: "--"
+    sources: 8
