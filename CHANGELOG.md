@@ -1,4 +1,15 @@
 # Changelog
+## [1.0.0-alpha.7] - 2026-04-16
+
+### Features
+
+#### Skill template pipeline diagram fixed
+
+The `rk skill install` template now correctly describes the eager sidecar
+pipeline. Previously it showed synthesis sidecars blocked behind pending
+tags — the current code generates them in parallel. Agents reading the
+skill template will now see the correct workflow.
+
 ## [1.0.0-alpha.6] - 2026-04-16
 
 ### Features

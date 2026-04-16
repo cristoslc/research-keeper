@@ -99,14 +99,14 @@ When multiple sidecars are pending (e.g., 5 tag sidecars after adding 5 sources)
 
 ## Pipeline stages
 
-The resolve pipeline has batch gates. You may need to call `rk resolve` multiple times:
+`rk resolve` reports all pending sidecars at once — no batch gates.
+After adding sources or calling resolve, check output for pending work:
 
 ```
-rk add → tag sidecars pending
-  fill tags → rk resolve
-    synthesis sidecars generated
-  fill syntheses → rk resolve
-    done (or investigation sidecars generated)
+rk add → tag sidecars pending + synthesis sidecars for existing tags
+  fill tags + fill syntheses (both parallelizable)
+    → rk resolve
+      done (or investigation sidecars generated)
   fill investigation synthesis → rk resolve
     done
 ```
