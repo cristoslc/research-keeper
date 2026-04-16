@@ -271,12 +271,7 @@ def _print_add_summary(
         for slug, sidecar in added:
             if sidecar:
                 model_hint = pipeline._config.completion.tasks.get("tagging", "medium")
-                rel = (
-                    sidecar.relative_to(root_path)
-                    if sidecar.is_relative_to(root_path)
-                    else sidecar
-                )
-                click.echo(f"  {slug:<20s} {rel} ({model_hint})")
+                click.echo(f"  {slug:<20s} {sidecar} ({model_hint})")
             else:
                 click.echo(f"  {slug}")
 

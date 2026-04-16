@@ -83,7 +83,7 @@ def check_orphaned_symlinks(root: Path, fix: bool = False) -> list[DiagnosticRes
                             DiagnosticResult(
                                 severity=Severity.WARNING,
                                 check="orphaned_symlinks",
-                                message=f"Broken symlink: {symlink.relative_to(root)}",
+                                message=f"Broken symlink: {symlink}",
                                 remediation="Run 'rk doctor --fix' to remove orphaned symlinks, or delete manually.",
                             )
                         )
@@ -225,7 +225,7 @@ def check_stale_sidecars(
                         DiagnosticResult(
                             severity=Severity.WARNING,
                             check="stale_sidecars",
-                            message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar.relative_to(root)}",
+                            message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar}",
                             remediation="Read the .j2 file, produce the expected output file (tag.yaml or synthesize.md) in the same .pending/ directory, then run 'rk resolve'. If stale work is no longer needed, delete the .pending/ directory.",
                         )
                     )
@@ -247,7 +247,7 @@ def check_stale_sidecars(
                         DiagnosticResult(
                             severity=Severity.WARNING,
                             check="stale_sidecars",
-                            message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar.relative_to(root)}",
+                            message=f"Stale sidecar ({int(age / 3600)}h old): {sidecar}",
                             remediation="Read the .j2 file, produce the expected output file (synthesize.md) in the same .pending/ directory, then run 'rk resolve'. If stale work is no longer needed, delete the .pending/ directory.",
                         )
                     )
@@ -312,7 +312,7 @@ def check_orphaned_locks(root: Path) -> list[DiagnosticResult]:
                                     DiagnosticResult(
                                         severity=Severity.WARNING,
                                         check="orphaned_locks",
-                                        message=f"Orphaned intake lock (PID {pid} dead): {lock_file.relative_to(root)}",
+                                        message=f"Orphaned intake lock (PID {pid} dead): {lock_file}",
                                         remediation="Delete the intake.lock file to unblock the source for processing.",
                                     )
                                 )
@@ -372,7 +372,7 @@ def check_unresolved_sidecars(root: Path) -> list[DiagnosticResult]:
                         DiagnosticResult(
                             severity=Severity.INFO,
                             check="unresolved_sidecars",
-                            message=f"Unresolved tag sidecar: {tag_j2.relative_to(root)}",
+                            message=f"Unresolved tag sidecar: {tag_j2}",
                             remediation="Read the .j2 file, produce a tag.yaml file in the same .pending/ directory, then run 'rk resolve'.",
                         )
                     )
@@ -392,7 +392,7 @@ def check_unresolved_sidecars(root: Path) -> list[DiagnosticResult]:
                         DiagnosticResult(
                             severity=Severity.INFO,
                             check="unresolved_sidecars",
-                            message=f"Unresolved synthesis sidecar: {synth_j2.relative_to(root)}",
+                            message=f"Unresolved synthesis sidecar: {synth_j2}",
                             remediation="Read the .j2 file, produce a synthesize.md file in the same .pending/ directory, then run 'rk resolve'.",
                         )
                     )

@@ -363,8 +363,7 @@ def _resolve_impl(root: Path, config) -> str:
         lines.append("Stage: normalize")
         lines.append(f"{len(pending_normalizes)} source(s) need re-normalization:")
         for path in pending_normalizes:
-            slug = path.parent.parent.name
-            lines.append(f"  {slug}")
+            lines.append(f"  {path}")
         lines.append("")
         lines.append("AGENT ACTION: For each source needing normalization:")
         lines.append(
@@ -384,8 +383,7 @@ def _resolve_impl(root: Path, config) -> str:
         lines.append(f"Stage: tagging")
         lines.append(f"{len(pending_tags)} tag sidecar(s) pending (parallelizable):")
         for path in pending_tags:
-            rel = path.relative_to(root) if path.is_relative_to(root) else path
-            lines.append(f"  {rel} ({tag_model_hint})")
+            lines.append(f"  {path} ({tag_model_hint})")
         lines.append("")
         lines.append("AGENT ACTION: For each tag.j2 sidecar:")
         lines.append(
@@ -431,8 +429,7 @@ def _resolve_impl(root: Path, config) -> str:
             f"{len(generated_synth)} synthesis sidecar(s) generated (parallelizable):"
         )
         for tag_slug, path, src_count in generated_synth:
-            rel = path.relative_to(root) if path.is_relative_to(root) else path
-            lines.append(f"  {rel} ({synth_model_hint}) -- {src_count} source(s)")
+            lines.append(f"  {path} ({synth_model_hint}) -- {src_count} source(s)")
         lines.append("")
         has_pending = True
 
@@ -444,8 +441,7 @@ def _resolve_impl(root: Path, config) -> str:
             f"{len(pending_synth)} synthesis sidecar(s) pending (parallelizable):"
         )
         for path in pending_synth:
-            rel = path.relative_to(root) if path.is_relative_to(root) else path
-            lines.append(f"  {rel} ({synth_model_hint})")
+            lines.append(f"  {path} ({synth_model_hint})")
         lines.append("")
         lines.append("AGENT ACTION: For each synthesize.j2 sidecar:")
         lines.append(
@@ -485,8 +481,7 @@ def _resolve_impl(root: Path, config) -> str:
             f"{len(generated_inv)} investigation synthesis sidecar(s) generated:"
         )
         for inv_id, path in generated_inv:
-            rel = path.relative_to(root) if path.is_relative_to(root) else path
-            lines.append(f"  {rel} ({synth_model_hint})")
+            lines.append(f"  {path} ({synth_model_hint})")
         lines.append("")
         lines.append("AGENT ACTION: For each synthesize.j2 sidecar in investigations/:")
         lines.append(
@@ -509,8 +504,7 @@ def _resolve_impl(root: Path, config) -> str:
             f"{len(pending_inv_synth)} investigation synthesis sidecar(s) pending:"
         )
         for path in pending_inv_synth:
-            rel = path.relative_to(root) if path.is_relative_to(root) else path
-            lines.append(f"  {rel}")
+            lines.append(f"  {path}")
         lines.append("")
         has_pending = True
 
@@ -642,7 +636,10 @@ def _find_tags_needing_synthesis(
             if has_newer:
                 current_slugs = sorted(source_slugs)
                 pending_check = meta.get("pending_synthesis_check")
-                if pending_check and sorted(pending_check.get("source_slugs", [])) == current_slugs:
+                if (
+                    pending_check
+                    and sorted(pending_check.get("source_slugs", [])) == current_slugs
+                ):
                     # Source set stable for one full cycle — synthesize now.
                     tags_needing.append(tag_slug)
                     _clear_pending_synthesis_check(tag_store, tag_slug)

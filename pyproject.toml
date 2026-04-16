@@ -1,6 +1,6 @@
 [project]
 name = "research-keeper"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 description = "Personal research library with auto-tagging and tiered synthesis"
 requires-python = ">=3.11"
 dependencies = [

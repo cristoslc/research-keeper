@@ -1,4 +1,15 @@
 # Changelog
+## [1.0.0-alpha.6] - 2026-04-16
+
+### Features
+
+#### Full absolute paths in all rk output
+
+`rk resolve`, `rk add`, and `rk doctor` now output full absolute filesystem
+paths instead of stripping them to relative paths. Agents always see
+complete paths like `/Users/.../library/sources/abc123/.pending/tag.j2`
+rather than ambiguous relative slugs like `library/sources/abc123/.pending/tag.j2`.
+
 ## [1.0.0-alpha.5] - 2026-04-14
 
 ### Features
