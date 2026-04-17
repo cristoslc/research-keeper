@@ -1,0 +1,60 @@
+id: bibliometric-aging-retention
+created: 2026-04-17
+tags:
+  - bibliometrics
+  - half-life
+  - obsolescence
+  - citation-analysis
+  - retention-policy
+  - information-lifecycle
+  - literature-aging
+  - Price-index
+  - decay-rates
+freshness-ttl: 730d
+
+sources:
+  - source-id: lis-obsolescence-concepts
+    title: "The Obsolescence of Scientific Literature: Concepts, Patterns, and Measures"
+    url: "https://lis.academy/informetrics-scientometrics/obsolescence-scientific-literature-concepts-patterns/"
+    type: web
+    fetched: 2026-04-17
+    hash: 612add63da45fd74e6691a7e6650d2a94ee32a94f9dbfd6b213ecf4265d857bf
+    freshness-ttl: 730d
+
+  - source-id: cacm-computing-obsolescence
+    title: "Confronting the Myth of Rapid Obsolescence in Computing Research"
+    url: "https://cacm.acm.org/research/confronting-the-myth-of-rapid-obsolescence-in-computing-research/"
+    type: web
+    fetched: 2026-04-17
+    hash: de6084e502f10dad745932df0b9e82ee58d6313822ca6ac1c9470b37d5f38b5f
+    freshness-ttl: never
+
+  - source-id: springer-citation-lifecycle
+    title: "Encoding the Citation Life-Cycle: A Literature-Aging Conceptual Model"
+    url: "https://link.springer.com/article/10.1007/s11192-022-04437-z"
+    type: web
+    fetched: 2026-04-17
+    hash: 775497bfa2c83c004414e0d96eb7b005a755946fcf014a03958af689ce1c2207
+    freshness-ttl: never
+
+  - source-id: wikipedia-ilm
+    title: "Information Lifecycle Management"
+    url: "https://en.wikipedia.org/wiki/Information_lifecycle_management"
+    type: web
+    fetched: 2026-04-17
+    hash: 6193218c714a12151ccfa717ad4ac3b48324e98bef64ea0b66cfd0c0a7e63e7e
+    freshness-ttl: 730d
+
+  - source-id: scientometrics-aging-part-one
+    title: "A Citation-Based Cross-Disciplinary Study on Literature Aging (Part I: Synchronous Approach)"
+    url: "https://link.springer.com/article/10.1007/s11192-017-2289-y"
+    type: web
+    fetched: 2026-04-17
+    hash: 5d91331b2df358512ebea691b62e554993bba1d1682d9758c72c6fbf6f2880f6
+    freshness-ttl: never
+
+history:
+  - event: created
+    date: 2026-04-17
+    commit: "--"
+    sources: 5
