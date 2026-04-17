@@ -9,6 +9,9 @@
 | ADR-004 | V1 Agent Runtime Environment Model | 2026-03-30 | -- |
 | ADR-005 | Supported Agent Runtime Targets For rk skill install | 2026-04-01 | -- |
 | ADR-006 | Eager Sidecar Generation with Volume-Threshold Gating | 2026-04-13 | -- |
+| ADR-007 | References as Atomic, Sources as Immutable | 2026-04-17 | -- |
+| ADR-008 | Memory Pipeline and File Structure | 2026-04-17 | -- |
+| ADR-009 | Memory Lifecycle Operations | 2026-04-17 | -- |
 
 ## Superseded
 

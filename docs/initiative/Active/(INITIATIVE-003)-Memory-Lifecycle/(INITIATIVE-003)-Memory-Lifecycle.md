@@ -28,10 +28,9 @@ success-criteria:
   - "Three troves of research evidence support the design decisions"
   - "Three ADRs document the architecture: data model, memory pipeline, lifecycle operations"
 linked-artifacts:
-  - JOURNEY-001
-  - JOURNEY-002
-  - JOURNEY-003
-  - JOURNEY-004
+  - ADR-007
+  - ADR-008
+  - ADR-009
 depends-on-artifacts: []
 addresses: []
 evidence-pool: "trove: knowledge-aging-decay@da14b80, trove: timeless-vs-timebound-knowledge@ee53255, trove: bibliometric-aging-retention@efc2e8a"
@@ -169,18 +168,18 @@ Key design decisions reached through research and iteration:
 17. Cross-context claim visibility makes epistemic conflicts detectable
 18. The Price Index (proportion of sources ≤5 years old in a tag) could dynamically calibrate TTL
 19. SQLite holds embeddings for all three tiers (full text, summary, claims)
-20. Three ADRs needed: data model, memory pipeline, lifecycle operations
+20. Three ADRs authored: ADR-007 (data model), ADR-008 (pipeline + file structure), ADR-009 (lifecycle operations)
 
 ## Tracks
 
 ### Track 1: Core Data Model
-Sources immutable. References as atomic unit. Context manifests as membership lists. Pipeline config separate. Status computed not stored. Disk state as deterministic projection. (ADR 1 of 3)
+Sources immutable. References as atomic unit. Context manifests as membership lists. Pipeline config separate. Status computed not stored. Disk state as deterministic projection. — **ADR-007**
 
 ### Track 2: Memory Pipeline and File Structure
-Three-tier materialized state (full/summary/placeholder). Context-local summaries and claims. Pipeline config schema. `rk resolve` as projection engine: compute target, diff, iterate. File ops direct; LLM work via sidecars. Embedding management across tiers. (ADR 2 of 3)
+Three-tier materialized state (full/summary/placeholder). Context-local summaries and claims. Pipeline config schema. `rk resolve` as projection engine: compute target, diff, iterate. File ops direct; LLM work via sidecars. Embedding management across tiers. — **ADR-008**
 
 ### Track 3: Lifecycle Operations
-`rk resolve --quick` / `--deep`. `rk forget`. `rk recall`. Decay scoring. Query pipeline integration. Cross-context claim visibility. (ADR 3 of 3)
+`rk resolve --quick` / `--deep`. `rk forget`. `rk recall`. Decay scoring. Query pipeline integration. Cross-context claim visibility. — **ADR-009**
 
 ### Track 4: Default TTL Configuration
 Topic-level TTL defaults based on the 4-category framework (Timeless/Enduring/Evolving/Ephemeral). Per-topic pipeline configs. The Price Index as a potential dynamic calibrator.
@@ -196,3 +195,4 @@ Topic-level TTL defaults based on the 4-category framework (Timeless/Enduring/Ev
 |------|-------|--------|
 | 2026-04-17 | Created | f351236 |
 | 2026-04-17 | Major architecture revision: sources immutable, references atomic, manifests as membership, projection-based resolve | -- |
+| 2026-04-17 | ADR-007, ADR-008, ADR-009 authored | -- |
