@@ -8,159 +8,136 @@ research-keeper (rk) is a personal research library that ingests sources, auto-t
 
 ---
 
-## The Ecosystem research-keeper Lives In
+## Tool Maturity at a Glance
 
-rk is not the only tool trying to solve the "compiled knowledge compounds" problem. The Karpathy LLM Wiki gist went viral in April 2026 and spawned a dense ecosystem of implementations, extensions, and adjacent tools. This synthesis maps that ecosystem honestly, then evaluates rk against it with a simple question: **is there an existing tool that does what rk does well enough that maintaining rk is no longer worth the effort?**
+These are all personal projects. Some are more serious than others.
 
-### LLM Wiki implementations
+| Tool | Stars | Tests | Releases | Published | CI | Benchmarks |
+|------|-------|-------|----------|----------|----|------------|
+| **agentmemory** | 1,800 | 646 | 57+ | npm | Yes | LoCoMo, LongMemEval |
+| **Ori-Mnemos** | 268 | 579 | 3 | npm | Yes | HotpotQA, LoCoMo |
+| **SwarmVault** | 233 | ? | 57 | npm + desktop | Yes | — |
+| **obsidian-wiki** | 453 | 0 | 0 | skills only | No | — |
+| **nvk/llm-wiki** | 234 | 86 assertions | 18 | plugin | No | — |
+| **rk** | — | ~475 | 0 | local | No | — |
 
-These are direct implementations of Karpathy's three-layer pattern (raw → wiki → schema):
+**agentmemory and Ori-Mnemos are genuinely more mature than rk.** They have more tests, published packages, published benchmarks, and multiple agent integrations. If anyone is positioned to be "the tool that replaces rk," it's one of these two — or SwarmVault, which has the most aggressive release cadence and a desktop app.
 
-- **obsidian-wiki** (Ar9av) — Concept/entity pages, cross-linking, provenance tracking per claim (`extracted`/`^[inferred]`/`^[ambiguous]`), contradiction flagging, tag taxonomy, qmd integration.
-- **SwarmVault** (swarmclawai) — Knowledge graph with typed nodes and provenance-tracked edges, contradiction detection, `compile --approve` staging with review bundles, `wiki/candidates/` for new concepts, lint dashboard, MCP server.
-- **nvk/llm-wiki** — Thesis-driven investigation with verdict system (supported/contradicted/mixed), ships as Claude Code plugin, Codex plugin, or portable AGENTS.md. Agent-agnostic core.
-- **llm-wiki-compiler** (atomicmemory) — Hash-based incremental compilation (only changed sources re-processed), health checks with stale articles, orphans, contradictions, cross-refs.
-- **llm-wiki-kit** (iamsashank09) — Drop PDFs/URLs/YouTube, agent builds wiki, lint catches contradictions and gaps.
-- **llm-wiki-agent** (SamurAIGPT) — Works with Claude Code, Codex, OpenCode, Gemini CLI. Contradiction flags at ingest time, knowledge graph visualization.
-- **nashsu/llm_wiki** — Desktop app with two-step chain-of-thought ingest, 4-signal knowledge graph, Louvain community detection, vector search via LanceDB.
-- **Pratiyush/llm-wiki** — Agent-agnostic core with adapters for Cursor, Gemini, Copilot. Dual-format output (human HTML + AI-consumable TXT/JSON/JSON-LD).
-- **Graphify** (safishamsi) — Turns any folder into a queryable knowledge graph with Leiden community detection. 71.5x fewer tokens per query vs. raw files.
-- **claude-memory-compiler** (coleam00) — Hooks capture sessions, SDK extracts decisions, LLM compiles into cross-referenced knowledge articles. Lint with severity levels.
-
-### Agent-memory systems with knowledge decay
-
-These are adjacent tools that implement memory lifecycle, decay, forgetting, and consolidation — features rk plans but hasn't built:
-
-- **LLM Wiki v2** (rohitg00 gist) — Extends the original pattern with confidence scoring, supersession, Ebbinghaus retention curves. Knowledge tiers: ephemeral → working → procedural → semantic.
-- **agentmemory** (rohitg00) — SHA-256 dedup, lifecycle states (tagged → active → dormant), Ebbinghaus decay, consolidation, BM25 + vector + graph retrieval.
-- **Ori-Mnemos** — Full cognitive model. ACT-R activation decay, spreading activation along wiki-link edges, Hebbian co-occurrence, three memory spaces with different decay rates (identity 0.1x, knowledge 1.0x, ops 3.0x). 6-layer MCP architecture.
-- **Hippo Memory** — Biologically-inspired. Decay, retrieval strengthening, consolidation. Reward-proportional decay: positive outcomes decay slower, negatives faster.
-- **Cognithor** — KnowledgeConfidenceManager with exponential time decay (180-day half-life), feedback-based adjustment, verification boost, full audit history. Content-hash dedup.
-- **NornicDB** — Graph+Vector temporal database with memory decay as a first-class feature. Canonical graph ledger for temporal validity.
-- **ReMe** (agentscope-ai) — Auto-compaction of old conversations, persistent storage for important info, automatic context recall.
-- **Sgraal** — Freshness decay (Weibull), drift detection (6 methods), contradiction resolution (Sheaf cohomology), formal verification (Z3 SMT).
-- **Cognee** — Session-aware knowledge graph memory with lifecycle hooks (SessionStart, PostToolUse, PreCompact, SessionEnd).
-- **widemem-ai** — Importance scoring, temporal decay, 3-tier hierarchy, YMYL prioritization, batch conflict resolution.
-
-### PKM tools with LLM augmentation
-
-- **Thoth** — Knowledge graph with 10 entity types, 67 relation types, source provenance per extraction, memory decay, orphan repair. Exports to Obsidian vault.
-- **Memex** — Local-first, multi-agent capture (text, photos, voice), AI organizes into interconnected markdown.
-- **REM Labs** — Ingest automatically, synthesize continuously, surface insights without being asked.
-- **claude-scholar** — Converts papers into reusable claims, routes knowledge into Obsidian.
+The others (obsidian-wiki, nvk/llm-wiki, and the dozen similar skills/plugins) are in the same maturity class as rk: overgrown personal projects with strong ideas and thin engineering. rk's ~475 tests advantage over those doesn't meaningfully matter when the comparison is against agentmemory's 646.
 
 ---
 
-## Feature-by-Feature Comparison
+## Feature Heatmap
 
-The table below compares rk (current + planned) against the **best existing tool** for each feature — not against the bare Karpathy pattern.
+Does any single tool cover what rk does? That's the question that matters. Below: **B** = built and working, **P** = planned/designed but not built, **-** = missing, **~** = partial/different shape.
 
-| Feature | rk status | Best existing tool | Does rk need to exist for this? |
-|---------|-----------|-------------------|-------------------------------|
-| Source ingestion + normalization | Built (web, PDF, media, X threads, notes) | Thoth (PDF/DOCX/HTML/EPUB), SwarmVault, llm-wiki-agent | No — multiple tools do this well |
-| Source immutability | Built (ADR-007) | Universal across three-layer implementations | No — everyone does this |
-| Concept/entity pages | Missing | obsidian-wiki, SwarmVault, nashsu/llm_wiki | No — they already have it |
-| Cross-topic linking (wiki-links) | Missing | obsidian-wiki, SwarmVault, all LLM Wiki tools | No |
-| Rolling synthesis per topic | Built (tags/synthesis.md) | LLM Wiki concept pages serve the same purpose differently | Close call — rk's per-tag synthesis is a different shape, not obviously better |
-| Query with semantic retrieval | Built (embeddings + FTS5 + freshness decay) | SwarmVault (hybrid search), Graphify (71.5x token savings), nashsu/llm_wiki (LanceDB) | No |
-| Health checking / lint | Built (rk doctor, 12 checks) | llm-wiki-compiler (orphan, stale, contradictions), SwarmVault (dashboard), claude-memory-compiler (severity levels) | No — others have comparable lint |
-| Content-hash dedup | Built | agentmemory, Cognithor, llm-wiki-compiler, cass | No |
-| Agent-agnosticism | Built (sidecar protocol) | nvk/llm-wiki, Pratiyush/llm-wiki, SwarmVault (MCP), the pattern itself | Partial — rk is more formally decoupled, but the pattern is agent-agnostic at the data layer |
-| Provenance tracking | Planned (claims.md) | obsidian-wiki (`extracted`/`inferred`/`ambiguous`), SwarmVault (edge provenance), Thoth (source provenance per extraction), Semantica | No — obsidian-wiki already ships this |
-| Contradiction detection | Planned (rk resolve --deep) | SwarmVault (automatic), nvk/llm-wiki (verdict system), Sgraal (6 methods + Z3), llm-wiki-kit (at ingest time) | No |
-| Confidence scoring | Planned (part of claims.md) | LLM Wiki v2, SwarmVault, Cognithor, Hippo | No |
-| Knowledge decay / lifecycle | Planned (fresh → stale → forgotten) | LLM Wiki v2 (supersession + Ebbinghaus), Ori-Mnemos (ACT-R), Hippo (biological), Cognithor (180-day half-life), NornicDB (temporal graph) | No — these are more mature than rk's planned design |
-| Per-context aging | Planned (same source, different TTL per tag) | Nothing found | **Yes** — no other system does this |
-| Context-specific summaries | Planned (same source summarized differently per tag) | Nothing found | **Yes** — no other system does this |
-| Deterministic state projection | Planned (git clone + rk resolve) | llm-wiki-compiler (incremental hash-based), Graphify (auto-rebuild), SwarmVault (compile step) | Partial — the principle exists elsewhere; rk's formal statement of it is just documentation |
-| Investigation lifecycle | Built (investigations + research) | nvk/llm-wiki (thesis-driven investigation) | Close call — nvk's investigations are structured differently but serve a similar purpose |
-| Transport diversity | Built (wormhole, file, URL, text) | Thoth (PDF/DOCX/HTML/EPUB), most tools support multiple formats | Partial — wormhole is unique, multi-format ingestion is table stakes |
-| Answer filing back into wiki | Partial (queries/ stored, not integrated) | Karpathy pattern itself, all implementations | No — they already do this |
-| Human-browsable index | Missing | LLM Wiki index.md (universal) | No |
-| Activity log | Missing | LLM Wiki log.md (universal) | No |
-| Visualization | Missing (INITIATIVE-002 planned) | Obsidian graph view (universal in LLM Wiki tools), SwarmVault dashboards | No |
-
----
-
-## What rk Actually Adds That Doesn't Exist Elsewhere
-
-Two things. Not "backed by three ADRs" or "more formally designed" — those are documentation, not features.
-
-### 1. Per-context aging
-
-A source can be fresh in one tag and stale in another. A recipe about french fries is timeless as a procedure but timebound in a nutrition-science context. A Hacker News thread about programming languages decays in a "current-events" tag but may endure in a "systems-design" investigation. The same source, different lifecycle, different summaries, different claims — all in the same knowledge base, computed from a single manifest + per-context pipeline config.
-
-No other tool implements this. The LLM Wiki v2 has global knowledge tiers (ephemeral → working → procedural → semantic). Ori-Mnemos has three decay zones (identity, knowledge, ops). Cognithor has a single confidence curve per fact. All of these apply one lifecycle per piece of knowledge. rk's design applies one lifecycle per *reference* — a source in a context — which is strictly more granular.
-
-**But**: this feature is planned, not built. And it solves a real problem that most users don't have yet — it becomes important when your knowledge base has hundreds of sources across dozens of topics with different aging profiles. Below that scale, a single TTL per source works fine.
-
-### 2. Context-specific summaries
-
-When a source goes stale, it gets summarized — but the summary is shaped by its context. The same paper about WebSockets gets a latency-focused summary in a "realtime-systems" tag and a standards-focused summary in a "web-standards" tag. These summaries live as separate files in separate context directories.
-
-No other tool does this. Every other system either keeps the full text or produces a single global summary. rk produces as many context-specific summaries as there are referencing contexts.
-
-**But**: same caveat — planned, not built. And the storage cost scales linearly with context count. Whether this matters in practice depends on how many tags reference the same source and how different their perspectives really are.
+| Feature | rk | agentmemory | Ori-Mnemos | SwarmVault | obsidian-wiki | nvk/llm-wiki |
+|---------|----|-------------|------------|------------|---------------|--------------|
+| Source ingestion + normalization | B | ~ (captures agent sessions, not research sources) | ~ (agent memory, not source library) | B | B | B |
+| Source immutability | B | — | — | B | B | B |
+| Concept/entity pages | - | - | - | B | B | B |
+| Cross-topic linking (wiki-links) | - | - | B (wiki-links as edges) | B | B | B |
+| Rolling synthesis per topic | B | - | - | B | B | B |
+| Semantic retrieval | B | B (BM25+vec+graph RRF) | B (4-signal fusion) | B (SQLite FTS+embed) | ~ (qmd optional) | ~ (qmd optional) |
+| Freshness-weighted scoring | B | B (decay) | B (ACT-R activation) | ~ | — | — |
+| Health checking / lint | B (12 checks) | B (diagnose+heal) | B (health+validate) | B (lint dashboard) | B (wiki-lint) | B (86-assertion lint) |
+| Content-hash dedup | B | B (SHA-256) | — | ~ | — | — |
+| Agent-agnosticism | B (sidecar) | B (MCP, 15 agents) | B (MCP, 4 adapters) | B (MCP, 16 agents) | B (8 agents) | B (3 agents + AGENTS.md) |
+| Provenance tracking | P | B (citation provenance) | — | B (edge provenance) | B (extracted/inferred/ambiguous) | — |
+| Contradiction detection | P | B (auto-detect) | — | B (automatic) | B (wiki-lint flags) | B (verdict system) |
+| Confidence scoring | P | — | B (Q-values) | B (node confidence) | — | B (high/med/low) |
+| Memory lifecycle / decay | P | B (Ebbinghaus, 4-tier) | B (ACT-R, 3 zones) | — | — | — |
+| Per-context aging | P | — | — | — | — | — |
+| Context-specific summaries | P | — | — | — | — | — |
+| Deterministic rebuild | P | B (git snapshots) | — | B (compile step) | B (wiki-rebuild) | B (compile --full) |
+| Investigation lifecycle | B | — | — | — | — | B (thesis mode) |
+| Research budgets | B | — | — | — | — | B (--min-time) |
+| Transport diversity | B | — | — | B | ~ | ~ |
+| Answer filing into wiki | ~ | — | — | B | B | B |
+| Human-browsable index | - | — | — | B | B | B |
+| Activity log | - | B (session timeline) | B (session logs) | B (log.md) | B (log.md) | B (log.md) |
+| Visualization | - | B (real-time viewer) | — | B (graph viewer, desktop) | B (Obsidian graph) | B (Obsidian graph) |
+| Knowledge graph (typed nodes/edges) | ~ (symlinks+SQLite) | B (entity graph) | B (wiki-link graph + PageRank) | B (typed nodes, communities) | — (wikilinks only) | — (wikilinks only) |
+| Multi-agent coordination | - | B (leases, signals, mesh) | — | — | — | B (parallel research) |
+| Real-time viewer/web UI | - | B (port 3113) | — | B (desktop app) | — | — |
 
 ---
 
-## What rk Would Gain by Adopting an Existing Tool
+## The Single-Tool Coverage Question
 
-If rk were retired in favor of (say) SwarmVault or obsidian-wiki plus an agent-memory layer, rk would immediately gain:
+No one tool covers everything rk does. But that's the wrong framing — the right question is whether a combination of 2-3 tools covers rk's useful feature set *and* adds everything rk lacks.
 
-- **Concept/entity pages** — the most obvious gap. rk's per-tag syntheses are topic-sized essays; the LLM Wiki's concept pages are atomic navigable units. This makes a much bigger difference to daily usability than per-context aging.
-- **Cross-topic linking** — wiki-links create a navigable idea graph. rk has structural symlinks, which a human can't browse.
-- **Human-browsable index and activity log** — `index.md` and `log.md` are trivial to generate but rk doesn't have them. Every LLM Wiki tool does.
-- **Visualization** — Obsidian graph view is standard. rk has nothing.
-- **Provenance tags** — obsidian-wiki already ships `extracted`/`inferred`/`ambiguous` per claim. rk's planned claims.md would need to match or exceed this.
-- **A living community** — rk is one person's project. The LLM Wiki ecosystem has dozens of active contributors, issues being filed, patterns being shared.
+**agentmemory + obsidian-wiki** covers almost everything rk has today and adds most of what rk is missing:
 
-## What rk Would Lose by Adopting an Existing Tool
+| rk feature | Covered by |
+|-----------|-----------|
+| Source ingestion | obsidian-wiki (ingest) or SwarmVault |
+| Source immutability | any LLM Wiki implementation |
+| Rolling synthesis | obsidian-wiki concept pages |
+| Semantic retrieval | agentmemory (BM25+vec+graph) |
+| Freshness weighting | agentmemory (Ebbinghaus decay) |
+| Health checking | obsidian-wiki lint |
+| Dedup | agentmemory (SHA-256) |
+| Agent agnosticism | both (MCP + multi-agent) |
+| Provenance | obsidian-wiki (extracted/inferred/ambiguous) |
+| Contradiction detection | both |
+| Confidence scoring | agentmemory |
+| Memory lifecycle/decay | agentmemory (4-tier + Ebbinghaus) |
+| Investigation lifecycle | nvk/llm-wiki (thesis mode) |
+| Concept/entity pages | obsidian-wiki |
+| Cross-topic linking | obsidian-wiki |
+| Human-browsable index | any LLM Wiki |
+| Activity log | any LLM Wiki |
+| Visualization | Obsidian graph view |
+| Multi-agent coordination | agentmemory (leases, signals) |
 
-- **Per-context aging and context-specific summaries** — these don't exist elsewhere. If these matter to the project's direction, rk (or a fork of something that adds them) has to exist.
-- **The sidecar protocol** — rk never lets an agent touch files directly; intelligence enters only through completed sidecars. Other tools let the agent edit wiki files directly. The sidecar approach is more constrained and more batch-oriented, which means it's slower day-to-day but less prone to uncontrolled mutations. Whether this matters depends on how much you trust the agent.
-- **Investigation + research workflows** — rk's explicit investigation lifecycle with rolling syntheses and research budgets has a partial analog in nvk/llm-wiki's thesis-driven investigation, but the research-budget concept is unique.
-- **A codebase with 475 tests and growing** — most LLM Wiki tools are skills (markdown files) or thin CLIs. rk is a Python package with real test coverage, hexagonal architecture, and port/adapter separation. That engineering investment means something for reliability, even if it doesn't mean something for features.
+**What this combo does NOT cover** (rk's unique ground):
+
+| rk feature | Status in combo |
+|-----------|----------------|
+| Per-context aging | Not available anywhere |
+| Context-specific summaries | Not available anywhere |
+| Sidecar-only intelligence interface | agentmemory uses hooks (automatic capture) instead of sidecars — different model, not clearly better or worse |
+| Research budgets | nvk/llm-wiki has --min-time, which is similar but not identical |
+
+Two features — per-context aging and context-specific summaries — exist only in rk's design. Everything else rk has (built or planned) is already shipped elsewhere.
 
 ---
 
-## So: Should rk Continue?
+## The Honest Assessment
 
-The honest answer depends on what rk is for.
+### If rk's goal is "a working personal research library today"
 
-**If rk's purpose is "a personal research library that works well for me today"**: It's worth asking whether adopting SwarmVault or obsidian-wiki + agentmemory would deliver 80% of rk's value with 20% of the maintenance. The ecosystem is moving fast. Most of rk's current features have equivalents. The two genuinely unique features (per-context aging, context-specific summaries) are planned, not built — you'd be maintaining a codebase for features that don't exist yet while tools that already have concept pages, linking, and visualization pass you by.
+agentmemory + an LLM Wiki tool (obsidian-wiki, SwarmVault, or nvk/llm-wiki) gives you a research library with:
+- Concept pages, linking, and visualization (things rk doesn't have)
+- Mature memory lifecycle with Ebbinghaus decay (rk's is designed but unbuilt)
+- Provenance tracking and contradiction detection (rk's is planned, theirs ships)
+- 646+ tests and published packages (rk has 475 tests and no package)
+- Real-time viewer, 15+ agent integrations, desktop app
 
-**If rk's purpose is "explore the per-context aging + context-specific summary design space"**: Then rk should continue, because no one else is doing this and it's an interesting problem. But the honest framing shifts from "rk is a research library" to "rk is a vehicle for exploring contextual knowledge lifecycle." That's a different project with a different scope.
+You'd spend time configuring the combo instead of maintaining rk. That's a real cost — two tools mean two configs, two update streams, two mental models. But the combo gives you more features, more maturity, and a community.
 
-**The middle path**: The strongest move might be to adopt an existing LLM Wiki tool for the wiki layer (concept pages, linking, visualization) and build per-context aging as a plugin or extension to that tool. This would give rk's genuinely unique insight to a tool that already has the features rk lacks, while freeing up the maintenance burden of a full codebase. The question is whether the existing tools are extensible enough to add per-context aging — and whether the sidecar protocol's constraint (agent never touches files) is compatible with their architecture.
+### If rk's goal is "explore per-context aging and context-specific summaries"
 
-**One concrete risk of adopting existing tools**: The LLM Wiki ecosystem is moving fast but none of these tools are mature. They're skills, gists, and weekend projects. obsidian-wiki has 13 skills but is run by one person. SwarmVault is from the SwarmClaw project. nvk/llm-wiki ships a plugin. None have 475 tests. Adopting one means inheriting its stability and its maintainer's attention span.
+Then rk (or a fork of something that adds these features) has to exist, because nobody else does this. But the honest framing is: rk is a research project into contextual knowledge lifecycle, not a production research library. The codebase investment in CLI, pipeline, resolve engine, and doctor is infrastructure for an idea that hasn't been validated yet.
 
-**One concrete risk of continuing rk**: You spend time maintaining infrastructure (CLI, pipeline, resolve engine, doctor) instead of building the features that actually make rk interesting (per-context aging, context-specific summaries). The gap between rk and the ecosystem widens in the areas rk doesn't have (concept pages, linking, visualization) while the features rk plans remain unbuilt.
+### The middle path
 
----
+The strongest move: adopt agentmemory for the memory/decay/retrieval layer, adopt an LLM Wiki tool (probably SwarmVault or obsidian-wiki) for the wiki/graph/visualization layer, and build per-context aging as an extension to one of them. This would:
+- Give rk's genuinely unique insight to a tool that already has the features rk lacks
+- Free up the maintenance burden of the full codebase
+- Validate whether per-context aging actually matters in practice (maybe it doesn't — maybe global decay like agentmemory and Ori-Mnemos implement is good enough)
 
-## Summary Table
+**The risk of the middle path**: agentmemory and Ori-Mnemos are agent-memory systems (they capture what happens during coding sessions), not source-research libraries (they don't ingest PDFs, articles, and books). rk's transport layer and source-normalization pipeline fills a gap that wiki tools handle differently (manual file drops into `raw/`). If you adopt wiki tools for the research source ingestion side, you're back to manual file management — or you're writing a sidecar to normalize and inject sources into the wiki, which starts to look a lot like rk.
 
-| Dimension | research-keeper | Best in ecosystem | rk ahead? |
-|-----------|----------------|-------------------|-----------|
-| Source ingestion + normalization | Built | Thoth, SwarmVault | No |
-| Source immutability | Built | Universal | No |
-| Concept/entity pages | Missing | obsidian-wiki, SwarmVault | Behind |
-| Cross-topic linking | Missing | Universal in LLM Wiki tools | Behind |
-| Rolling synthesis per topic | Built | LLM Wiki concept pages | Different shape, not better |
-| Semantic retrieval | Built | SwarmVault, Graphify | Roughly equal |
-| Health checking | Built (12 checks) | llm-wiki-compiler, SwarmVault | Roughly equal |
-| Provenance tracking | Planned | obsidian-wiki (already shipped) | Behind |
-| Contradiction detection | Planned | SwarmVault (automatic), Sgraal (6 methods) | Behind |
-| Knowledge decay / lifecycle | Planned | Ori-Mnemos, Hippo, Cognithor, LLM Wiki v2 | Behind (they shipped, rk hasn't) |
-| Per-context aging | Planned | Nothing found | **Ahead** |
-| Context-specific summaries | Planned | Nothing found | **Ahead** |
-| Investigation lifecycle | Built | nvk/llm-wiki (partial) | Slightly ahead |
-| Agent decoupling | Built (sidecars) | Pattern is agent-agnostic at data layer | Different style, not categorically different |
-| Answer filing into wiki | Partial | Universal in LLM Wiki tools | Behind |
-| Human-browsable index | Missing | Universal | Behind |
-| Activity log | Missing | Universal | Behind |
-| Visualization | Missing | Obsidian graph view (universal) | Behind |
+### Why rk might still be worth maintaining
+
+One reason: **rk's architecture treats research sources as first-class citizens.** agentmemory captures agent session observations. Ori-Mnemos captures agent notes. Both are optimized for "remember what the agent did." rk is optimized for "organize what you read." That's a different core loop — ingest → tag → synthesize → query → decay — and none of the mature tools implement it with source-level granularity.
+
+If your primary workflow is "I read a lot of things and want them organized," rk's core loop is closer to what you need than agentmemory's "capture everything the agent does." The LLM Wiki tools are closer, but none have the decay/lifecycle story that rk plans. The gap is real.
+
+### Why rk might not be worth maintaining
+
+Every feature rk plans but hasn't built is already shipped in agentmemory or Ori-Mnemos. The two features no one else has (per-context aging, context-specific summaries) are designs, not code. The maintenance cost of the full codebase (CLI, tests, pipeline, doctor, ADRs) is real time that could go into either (a) using existing tools or (b) building just the per-context aging module as a plugin to an existing tool.
 
 Reference from artifacts with: `trove: karpathy-llm-wiki@b40c3a8`
