@@ -23,7 +23,7 @@ freshness-ttl:
 history:
   - event: created
     date: 2026-04-18
-    commit: "--"
+    commit: "b40c3a8"
     sources: 13
 
 sources:
