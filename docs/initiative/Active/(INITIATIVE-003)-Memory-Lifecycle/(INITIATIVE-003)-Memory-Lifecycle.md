@@ -82,14 +82,14 @@ For a reference in context `tags/programming-languages`, the materialized file s
 
 ```
 tags/programming-languages/
-  manifest.yaml                    # source slug membership list
-  pipeline.yaml                    # TTL rules, decay config, topic classification
+  programming-languages.manifest.yaml                    # source slug membership list
+  programming-languages.memory.config.yaml	# TTL rules, decay config, topic classification
   sources/
-    hacker-news.md                 # fresh: full text content
-    hacker-news-summary.md         # stale: context-specific summary
-    hacker-news-forgotten.md       # forgotten: placeholder pointing to claims
-  claims.md                        # per-context claims database
-  .sidecars/                       # pending LLM work
+    hacker-news.md                 					# fresh: full text content
+    hacker-news-summary.md         					# stale: context-specific summary
+    hacker-news-forgotten.md       					# forgotten: placeholder pointing to claims
+  claims.md                        					# per-context claims database
+  .sidecars/                       					# pending LLM work
 ```
 
 Exactly one of `{slug}.md`, `{slug}-summary.md`, `{slug}-forgotten.md` exists at a time per reference. `rk resolve` replaces the file as the reference transitions. The filename suffix encodes the lifecycle tier.
