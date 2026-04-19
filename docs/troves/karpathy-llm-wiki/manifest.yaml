@@ -28,7 +28,7 @@ history:
 
   - event: extended
     date: 2026-04-18
-    commit: "--"
+    commit: "65e8440"
     sources: 13
     sources-added: 0
     notes: "Added comparison-research-keeper.md (comparative synthesis against research-keeper)"
