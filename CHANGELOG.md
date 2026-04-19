@@ -1,4 +1,23 @@
 # Changelog
+## [1.0.0-alpha.8] - 2026-04-18
+
+### Features
+
+#### Complete Investigation Synthesis Context
+
+The investigation rolling synthesis mechanism (both in-process and sidecar paths) now correctly includes **all** linked references in synthesis context — sources, query syntheses, and tag syntheses. Previously, only the investigation brief and prior synthesis were passed, causing successive rolling updates to progressively lose all original reference material and decay into self-referential summaries.
+
+Fixed two distinct synthesis paths:
+- `_generate_synthesis()` method in `InvestigationPipeline` — reads linked content at resolution time
+- `generate_investigation_sidecar()` in `SidecarGenerator` — includes linked content in LLM prompt
+
+Both paths now consistently gather and pass the full set of investigation context to the synthesizer.
+
+### Supporting Changes
+
+- Added 3 new unit tests verifying investigation synthesis includes linked sources, queries, and tags
+- Fixed pre-existing lint warnings in resolve.py (unrelated to this change)
+
 ## [1.0.0-alpha.7] - 2026-04-16
 
 ### Features
