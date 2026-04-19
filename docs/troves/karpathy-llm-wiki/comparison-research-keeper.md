@@ -212,4 +212,140 @@ rk's transport layer (wormhole, file, URL, text, auto-detect) handles the messy 
 | Test coverage | None (it's a pattern, not code) | ~475 tests |
 | Reproducibility | No rebuild guarantee | git clone + rk resolve (deterministic) |
 
+---
+
+## Corrections: Where the Original Claims Were Too Strong
+
+The original version of this document made several claims of uniqueness on behalf of research-keeper. A deeper search across the LLM Wiki ecosystem and the broader PKM/agent-memory solution space reveals counterexamples. This section corrects those claims with evidence.
+
+### 1. Agent-agnosticism is NOT unique to rk
+
+**Original claim**: "Every LLM Wiki implementation is coupled to a specific agent."
+
+**Counterexamples**:
+- **nvk/llm-wiki**: "Ships as a Claude Code plugin, an OpenAI Codex plugin, or a portable AGENTS.md for any other LLM agent." The core wiki-manager skill is agent-agnostic; the plugin wrappers are thin adapters.
+- **Pratiyush/llm-wiki**: "Agent-agnostic core — the converter doesn't know which agent produced the .jsonl; adapters translate." Supports Claude Code, Codex CLI, Copilot, Cursor, and Gemini via agent adapters.
+- **SwarmVault** (swarmclawai): Works with Claude Code, Codex, OpenCode, and OpenClaw via MCP server.
+- **SamurAIGPT/llm-wiki-agent**: "Works with Claude Code, Codex, OpenCode, Gemini CLI."
+- **Astro-Han/karpathy-llm-wiki**: "Agent Skills-compatible LLM wiki for Claude Code, Cursor, and Codex."
+- **The pattern itself** (decodethefuture.org): "Any agent that can read and write local files works: Claude Code, Codex CLI, Cursor, OpenCode. The pattern is agent-agnostic — the wiki is plain markdown, so switching agents requires no data migration."
+
+**Correction**: rk's sidecar protocol is a more formal decoupling mechanism than what most implementations provide, but the pattern and its better implementations are already agent-agnostic at the data layer (plain markdown). The difference is architectural formality, not a categorical distinction. rk's advantage is that it never expects the agent to edit files directly — the sidecar protocol is the *only* intelligence interface. The LLM Wiki implementations typically let the agent edit wiki files directly, which is simpler but less constrained.
+
+### 2. Memory lifecycle is NOT unique to rk
+
+**Original claim**: "No LLM Wiki implementation has anything like rk's planned three-tier lifecycle."
+
+**Counterexamples**:
+- **LLM Wiki v2** (rohitg00 gist, the same source from the original trove): "Not everything should live forever. A wiki that never forgets becomes noisy. Implement a retention curve: facts that were important once but haven't been accessed or reinforced in months should gradually fade. Ebbinghaus's forgetting curve works well here." Adds confidence scoring, supersession, and basic retention decay as explicit extensions to the original pattern.
+- **agentmemory** (rohitg00): "Memories decay over time (Ebbinghaus curve)." Implements SHA-256 dedup, lifecycle states (tagged → active → dormant), and consolidation.
+- **Ori-Mnemos**: Full cognitive model with ACT-R activation decay, spreading activation along wiki-link edges, Hebbian co-occurrence, and three memory spaces with different decay rates (identity 0.1x, knowledge 1.0x, ops 3.0x).
+- **Hippo Memory**: Biologically-inspired memory with decay, retrieval strengthening, consolidation, and reward-proportional decay (R-STDP). Memories with consistent positive outcomes decay up to 1.5x slower; negatives decay up to 2x faster.
+- **Cognithor**: KnowledgeConfidenceManager with exponential time decay (180-day half-life), feedback-based adjustment, verification boost, and full audit history. ActiveLearner with content-hash deduplication.
+- **NornicDB**: Graph+Vector temporal database with memory decay as a first-class feature and canonical graph ledger model for temporal validity.
+- **widemem-ai**: Lightweight memory layer with importance scoring, temporal decay, 3-tier hierarchy, YMYL prioritization, and batch conflict resolution.
+- **ReMe** (agentscope-ai): Old conversations auto-compacted, important information persistently stored, relevant context auto-recalled.
+- **The arxiv paper on the missing knowledge layer** (2604.11364): Proposes a four-layer decomposition — facts get supersession, experiences get decay, behavioral patterns get evidence-gated promotion. Cites Ori-Mnemos and LLM Wiki v2 as prior art.
+
+**Correction**: rk's *per-context aging* (same source, different lifecycle state in different tags) remains genuinely unique — no other system implements context-specific aging where the same source can be fresh in one context and stale in another. But the general concept of knowledge lifecycle with decay, tiering, and forgetting is well-established in the agent-memory ecosystem. rk's ADR-007 design is more architecturally rigorous (references as atomic, sources as immutable, disk state as deterministic projection), but the idea is not novel.
+
+### 3. Provenance tracking and contradiction detection are NOT unique to rk
+
+**Original claim**: rk's planned claims.md with provenance timestamps and contradiction detection via `rk resolve --deep` was presented as without precedent.
+
+**Counterexamples**:
+- **obsidian-wiki** (Ar9av): "Provenance tracking. Every claim on a wiki page is tagged: extracted (default), ^[inferred] (LLM synthesis), or ^[ambiguous] (sources disagree)." This is exactly the `extracted`/`inferred`/`ambiguous` taxonomy the original synthesis recommended rk should adopt — and obsidian-wiki already implements it.
+- **SwarmVault**: "Knowledge graph with provenance — every edge traces back to a specific source and claim. Contradiction detection — conflicting claims across sources flagged automatically." Also tags edges as `extracted`, `inferred`, or `ambiguous`.
+- **SwarmVault**: `compile --approve` stages all changes into reviewable approval bundles. New concepts land in `wiki/candidates/` first.
+- **nvk/llm-wiki**: Thesis-driven investigation with a verdict system: "supported / partially supported / contradicted / insufficient evidence / mixed."
+- **llm-wiki-compiler** (atomicmemory): "Incremental. Only changed sources go through the LLM. Everything else is skipped via hash-based change detection."
+- **Thoth**: "Map-reduce LLM pipeline — extracts structured entities and relations into the knowledge graph with source provenance. Curated 67-type relation vocabulary, entity caps, self-loop rejection."
+- **Semantica**: "Every fact traceable." Knowledge graph with provenance, conflict detection, and temporal validity extraction.
+- **claude-scholar**: "Paper notes: convert papers into structured reading notes and reusable claims."
+- **Sgraal** (from r/AI_Agents): Freshness decay (Weibull), drift detection (6 methods), contradiction resolution (Sheaf cohomology), and formal verification (Z3 SMT).
+- **Cognee**: Session-aware knowledge graph memory with lifecycle hooks (SessionStart, PostToolUse, PreCompact, SessionEnd).
+
+**Correction**: rk's design for `claims.md` is structurally cleaner than most (per-context, markdown-native, git-trackable, with last-validated timestamps). But provenance tracking and contradiction detection are active areas of development across the entire ecosystem. rk's planned implementation would be competitive, not unique.
+
+### 4. Deterministic state projection is NOT unique to rk
+
+**Original claim**: "No LLM Wiki implementation guarantees this. The wiki is a mutable artifact."
+
+**Counterexamples**:
+- **llm-wiki-compiler** (atomicmemory): "Incremental. Only changed sources go through the LLM. Everything else is skipped via hash-based change detection." This implies a rebuild-from-sources capability similar to `rk rebuild`.
+- **SwarmVault**: `wiki compile` is an explicit compilation step that transforms raw → wiki, and can be re-run.
+- **Graphify**: "Install the post-commit hook (graphify hook install) so the graph rebuilds automatically after code changes — no LLM calls needed for code-only updates." The graph is a derived artifact rebuildable from sources.
+- **Cognithor**: ActiveLearner with content-hash deduplication and configurable learning rate — implies rebuildability.
+- **cass** (Dicklesworthstone/coding_agent_session_search): SQLite as append-only log, content hashing for dedup, immutable message history.
+
+**Correction**: rk's invariant — git clone + rk resolve rebuilds identical state — is more formally stated and enforced than in most implementations. But the *principle* (derived index, sources as truth, rebuildable state) is shared by several tools. rk's advantage is the explicit ADR commitment, not the architectural idea.
+
+### 5. Structured health checking is NOT unique to rk
+
+**Original claim**: "rk's rk doctor with 12 checks exceeds anything in the LLM Wiki pattern."
+
+**Counterexamples**:
+- **llm-wiki-compiler**: "Health checks — finds stale articles, orphan pages, missing cross-references, contradictions, low coverage."
+- **SwarmVault**: Lint dashboard with reading log, timeline, source sessions, research map, contradictions, and open questions.
+- **llm-wiki-kit** (iamsashank09): "Run lint periodically — catches contradictions and gaps in your knowledge base."
+- **claude-memory-compiler**: Lint with severity levels (error, warning, suggestion).
+- **nashsu/llm_wiki**: Two-step chain-of-thought ingest with contradiction detection at analysis time.
+
+**Correction**: rk's 12-check doctor is still more comprehensive than any single LLM Wiki implementation's lint, and it's automated (not a manual "ask the LLM to check"). But the gap is narrower than claimed. Several tools now implement structured lint with severity levels, contradiction detection, and orphan detection.
+
+### 6. Source immutability is NOT unique to rk
+
+**Original claim**: "rk's design is closer to Lahoti's 'safer architecture': originals are immutable and authoritative."
+
+**Counterexamples**: Source immutability is foundational to the Karpathy pattern itself ("raw/ is read-only") and is enforced by every implementation that follows the three-layer architecture. SwarmVault: "Raw sources (raw/) — immutable: SwarmVault reads from them but never modifies them." claude-memory-compiler: "daily/ — Source code — conversation logs (immutable)." The original Karpathy gist: "These are immutable — the LLM reads from them but never modifies them."
+
+**Correction**: Source immutability is a shared constraint, not a differentiator. rk's ADR-007 formalizes it, but the practice is universal across well-implemented LLM Wikis.
+
+### 7. Transport diversity — mostly unique, but narrowing
+
+**Counterexamples**:
+- **SwarmVault / llm-wiki-agent / obsidian-wiki**: All support multiple input formats (PDF, web, images, transcripts, conversation exports).
+- **Thoth**: "Supports PDF, DOCX, TXT, Markdown, HTML, and EPUB."
+- **nashsu/llm_wiki**: "Folder import — recursive folder import preserving directory structure."
+- **Memex** (memex-lab): "Capture thoughts through text, photos, and voice — a multi-agent system automatically organizes."
+
+**Correction**: rk's wormhole transport and explicit transport abstraction layer (wormhole, file, URL, text, auto-detect) remain more formally designed than anything else in the space. But multi-format ingestion is now table stakes.
+
+---
+
+## Revised Assessment
+
+After deeper research, the genuinely unique features of rk (current + planned) narrow to:
+
+1. **Per-context aging** (same source, different lifecycle in different tags). No other system implements this. This is rk's strongest differentiator.
+2. **Sidecar protocol as the sole intelligence interface**. Other systems are agent-agnostic at the data layer, but rk is the only system that never lets the agent touch files directly — intelligence enters only through completed sidecars.
+3. **Context-specific summaries** (planned). The same source summarized differently in different tags. LLM Wiki v2 has global knowledge tiers, but not per-context summarization.
+4. **Deterministic state projection with explicit ADR commitment** (planned). The git clone + rk resolve invariant exists as a design commitment backed by three ADRs, not just an implementation detail.
+
+Features previously claimed as unique that are now shared across the ecosystem:
+
+| Feature | Not unique — found in |
+|---------|----------------------|
+| Agent-agnosticism | nvk/llm-wiki, Pratiyush/llm-wiki, SwarmVault, llm-wiki-agent, pattern itself |
+| Memory lifecycle / decay | LLM Wiki v2, Ori-Mnemos, Hippo, Cognithor, NornicDB, ReMe, widemem-ai |
+| Provenance tracking | obsidian-wiki, SwarmVault, Thoth, Semantica, Sgraal |
+| Contradiction detection | obsidian-wiki, SwarmVault, nvk/llm-wiki, llm-wiki-kit, claude-memory-compiler |
+| Source immutability | Karpathy pattern itself, SwarmVault, claude-memory-compiler, all three-layer implementations |
+| Health checking / lint | llm-wiki-compiler, SwarmVault, llm-wiki-kit, claude-memory-compiler, nashsu/llm_wiki |
+| Deterministic rebuild | llm-wiki-compiler, Graphify, SwarmVault, cass |
+| Content-hash dedup | agentmemory, Cognithor, cass, llm-wiki-compiler |
+| Confidence scoring | LLM Wiki v2, SwarmVault, Cognithor, Hippo |
+
+### Revised recommendation
+
+The original "don't jettison" conclusion still holds, but the argument tightens. rk's advantage is no longer that it has features others lack — it's that it combines them in a single, formally designed system with:
+
+- Per-context aging (genuinely unique)
+- Sidecar-only intelligence interface (genuinely unique architecture)
+- ADR-backed design commitment (genuinely unique governance)
+- Production-grade test coverage (~475 tests vs. most implementations having none or minimal)
+- A single codebase doing what the ecosystem spreads across a dozen tools
+
+The risk is no longer "these features don't exist elsewhere" — it's "the ecosystem is moving fast and most features will be commoditized within 6-12 months." Per-context aging and the sidecar protocol are the moats. Everything else is implementation quality, which can be replicated.
+
 Reference from artifacts with: `trove: karpathy-llm-wiki@b40c3a8`
