@@ -183,13 +183,15 @@ class SidecarGenerator:
         brief: str,
         sources_content: list[dict],
         query_syntheses: list[dict],
-        prior_synthesis: str | None,
-        model_hint: str,
+        tag_syntheses: list[dict] | None = None,
+        prior_synthesis: str | None = None,
+        model_hint: str = "heavy",
     ) -> Path:
         """Write a synthesize.j2 sidecar for an investigation rolling synthesis.
 
         sources_content: list of dicts with 'slug' and 'content' keys.
         query_syntheses: list of dicts with 'query_id', 'query_text', 'synthesis' keys.
+        tag_syntheses: list of dicts with 'tag_slug' and 'synthesis' keys.
         Returns the path to the generated .j2 file.
         """
         pending_dir = self._root / "investigations" / inv_id / ".pending"
@@ -205,6 +207,11 @@ class SidecarGenerator:
             context_text += "\nLinked query syntheses:\n"
             for q in query_syntheses:
                 context_text += f"\nQuery: {q['query_text']}\n{q['synthesis']}\n"
+
+        if tag_syntheses:
+            context_text += "\nLinked tag syntheses:\n"
+            for t in tag_syntheses:
+                context_text += f"\nTag: {t['tag_slug']}\n{t['synthesis']}\n"
 
         prior_text = ""
         if prior_synthesis:

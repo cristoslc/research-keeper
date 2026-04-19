@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Protocol
+
+import yaml
 
 from research_keeper.adapters.filesystem.investigation_store import (
     FilesystemInvestigationStore,
@@ -27,6 +28,7 @@ class InvestigationPipeline:
         embedder: Embedder | None = None,
     ) -> None:
         self._inv_store = investigation_store
+        self._root = investigation_store._root
         self._synthesizer = synthesizer
         self._embedder = embedder
 
@@ -71,14 +73,13 @@ class InvestigationPipeline:
         self._inv_store.update_synthesis(inv_id, synthesis)
 
     def _generate_synthesis(self, inv_id: str, final: bool = False) -> str:
-        """Generate synthesis from investigation's linked content."""
+        """Generate synthesis from ALL linked content in the investigation."""
         import datetime
 
         inv = self._inv_store.get(inv_id)
         if inv is None:
             return ""
 
-        # Build pseudo-sources from brief + any context
         sources = [
             Source(
                 slug=f"{inv_id}-brief",
@@ -89,6 +90,55 @@ class InvestigationPipeline:
                 kind="source",
             )
         ]
+
+        for slug in inv.linked_sources:
+            content_path = self._root / "library" / "sources" / slug / "source.md"
+            if content_path.exists():
+                sources.append(
+                    Source(
+                        slug=slug,
+                        content_path="",
+                        content=content_path.read_text(),
+                        freshness=Freshness(ingested=datetime.date.today()),
+                        provenance=Provenance(origin="investigation-linked-source"),
+                        kind="source",
+                    )
+                )
+
+        for query_id in inv.linked_queries:
+            synth_path = self._root / "queries" / query_id / "synthesis.md"
+            meta_path = self._root / "queries" / query_id / "meta.yaml"
+            if synth_path.exists():
+                query_text = ""
+                if meta_path.exists():
+                    meta = yaml.safe_load(meta_path.read_text())
+                    query_text = meta.get("query_text", "")
+                content = synth_path.read_text()
+                label = f"Query: {query_text}" if query_text else f"Query {query_id}"
+                sources.append(
+                    Source(
+                        slug=f"query-{query_id}",
+                        content_path="",
+                        content=f"{label}\n{content}",
+                        freshness=Freshness(ingested=datetime.date.today()),
+                        provenance=Provenance(origin="investigation-linked-query"),
+                        kind="source",
+                    )
+                )
+
+        for tag_slug in inv.linked_tags:
+            synth_path = self._root / "tags" / tag_slug / "synthesis.md"
+            if synth_path.exists():
+                sources.append(
+                    Source(
+                        slug=f"tag-{tag_slug}",
+                        content_path="",
+                        content=f"Tag synthesis: {tag_slug}\n{synth_path.read_text()}",
+                        freshness=Freshness(ingested=datetime.date.today()),
+                        provenance=Provenance(origin="investigation-linked-tag"),
+                        kind="source",
+                    )
+                )
 
         if inv.synthesis:
             sources.append(

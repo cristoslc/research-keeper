@@ -463,6 +463,7 @@ def _resolve_impl(root: Path, config) -> str:
     for inv in invs_needing_synthesis:
         sources_content = _gather_investigation_sources(root, inv)
         query_syntheses = _gather_investigation_queries(root, inv)
+        tag_syntheses = _gather_investigation_tags(root, inv)
 
         path = sidecar_gen.generate_investigation_sidecar(
             inv_id=inv.inv_id,
@@ -470,6 +471,7 @@ def _resolve_impl(root: Path, config) -> str:
             brief=inv.brief,
             sources_content=sources_content,
             query_syntheses=query_syntheses,
+            tag_syntheses=tag_syntheses,
             prior_synthesis=inv.synthesis,
             model_hint=synth_model_hint,
         )
@@ -881,6 +883,21 @@ def _gather_investigation_queries(root: Path, inv) -> list[dict]:
                 }
             )
     return queries
+
+
+def _gather_investigation_tags(root: Path, inv) -> list[dict]:
+    """Read synthesis of all tags linked to an investigation."""
+    tags = []
+    for tag_slug in inv.linked_tags:
+        synth_path = root / "tags" / tag_slug / "synthesis.md"
+        if synth_path.exists():
+            tags.append(
+                {
+                    "tag_slug": tag_slug,
+                    "synthesis": synth_path.read_text(),
+                }
+            )
+    return tags
 
 
 def _apply_investigation_synthesis(
