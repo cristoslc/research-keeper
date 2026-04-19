@@ -26,6 +26,13 @@ history:
     commit: "b40c3a8"
     sources: 13
 
+  - event: extended
+    date: 2026-04-18
+    commit: "--"
+    sources: 13
+    sources-added: 0
+    notes: "Added comparison-research-keeper.md (comparative synthesis against research-keeper)"
+
 sources:
   - source-id: karpathy-llm-wiki-gist
     type: web
