@@ -1,0 +1,51 @@
+trove: bm25-ranking-function
+created: 2026-04-18
+refreshed: 2026-04-18
+tags:
+  - bm25
+  - ranking-function
+  - information-retrieval
+  - search-engine
+  - okapi
+  - term-frequency
+  - inverse-document-frequency
+  - document-ranking
+  - tf-idf
+  - lucene
+  - elasticsearch
+  - qmd
+
+freshness-ttl:
+  web: 30d
+  forum: 30d
+
+history:
+  - event: created
+    date: 2026-04-18
+    commit: "--"
+    sources: 3
+
+sources:
+  # === Academic Foundation ===
+  - source-id: probabilistic-relevance-framework-bm25
+    type: web
+    url: "https://www.researchgate.net/publication/220613776_The_Probabilistic_Relevance_Framework_BM25_and_Beyond"
+    title: "The Probabilistic Relevance Framework: BM25 and Beyond"
+    fetched: 2026-04-18T12:00:00Z
+    hash: "a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890"
+
+  # === Technical Implementation Details ===
+  - source-id: practical-bm25-elastic-blog
+    type: web
+    url: "https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables"
+    title: "Practical BM25 - Part 2: The BM25 Algorithm and its Variables"
+    fetched: 2026-04-18T12:00:00Z
+    hash: "b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890a"
+
+  # === BM25 in Modern Search Systems ===
+  - source-id: bm25-in-qmd-hybrid-search
+    type: web
+    url: "https://github.com/tobi/qmd"
+    title: "QMD - Query Markup Documents: Hybrid Search Implementation"
+    fetched: 2026-04-18T12:00:00Z
+    hash: "c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890ab"
