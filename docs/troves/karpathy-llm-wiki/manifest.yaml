@@ -1,0 +1,119 @@
+trove: karpathy-llm-wiki
+created: 2026-04-18
+refreshed: 2026-04-18
+tags:
+  - llm-wiki
+  - karpathy
+  - knowledge-base
+  - rag
+  - personal-knowledge-management
+  - obsidian
+  - markdown
+  - agent-memory
+  - knowledge-compilation
+
+freshness-ttl:
+  web: 14d
+  forum: 14d
+  document: 30d
+  media: never
+  repository: 30d
+  documentation-site: 7d
+
+history:
+  - event: created
+    date: 2026-04-18
+    commit: "--"
+    sources: 13
+
+sources:
+  - source-id: karpathy-llm-wiki-gist
+    type: web
+    url: "https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f"
+    fetched: 2026-04-18T12:00:00Z
+    title: "LLM Wiki — A pattern for building personal knowledge bases using LLMs"
+    hash: "b1941d4fdbaf67c1688d9e04ec3c73d20363d07b9fb0253171522815f76c3c12"
+
+  - source-id: venturebeat-llm-knowledge-base
+    type: web
+    url: "https://venturebeat.com/data/karpathy-shares-llm-knowledge-base-architecture-that-bypasses-rag-with-an"
+    fetched: 2026-04-18T12:00:00Z
+    title: "Karpathy shares LLM Knowledge Base architecture that bypasses RAG"
+    hash: "f00a53693e98b15f4c05cb73e45efa0b675947468ba85d0cc2ba032ad24c8ebe"
+
+  - source-id: dair-llm-knowledge-bases
+    type: web
+    url: "https://academy.dair.ai/blog/llm-knowledge-bases-karpathy"
+    fetched: 2026-04-18T12:00:00Z
+    title: "LLM Knowledge Bases — Visual breakdown of Karpathy's approach"
+    hash: "97b79471f980abb3b28d94a0953f7678f824d71fbb471a1d5713c4bc5f50ce58"
+
+  - source-id: lahoti-hidden-flaw
+    type: web
+    url: "https://foundanand.medium.com/the-hidden-flaw-in-karpathys-llm-wiki-e3a86a94b459"
+    fetched: 2026-04-18T12:00:00Z
+    title: "The Hidden Flaw in Karpathy's LLM Wiki"
+    hash: "46113450760c081f4a2b18e154983851e35f74a4be67c512185a52d08d515ae8"
+
+  - source-id: epsilla-enterprise-semantic-graph
+    type: web
+    url: "https://www.epsilla.com/blogs/llm-wiki-kills-rag-karpathy-enterprise-semantic-graph"
+    fetched: 2026-04-18T12:00:00Z
+    title: "Did Karpathy's LLM Wiki Just Kill RAG? The Enterprise Verdict"
+    hash: "0125688343c7c59c788fc63ea87534e05ac981fd270e47ee6087082db9dadb0c"
+
+  - source-id: atlan-llm-wiki-vs-rag
+    type: web
+    url: "https://atlan.com/know/llm-wiki-vs-rag-knowledge-base/"
+    fetched: 2026-04-18T12:00:00Z
+    title: "LLM Wiki vs RAG: The Karpathy Concept and Enterprise Reality"
+    hash: "90402726b265a9d956179adf442c4b24822ee2e899c0feb09823de4c31352cc2"
+
+  - source-id: reddit-aiagents-real-moat
+    type: forum
+    url: "https://www.reddit.com/r/AI_Agents/comments/1sm8jq6/karpathys_llm_wiki_idea_might_be_the_real_moat/"
+    fetched: 2026-04-18T12:00:00Z
+    title: "Karpathy's LLM wiki idea might be the real moat behind AI agents"
+    hash: "6aa05ef4cb1aa8c22d9c2481c74561c14298eb9b5ecf034d0daaa9f6a7c83fe5"
+
+  - source-id: reddit-llm-wiki-bad-idea
+    type: forum
+    url: "https://www.reddit.com/r/LLM/comments/1smd9sz/we_built_karpathys_llm_wiki_the_llm_read_it/"
+    fetched: 2026-04-18T12:00:00Z
+    title: "We built Karpathy's LLM Wiki - The LLM read it, understood it, and ignored it anyway"
+    hash: "68e23059868f4a3010e675029b6bd38f59f87c1828a79ca4acc760caa06340de"
+
+  - source-id: gupta-llm-wiki-bad-idea
+    type: web
+    url: "https://medium.com/data-science-in-your-pocket/andrej-karpathys-llm-wiki-is-a-bad-idea-8c7e8953c618"
+    fetched: 2026-04-18T12:00:00Z
+    title: "Andrej Karpathy's LLM Wiki is a Bad Idea"
+    hash: "b6a8cabba04053a1cb3b9643bb87d7ddef8f8f3143a8e8a28def784b2af5de93"
+
+  - source-id: sharma-karpathy-llm-wiki-rag
+    type: web
+    url: "https://dishantsharma.dev/blog/karpathy-llm-wiki-rag-alternative"
+    fetched: 2026-04-18T12:00:00Z
+    title: "Karpathy LLM Wiki Explained: Beyond RAG for Knowledge Bases"
+    hash: "bc2cfd41434c4fdbbed2617303db68cfce7e50abb0c1c67f620f9f94fa774f92"
+
+  - source-id: antigravity-llm-wiki-idea-file
+    type: web
+    url: "https://antigravity.codes/blog/karpathy-llm-wiki-idea-file"
+    fetched: 2026-04-18T12:00:00Z
+    title: "Karpathy's LLM Wiki: The Complete Guide to His Idea File"
+    hash: "44ba3207eeab2725c0a79cffd4b09e7711007b5c665f21ed1db6500033c92027"
+
+  - source-id: kosuri-llm-wiki-practical
+    type: web
+    url: "https://medium.com/@k.balu124/i-used-karpathys-llm-wiki-to-build-a-knowledge-base-that-maintains-itself-with-ai-df968e4f5ea0"
+    fetched: 2026-04-18T12:00:00Z
+    title: "I used Karpathy's LLM Wiki to build a knowledge base that maintains itself with AI"
+    hash: "690317c1f56c7d81022ada8e1cde64538208c4ac2222789ce0dabccafd2f9a74"
+
+  - source-id: reddit-claudecode-llm-wiki-plugin
+    type: forum
+    url: "https://www.reddit.com/r/ClaudeCode/comments/1sm374u/turned_andrej_karpathys_llm_wiki_gist_into_a/"
+    fetched: 2026-04-18T12:00:00Z
+    title: "Turned Karpathy's LLM Wiki gist into a Claude Code plugin"
+    hash: "bd7d955b0a276b5bf4c872a1b25ff0f3e0de68422539e82f203d14c499792357"
