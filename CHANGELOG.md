@@ -1,4 +1,15 @@
 # Changelog
+## [1.0.0-alpha.10] - 2026-04-22
+
+### Security
+
+- Resolved 4 dependency vulnerabilities via `uv lock --upgrade`: `cryptography` (buffer overflow, GHSA-p423-j2cm-9vmq), `pytest` (tmpdir, GHSA-6w46-j5rx-g56g), `python-multipart` (DoS, GHSA-mj87-hwqh-73pj), and `lxml` (CVE-class). Local security scan now reports 0 high, 0 medium.
+
+### Supporting Changes
+
+- README runtime names corrected: "Crush" → "OpenCode", "Cursor" removed.
+- Removed stale test count promise from README.
+
 ## [1.0.0-alpha.9] - 2026-04-21
 
 ### Features
