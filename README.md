@@ -4,7 +4,7 @@
 
 research-keeper (`rk`) is a personal research library that turns collecting into understanding. Save an article, a paper, a video, a note — rk auto-tags it, synthesizes it with what you already know, and keeps your understanding of every topic current as new material arrives.
 
-rk is agent-native. It's designed to be run by AI agents — Claude Code, codex, Cursor, Gemini, or any agentic runtime. The agent provides the intelligence. rk provides the structure.
+rk is agent-native. It's designed to be run by AI agents — OpenCode, Claude Code, Codex, Gemini, or any agentic runtime. The agent provides the intelligence. rk provides the structure.
 
 ## Install
 
@@ -17,12 +17,12 @@ Then install the agent skill so your runtime knows how to drive rk:
 ```bash
 cd your-project
 rk skill install
-# Installed rk skill for Claude Code, Codex (2 runtimes)
+# Installed rk skill for Claude Code, Codex, Crush (3 runtimes)
 ```
 
 ## What it does
 
-- **Add anything** — URLs, PDFs, videos, notes. rk normalizes it all to markdown. Videos get transcribed automatically. JavaScript-heavy pages? rk provides fallback hints — use Playwright to fetch, then `rk add --content "<markdown>" --origin "<url>"`.
+- **Add anything** — URLs, PDFs, videos, notes, documents, images. rk normalizes it all to markdown. Videos get transcribed automatically. JavaScript-heavy pages? rk provides fallback hints — use Playwright to fetch, then `rk add --content "<markdown>" --origin "<url>"`.
 - **Auto-tag** — Every source gets tagged by themes. No manual organization.
 - **Synthesize per tag** — Each tag maintains a rolling synthesis across all its sources. Add a new paper about memory architectures and your understanding of that topic updates on the next resolve.
 - **Search with synthesis** — Ask "what do I know about X?" and get a freshness-weighted answer citing specific sources.
@@ -92,7 +92,7 @@ Everything is plain files. Sources are markdown with YAML sidecars. Tags, querie
 ## Requirements
 
 - **Python 3.11+** and [**uv**](https://docs.astral.sh/uv/)
-- An **agent runtime** — Claude Code, codex, Cursor, Gemini, or similar
+- An **agent runtime** — OpenCode, Claude Code, Codex, Gemini, or similar
 
 ## Development
 
@@ -100,7 +100,7 @@ Everything is plain files. Sources are markdown with YAML sidecars. Tags, querie
 git clone https://github.com/cristoslc/research-keeper.git
 cd research-keeper
 uv sync --all-extras
-uv run pytest  # ~475 tests
+uv run pytest
 ```
 
 ## License
