@@ -2024,7 +2024,7 @@ wheels = [
 
 [[package]]
 name = "research-keeper"
-version = "1.0.0a6"
+version = "1.0.0a9"
 source = { editable = "." }
 dependencies = [
     { name = "click" },

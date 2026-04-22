@@ -20,6 +20,7 @@ def pipeline(library_root: Path) -> IntakePipeline:
     store = FilesystemSourceStore(library_root)
     index = SqliteIndex(library_root / "rk.db")
     embedder = MagicMock()
+    embedder._model_name = "test-model"
     embedder.embed.return_value = b"\x00" * 16
 
     normalizers = {"note": NotesNormalizer()}
@@ -88,6 +89,7 @@ def pipeline_with_broken_embedder(library_root: Path) -> IntakePipeline:
     store = FilesystemSourceStore(library_root)
     index = SqliteIndex(library_root / "rk.db")
     embedder = MagicMock()
+    embedder._model_name = "test-model"
     embedder.embed.side_effect = ConnectionError("Ollama not running")
     return IntakePipeline(
         source_store=store,
@@ -120,6 +122,7 @@ def test_pipeline_uses_source_dir_not_internal_root(library_root: Path):
     store = FilesystemSourceStore(library_root)
     index = SqliteIndex(library_root / "rk.db")
     embedder = MagicMock()
+    embedder._model_name = "test-model"
     embedder.embed.return_value = b"\x00" * 16
     pipeline = IntakePipeline(
         source_store=store,
@@ -139,7 +142,7 @@ def chunk_pipeline(library_root: Path):
     index = SqliteIndex(library_root / "rk.db")
     embedder = MagicMock()
     embedder.embed.return_value = b"\x00" * 16
-    embedder._model = "test-model"
+    embedder._model_name = "test-model"
     normalizers = {"note": NotesNormalizer()}
     pipe = IntakePipeline(
         source_store=store,
@@ -259,6 +262,7 @@ class TestNormalizationGracefulFailure:
         store = FilesystemSourceStore(library_root)
         index = SqliteIndex(library_root / "rk.db")
         embedder = MagicMock()
+        embedder._model_name = "test-model"
         embedder.embed.return_value = b"\x00" * 16
 
         pipeline = IntakePipeline(
@@ -296,6 +300,7 @@ class TestNormalizationGracefulFailure:
         store = FilesystemSourceStore(library_root)
         index = SqliteIndex(library_root / "rk.db")
         embedder = MagicMock()
+        embedder._model_name = "test-model"
         embedder.embed.return_value = b"\x00" * 16
 
         pipeline = IntakePipeline(
@@ -326,6 +331,7 @@ class TestNormalizationGracefulFailure:
         store = FilesystemSourceStore(library_root)
         index = SqliteIndex(library_root / "rk.db")
         embedder = MagicMock()
+        embedder._model_name = "test-model"
         embedder.embed.return_value = b"\x00" * 16
 
         pipeline = IntakePipeline(
@@ -358,6 +364,7 @@ class TestNormalizationGracefulFailure:
         store = FilesystemSourceStore(library_root)
         index = SqliteIndex(library_root / "rk.db")
         embedder = MagicMock()
+        embedder._model_name = "test-model"
         embedder.embed.return_value = b"\x00" * 16
 
         pipeline = IntakePipeline(

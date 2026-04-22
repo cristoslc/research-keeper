@@ -1,5 +1,6 @@
 # tests/test_cli_version.py
 """Tests for SPEC-046 (single-source version) and SPEC-047 (self-update command)."""
+
 from __future__ import annotations
 
 import subprocess
@@ -30,14 +31,15 @@ def test_version_flag_shows_version(runner: CliRunner):
 def test_version_matches_pyproject():
     """The runtime version matches what pyproject.toml declares."""
     from importlib.metadata import version
+    from packaging.version import Version
 
-    runtime_version = version("research-keeper")
+    runtime_version = Version(version("research-keeper"))
 
     pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
     text = pyproject.read_text()
     for line in text.splitlines():
         if line.strip().startswith("version"):
-            declared = line.split("=")[1].strip().strip('"')
+            declared = Version(line.split("=")[1].strip().strip('"'))
             break
     else:
         pytest.fail("No version found in pyproject.toml")
@@ -81,8 +83,12 @@ def test_detect_install_method_uv_tool(tmp_path: Path):
 
 def test_update_check_flag(runner: CliRunner):
     """rk update --check shows current version and install method without updating."""
-    with patch("research_keeper.updater.detect_install_method", return_value="dev-clone"), \
-         patch("research_keeper.updater.get_version", return_value="0.4.0"):
+    with (
+        patch(
+            "research_keeper.updater.detect_install_method", return_value="dev-clone"
+        ),
+        patch("research_keeper.updater.get_version", return_value="0.4.0"),
+    ):
         result = runner.invoke(main, ["update", "--check"])
 
     assert result.exit_code == 0
@@ -93,9 +99,11 @@ def test_update_check_flag(runner: CliRunner):
 def test_update_uv_tool_runs_install(runner: CliRunner):
     """rk update with uv-tool install runs uv tool install --force."""
     mock_run = MagicMock(return_value=MagicMock(returncode=0, stdout="", stderr=""))
-    with patch("research_keeper.updater.detect_install_method", return_value="uv-tool"), \
-         patch("research_keeper.updater.get_version", side_effect=["0.4.0", "0.5.0"]), \
-         patch("subprocess.run", mock_run):
+    with (
+        patch("research_keeper.updater.detect_install_method", return_value="uv-tool"),
+        patch("research_keeper.updater.get_version", side_effect=["0.4.0", "0.5.0"]),
+        patch("subprocess.run", mock_run),
+    ):
         result = runner.invoke(main, ["update"])
 
     assert result.exit_code == 0
@@ -108,10 +116,14 @@ def test_update_uv_tool_runs_install(runner: CliRunner):
 def test_update_dev_clone_runs_git_pull(runner: CliRunner, tmp_path: Path):
     """rk update with dev-clone runs git pull and uv sync."""
     mock_run = MagicMock(return_value=MagicMock(returncode=0, stdout="", stderr=""))
-    with patch("research_keeper.updater.detect_install_method", return_value="dev-clone"), \
-         patch("research_keeper.updater.get_dev_clone_root", return_value=tmp_path), \
-         patch("research_keeper.updater.get_version", side_effect=["0.4.0", "0.5.0"]), \
-         patch("subprocess.run", mock_run):
+    with (
+        patch(
+            "research_keeper.updater.detect_install_method", return_value="dev-clone"
+        ),
+        patch("research_keeper.updater.get_dev_clone_root", return_value=tmp_path),
+        patch("research_keeper.updater.get_version", side_effect=["0.4.0", "0.5.0"]),
+        patch("subprocess.run", mock_run),
+    ):
         result = runner.invoke(main, ["update"])
 
     assert result.exit_code == 0
@@ -124,21 +136,35 @@ def test_update_dev_clone_runs_git_pull(runner: CliRunner, tmp_path: Path):
 
 def test_update_uv_not_found(runner: CliRunner):
     """rk update shows error when uv is not on PATH."""
-    with patch("research_keeper.updater.detect_install_method", return_value="uv-tool"), \
-         patch("research_keeper.updater.get_version", return_value="0.4.0"), \
-         patch("subprocess.run", side_effect=FileNotFoundError("uv not found")):
+    with (
+        patch("research_keeper.updater.detect_install_method", return_value="uv-tool"),
+        patch("research_keeper.updater.get_version", return_value="0.4.0"),
+        patch("subprocess.run", side_effect=FileNotFoundError("uv not found")),
+    ):
         result = runner.invoke(main, ["update"])
 
-    assert result.exit_code != 0 or "error" in result.output.lower() or "not found" in result.output.lower()
+    assert (
+        result.exit_code != 0
+        or "error" in result.output.lower()
+        or "not found" in result.output.lower()
+    )
 
 
 def test_update_git_pull_failure(runner: CliRunner, tmp_path: Path):
     """rk update surfaces git pull errors cleanly."""
     failed = MagicMock(returncode=1, stdout="", stderr="fatal: unable to access remote")
-    with patch("research_keeper.updater.detect_install_method", return_value="dev-clone"), \
-         patch("research_keeper.updater.get_dev_clone_root", return_value=tmp_path), \
-         patch("research_keeper.updater.get_version", return_value="0.4.0"), \
-         patch("subprocess.run", return_value=failed):
+    with (
+        patch(
+            "research_keeper.updater.detect_install_method", return_value="dev-clone"
+        ),
+        patch("research_keeper.updater.get_dev_clone_root", return_value=tmp_path),
+        patch("research_keeper.updater.get_version", return_value="0.4.0"),
+        patch("subprocess.run", return_value=failed),
+    ):
         result = runner.invoke(main, ["update"])
 
-    assert result.exit_code != 0 or "error" in result.output.lower() or "fail" in result.output.lower()
+    assert (
+        result.exit_code != 0
+        or "error" in result.output.lower()
+        or "fail" in result.output.lower()
+    )

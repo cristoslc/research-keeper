@@ -11,6 +11,7 @@
 | SPEC-055 | Update rk Skill to Handle Fallback Workflow | 2026-04-07 | -- |
 | SPEC-057 | Query Tag Expansion | 2026-04-08 | — |
 | SPEC-058 | Normalize Sidecar for Binaries | 2026-04-10 | -- |
+| SPEC-060 | Embedding Whitening for Anisotropy Correction | 2026-04-17 | -- |
 
 ## Active
 

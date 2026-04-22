@@ -399,13 +399,16 @@ def _resolve_impl(root: Path, config) -> str:
     # Eagerly generate synthesis sidecars, gated by volume threshold (ADR-006).
     # If pending tag count >= threshold, defer synthesis to avoid synthesizing
     # incomplete source sets when a large batch is still being tagged.
+    # Run stability-gate detection every cycle so pending_synthesis_check
+    # snapshots advance even when the volume gate fires (gh#12).
+    all_tags_needing = _find_tags_needing_synthesis(
+        root, tag_store, tags_with_new_sources
+    )
     gate_threshold = config.intake.synthesis_gate_threshold
     if len(pending_tags) >= gate_threshold:
         tags_needing_synthesis = []
     else:
-        tags_needing_synthesis = _find_tags_needing_synthesis(
-            root, tag_store, tags_with_new_sources
-        )
+        tags_needing_synthesis = all_tags_needing
     synth_model_hint = config.completion.tasks.get("synthesis", "heavy")
     generated_synth: list[tuple[str, Path, int]] = []
     for tag_slug in tags_needing_synthesis:
@@ -1177,7 +1180,7 @@ def _apply_normalize(
         for chunk in chunks:
             embedding = embedder.embed(chunk.content)
             chunk_id = f"{slug}#chunk-{chunk.index}"
-            model_label = getattr(embedder, "_model", model_name)
+            model_label = getattr(embedder, "_model_name", model_name)
             if not isinstance(model_label, str):
                 model_label = model_name
             index.upsert_embedding(

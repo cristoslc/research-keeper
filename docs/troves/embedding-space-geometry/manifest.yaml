@@ -1,0 +1,68 @@
+id: embedding-space-geometry
+created: 2026-04-17
+tags:
+  - anisotropy
+  - whitening
+  - isotropy
+  - embedding-space
+  - sentence-embeddings
+  - retrieval-quality
+  - post-processing
+  - ZCA
+  - PCA
+freshness-ttl: 730d
+
+sources:
+  - source-id: ethayarajh-2019-anisotropy
+    title: "How Contextual are Contextualized Word Representations? Comparing the Geometry of BERT, ELMo, and GPT-2 Embeddings"
+    url: "https://arxiv.org/abs/1909.00512"
+    type: web
+    fetched: 2026-04-17
+    hash: TODO
+    freshness-ttl: 730d
+
+  - source-id: bert-flow-2020
+    title: "On the Sentence Embeddings from Pre-trained Language Models"
+    url: "https://arxiv.org/abs/2011.05864"
+    type: web
+    fetched: 2026-04-17
+    hash: TODO
+    freshness-ttl: 730d
+
+  - source-id: su-2021-whitening
+    title: "Whitening Sentence Representations for Better Semantics and Faster Retrieval"
+    url: "https://arxiv.org/abs/2103.15316"
+    type: web
+    fetched: 2026-04-17
+    hash: TODO
+    freshness-ttl: 730d
+
+  - source-id: simcse-2021
+    title: "SimCSE: Simple Contrastive Learning of Sentence Embeddings"
+    url: "https://arxiv.org/abs/2104.08821"
+    type: web
+    fetched: 2026-04-17
+    hash: TODO
+    freshness-ttl: 730d
+
+  - source-id: rajaee-2021-finetuning-isotropy
+    title: "How Does Fine-tuning Affect the Geometry of Embedding Space: A Case Study on Isotropy"
+    url: "https://arxiv.org/abs/2109.04740"
+    type: web
+    fetched: 2026-04-17
+    hash: TODO
+    freshness-ttl: 730d
+
+  - source-id: diera-2024-soft-zca
+    title: "Isotropy Matters: Soft-ZCA Whitening of Embeddings for Semantic Code Search"
+    url: "https://arxiv.org/abs/2411.17538"
+    type: web
+    fetched: 2026-04-17
+    hash: TODO
+    freshness-ttl: 365d
+
+history:
+  - event: created
+    date: 2026-04-17
+    commit: "TODO"
+    sources: 6

@@ -79,7 +79,7 @@ class TestRebuildEmbeddingBackfill:
     def test_backfills_missing_source_embeddings(self, lib_root: Path):
         """Sources added without embeddings get backfilled during rebuild."""
         mock_embedder = MagicMock()
-        mock_embedder._model = "test-model"
+        mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
@@ -103,7 +103,7 @@ class TestRebuildEmbeddingBackfill:
         """Sources that already have embeddings are not re-embedded."""
         # First, run rebuild to populate the index and embeddings
         mock_embedder = MagicMock()
-        mock_embedder._model = "test-model"
+        mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
@@ -127,7 +127,7 @@ class TestRebuildEmbeddingBackfill:
     def test_reports_backfill_count(self, lib_root: Path):
         """CLI output includes the backfill count message."""
         mock_embedder = MagicMock()
-        mock_embedder._model = "test-model"
+        mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
@@ -141,7 +141,7 @@ class TestRebuildEmbeddingBackfill:
     def test_handles_embedder_offline(self, lib_root: Path):
         """Rebuild completes gracefully when embedder raises errors."""
         mock_embedder = MagicMock()
-        mock_embedder._model = "test-model"
+        mock_embedder._model_name = "test-model"
         mock_embedder.embed.side_effect = ConnectionError("Ollama offline")
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
@@ -164,7 +164,7 @@ class TestRebuildEmbeddingBinWrite:
         assert not (source_dir / "embedding.bin").exists()
 
         mock_embedder = MagicMock()
-        mock_embedder._model = "test-model"
+        mock_embedder._model_name = "test-model"
         fake_emb = _fake_embedding()
         mock_embedder.embed.return_value = fake_emb
 
@@ -182,7 +182,7 @@ class TestRebuildEmbeddingBinWrite:
         (source_dir / "embedding.bin").write_bytes(original_emb)
 
         mock_embedder = MagicMock()
-        mock_embedder._model = "test-model"
+        mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
@@ -196,7 +196,7 @@ class TestRebuildEmbeddingBinWrite:
 class TestRebuildChunkMigration:
     def test_rebuild_creates_chunk_embeddings(self, lib_root):
         mock_embedder = MagicMock()
-        mock_embedder._model = "test-model"
+        mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
@@ -218,7 +218,7 @@ class TestRebuildChunkMigration:
         index._conn.close()
 
         mock_embedder = MagicMock()
-        mock_embedder._model = "test-model"
+        mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
@@ -232,3 +232,30 @@ class TestRebuildChunkMigration:
             "SELECT node_id FROM embeddings WHERE node_id = ?", ("test-source-one",)
         )
         assert cur.fetchone() is None  # bare slug should be gone
+
+
+class TestRebuildEmbeddingBinRecovery:
+    def test_rebuild_writes_embedding_bin_from_sqlite(self, lib_root: Path):
+        """Sources with chunk embeddings in SQLite but no embedding.bin get one written."""
+        fake_emb = _fake_embedding()
+        source_dir = lib_root / "library" / "sources" / "test-source-one"
+        assert not (source_dir / "embedding.bin").exists()
+
+        # Seed chunk embeddings in SQLite directly (simulates prior partial rebuild)
+        index = SqliteIndex(lib_root / "rk.db")
+        index.upsert_embedding("test-source-one#chunk-0", "test-model", fake_emb)
+        index._conn.close()
+
+        # Rebuild with broken embedder so it can't generate new embeddings,
+        # but should still recover embedding.bin from existing SQLite data.
+        mock_embedder = MagicMock()
+        mock_embedder._model_name = "test-model"
+        mock_embedder.embed.side_effect = RuntimeError("embedder broken")
+
+        with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
+            runner = CliRunner()
+            result = runner.invoke(main, ["rebuild", "--root", str(lib_root)])
+
+        assert result.exit_code == 0, result.output
+        assert (source_dir / "embedding.bin").exists()
+        assert (source_dir / "embedding.bin").read_bytes() == fake_emb

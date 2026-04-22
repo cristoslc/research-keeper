@@ -453,7 +453,7 @@ def normalize(slug: str, root: str) -> None:
             for chunk in chunks:
                 embedding = embedder.embed(chunk.content)
                 chunk_id = f"{slug}#chunk-{chunk.index}"
-                model_label = getattr(embedder, "_model", model_name)
+                model_label = getattr(embedder, "_model_name", model_name)
                 if not isinstance(model_label, str):
                     model_label = model_name
                 index.upsert_embedding(
@@ -899,7 +899,7 @@ def _rebuild_impl(root: str) -> None:
 
     embedder = _build_embedder(config)
     # Skip backfill if embedder is a stub
-    if getattr(embedder, "_model", None) == "stub":
+    if getattr(embedder, "_model_name", None) == "stub":
         return
 
     # Clean up legacy bare-slug embeddings for sources
@@ -912,8 +912,26 @@ def _rebuild_impl(root: str) -> None:
             cur.execute("DELETE FROM embeddings WHERE node_id = ?", (node_id,))
     index._conn.commit()
 
+    emb_bin_written = 0
+    for src in sources:
+        emb_file = root_path / "library" / "sources" / src.slug / "embedding.bin"
+        if emb_file.exists():
+            continue
+        chunk_id = f"{src.slug}#chunk-0"
+        cur2 = index._conn.cursor()
+        cur2.execute("SELECT embedding FROM embeddings WHERE node_id = ?", (chunk_id,))
+        row = cur2.fetchone()
+        if row and row["embedding"]:
+            emb_file.write_bytes(row["embedding"])
+            emb_bin_written += 1
+
     missing = index.nodes_missing_embeddings()
     if not missing:
+        parts = []
+        if emb_bin_written:
+            parts.append(f"wrote {emb_bin_written} embedding.bin file(s)")
+        if parts:
+            click.echo(". ".join(parts) + ".")
         return
 
     backfilled = 0
@@ -922,7 +940,7 @@ def _rebuild_impl(root: str) -> None:
         if node_id not in source_slugs:
             # Non-source node (tag, query, investigation) — chunk if long, then embed
             try:
-                model_name = getattr(embedder, "_model", "unknown")
+                model_name = getattr(embedder, "_model_name", "unknown")
                 chunks = chunk_markdown(content)
                 if len(chunks) == 1:
                     emb_bytes = embedder.embed(chunks[0].content)
@@ -948,7 +966,7 @@ def _rebuild_impl(root: str) -> None:
 
         try:
             chunks = chunk_markdown(source.content, title=source.title)
-            model_name = getattr(embedder, "_model", "unknown")
+            model_name = getattr(embedder, "_model_name", "unknown")
             first_embedding: bytes | None = None
             for chunk in chunks:
                 emb_bytes = embedder.embed(chunk.content)
@@ -970,9 +988,24 @@ def _rebuild_impl(root: str) -> None:
         except Exception:
             skipped += 1
 
+    emb_bin_written = 0
+    for src in sources:
+        emb_file = root_path / "library" / "sources" / src.slug / "embedding.bin"
+        if emb_file.exists():
+            continue
+        chunk_id = f"{src.slug}#chunk-0"
+        cur2 = index._conn.cursor()
+        cur2.execute("SELECT embedding FROM embeddings WHERE node_id = ?", (chunk_id,))
+        row = cur2.fetchone()
+        if row and row["embedding"]:
+            emb_file.write_bytes(row["embedding"])
+            emb_bin_written += 1
+
     parts = [f"Backfilled embeddings for {backfilled} source(s)"]
     if skipped:
         parts.append(f"{skipped} skipped (embedder error)")
+    if emb_bin_written:
+        parts.append(f"wrote {emb_bin_written} embedding.bin file(s)")
     click.echo(". ".join(parts) + ".")
 
 

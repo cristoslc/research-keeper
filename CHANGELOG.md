@@ -1,4 +1,25 @@
 # Changelog
+## [1.0.0-alpha.9] - 2026-04-21
+
+### Features
+
+#### Rebuild recovers embedding.bin from SQLite
+
+`rk rebuild` now detects sources with chunk embeddings stored in SQLite but missing `embedding.bin` files on disk, and writes them from the database. This means rebuild recovers gracefully even when the embedder is offline or broken — previously, a rebuild with a broken embedder silently left sources without embedding files.
+
+#### Synthesis stability gate no longer deadlocks
+
+`rk resolve` now advances pending-synthesis snapshots even when the volume gate fires (when pending tag count is above the gate threshold, deferring synthesis). Previously, tags that crossed the threshold never had their snapshots updated, so they stayed deferred indefinitely. Now the snapshot logic runs every cycle regardless of the gate decision.
+
+### Research
+
+- Embedding space geometry trove — 6 sources collected (anisotropy, whitening, BERT-flow, SimCSE, fine-tuning isotropy).
+
+### Supporting Changes
+
+- `embedding.bin` recovery added to rebuild output messages
+- Test suite updated to use `_model_name` consistently across all mock embedders
+
 ## [1.0.0-alpha.8] - 2026-04-18
 
 ### Features

@@ -158,7 +158,7 @@ class IntakePipeline:
         else:
             try:
                 chunks = chunk_markdown(content, title=merged.get("title"))
-                model_name = getattr(self._embedder, "_model", "unknown")
+                model_name = getattr(self._embedder, "_model_name", "unknown")
                 if not isinstance(model_name, str):
                     model_name = "unknown"
                 emb_dir = self._store.source_dir(source.slug)

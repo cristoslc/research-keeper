@@ -1,7 +1,7 @@
 {
   "bookmark": {
-    "note": "set",
-    "timestamp": "2026-04-13T16:12:34Z"
+    "note": "Released v1.0.0-alpha.8 — investigation synthesis now includes ALL linked references (sources, queries, tags) in both in-process (_generate_synthesis) and sidecar (generate_investigation_sidecar) paths. Fixes progressive degradation of rolling syntheses.",
+    "timestamp": "2026-04-19T03:04:19Z"
   },
   "lastBranch": "trunk",
   "focus_lane": "INITIATIVE-001",
