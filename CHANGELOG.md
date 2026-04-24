@@ -1,4 +1,24 @@
 # Changelog
+## [1.0.0-alpha.11] - 2026-04-23
+
+### Features
+
+#### Deterministic Hash Slugs and Explicit Slug Override
+
+Source slugs are now derived from a hash of canonical content (`title + origin`), guaranteeing the same source always gets the same slug. A `--slug` flag lets the operator override the hash. Replaces the old title-based slug generator that could collide and produce unstable identifiers.
+
+#### Skill Template Documents Directory Structure and Search Routing
+
+The `rk skill install` template now includes a `Source locations and search routing` section that maps where things live (`library/sources/`, `tags/`, `queries/`, `investigations/`) and tells agents when to use `rk search` (semantic/conceptual) versus direct grep of `library/sources/` (keyword/regex). Also removed dead `CURSOR_SKILL_CONTENT` code that was never wired into the install path.
+
+### Research
+
+- SPIKE-006 — QMD Python components investigation: 2 trove sources, markdown index, semantic search, and Python API surface analysis.
+
+### Supporting Changes
+
+- `qmd_index.db` added to `.gitignore`.
+
 ## [1.0.0-alpha.10] - 2026-04-22
 
 ### Security
