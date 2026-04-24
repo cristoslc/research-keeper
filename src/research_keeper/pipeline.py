@@ -78,6 +78,7 @@ class IntakePipeline:
         metadata: dict | None = None,
         investigation_id: str | None = None,
         no_prompt: bool = False,
+        slug: str | None = None,
     ) -> Source:
         metadata = metadata or {}
         self.embedding_failed = False
@@ -139,6 +140,7 @@ class IntakePipeline:
             content,
             merged,
             original_file=original_file_path,
+            slug=slug,
         )
 
         # Write intake lock now that we know the actual slug

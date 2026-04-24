@@ -38,6 +38,29 @@ rk is a research library that never calls an LLM. It generates **sidecar templat
 7. If resolve reports more sidecars, repeat from step 2
 8. If resolve reports "Done", the cycle is complete — commit and push all changes
 
+## Source locations and search routing
+
+rk stores data in predictable directories under the library root.
+
+| Directory | What lives there |
+|-------------|----------------|
+| `library/sources/` | Raw source files as normalized markdown. One file per source named by slug. This is the canonical source of truth for original content. |
+| `tags/` | Syntheses for each tag — integrated summaries of all sources tagged with that name. |
+| `queries/` | Question and answer pairs from `rk search`, with cited sources. |
+| `investigations/` | Rolling investigations with linked sources, queries, and a synthesized summary. |
+| `rk.yaml` | Library configuration, including tag list. |
+
+### How to search
+
+| Search type | Method | Why |
+|-------------|--------|-----|
+| **Semantic or conceptual** | Always use `rk search "<query>"` first. | rk uses embeddings to find sources by meaning, even when keywords do not match. |
+| **Keyword or regex** | Grep `library/sources/` directly. | Sources are plain markdown — standard text search works well for exact phrases, author names, or known terms. |
+| **Tag lookup** | Read `tags/<tag>/synthesize.md` or `rk tags`. | Tags are pre-synthesized and cite their sources. |
+| **Query history** | Read `queries/<slug>/query.md`. | Previous searches with answers already resolved. |
+
+**Rule of thumb:** If the user asks "what do I know about X?" or any open-ended question, start with `rk search`. If they ask "find every source that mentions Y" or "does any source contain the phrase Z?", grep `library/sources/`.
+
 ## Command routing
 
 | User intent | Command | What to do |
@@ -168,14 +191,4 @@ with sync_playwright() as p:
 
 SKILL_CONTENT = _SKILL_TEMPLATE.render(
     frontmatter='name: research-keeper\ndescription: "Use for research-keeper sidecar workflows: add, search, investigate, and resolve pending rk intelligence tasks."',
-)
-
-CURSOR_SKILL_CONTENT = _SKILL_TEMPLATE.render(
-    frontmatter='''description: research-keeper (rk) — personal research library with sidecar-based intelligence
-globs:
-  - "library/**"
-  - "tags/**"
-  - "queries/**"
-  - "investigations/**"
-  - "rk.yaml"''',
 )

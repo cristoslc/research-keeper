@@ -6,6 +6,7 @@ Exercises real CLI commands and real filesystem operations -- not unit tests wit
 new sidecars, --no-prompt mode, search/investigate compatibility, rebuild,
 malformed responses, doctor stale detection, resolve locking, and cp -rL export.
 """
+
 from __future__ import annotations
 
 import os
@@ -95,9 +96,7 @@ def _fill_tag_yaml(root: Path, slug: str, tags: list[str]) -> None:
     """Simulate an agent filling a tag.yaml sidecar."""
     pending = root / "library" / "sources" / slug / ".pending"
     pending.mkdir(parents=True, exist_ok=True)
-    (pending / "tag.yaml").write_text(
-        "tags:\n" + "".join(f"  - {t}\n" for t in tags)
-    )
+    (pending / "tag.yaml").write_text("tags:\n" + "".join(f"  - {t}\n" for t in tags))
 
 
 def _fill_synthesis_md(root: Path, tag_slug: str, content: str | None = None) -> None:
@@ -115,16 +114,20 @@ def _fill_synthesis_md(root: Path, tag_slug: str, content: str | None = None) ->
 
 
 class TestMultiSourceAdd:
-
     def test_add_three_sources_via_cli(self, rk_root_manual: Path):
         """rk add with 3 inline sources produces 3 filed sources and 3 tag sidecars."""
         runner = CliRunner()
-        result = runner.invoke(main, [
-            "add", "--root", str(rk_root_manual),
-            "# Note A\\n\\nContent of note A.",
-            "# Note B\\n\\nContent of note B.",
-            "# Note C\\n\\nContent of note C.",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "add",
+                "--root",
+                str(rk_root_manual),
+                "# Note A\\n\\nContent of note A.",
+                "# Note B\\n\\nContent of note B.",
+                "# Note C\\n\\nContent of note C.",
+            ],
+        )
         assert result.exit_code == 0, result.output
         assert "3 source" in result.output.lower() or "Added 3" in result.output
 
@@ -147,8 +150,9 @@ class TestMultiSourceAdd:
 
 
 class TestPartialBatchResolve:
-
-    def test_volume_gate_holds_until_pending_drops_below_threshold(self, rk_root_manual: Path):
+    def test_volume_gate_holds_until_pending_drops_below_threshold(
+        self, rk_root_manual: Path
+    ):
         """Filling 1 of 4 tag sidecars processes it, but 3 remain — gate holds (ADR-006).
 
         Default synthesis_gate_threshold is 3. With 4 sources and 1 filled,
@@ -169,7 +173,9 @@ class TestPartialBatchResolve:
         assert "Resolved 1 tag sidecar" in output1
         assert "pending" in output1.lower()
         synth_files = list(rk_root_manual.glob("tags/*/.pending/synthesize.j2"))
-        assert len(synth_files) == 0, "synthesis should be deferred when pending >= threshold"
+        assert len(synth_files) == 0, (
+            "synthesis should be deferred when pending >= threshold"
+        )
 
         # Fill remaining three
         _fill_tag_yaml(rk_root_manual, src_b.slug, ["shared-topic"])
@@ -189,13 +195,14 @@ class TestPartialBatchResolve:
 
 
 class TestExistingTagsInNewSidecars:
-
     def test_new_source_sidecar_shows_existing_tags(self, rk_root_manual: Path):
         """After completing a full cycle, new sources see existing tags in their sidecars."""
         pipeline = _make_pipeline(rk_root_manual)
 
         # Add source A, tag it, resolve
-        src_a = pipeline.add("# Source A\n\nContent about memory and agents.", {"title": "Source A"})
+        src_a = pipeline.add(
+            "# Source A\n\nContent about memory and agents.", {"title": "Source A"}
+        )
         _fill_tag_yaml(rk_root_manual, src_a.slug, ["memory", "agents"])
         run_resolve(rk_root_manual)
 
@@ -205,8 +212,12 @@ class TestExistingTagsInNewSidecars:
         run_resolve(rk_root_manual)
 
         # Add source B -> its tag.j2 should reference existing tags
-        src_b = pipeline.add("# Source B\n\nNew content about retrieval.", {"title": "Source B"})
-        tag_j2 = rk_root_manual / "library" / "sources" / src_b.slug / ".pending" / "tag.j2"
+        src_b = pipeline.add(
+            "# Source B\n\nNew content about retrieval.", {"title": "Source B"}
+        )
+        tag_j2 = (
+            rk_root_manual / "library" / "sources" / src_b.slug / ".pending" / "tag.j2"
+        )
         assert tag_j2.exists()
         j2_content = tag_j2.read_text()
         assert "agents" in j2_content
@@ -219,17 +230,23 @@ class TestExistingTagsInNewSidecars:
 
 
 class TestNoPromptMode:
-
     def test_no_prompt_skips_sidecars(self, rk_root_manual: Path):
         """rk add --no-prompt files the source but creates no .pending directory."""
         runner = CliRunner()
-        result = runner.invoke(main, [
-            "add", "--root", str(rk_root_manual),
-            "--no-prompt",
-            "# No-Prompt Content\\n\\nThis should have no sidecars.",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "add",
+                "--root",
+                str(rk_root_manual),
+                "--no-prompt",
+                "# No-Prompt Content\\n\\nThis should have no sidecars.",
+            ],
+        )
         assert result.exit_code == 0, result.output
-        assert "no-prompt" in result.output.lower() or "skipped" in result.output.lower()
+        assert (
+            "no-prompt" in result.output.lower() or "skipped" in result.output.lower()
+        )
 
         sources_dir = rk_root_manual / "library" / "sources"
         slugs = [d.name for d in sources_dir.iterdir() if d.is_dir()]
@@ -255,7 +272,6 @@ class TestNoPromptMode:
 
 
 class TestEmptyLibraryResolve:
-
     def test_resolve_on_empty_library(self, rk_root_manual: Path):
         """rk resolve on an empty library says nothing to do."""
         runner = CliRunner()
@@ -270,24 +286,33 @@ class TestEmptyLibraryResolve:
 
 
 class TestSearchFTS:
-
     def test_search_works_with_no_prompt_source(self, rk_root_manual: Path):
         """rk search returns FTS results for a --no-prompt source."""
         runner = CliRunner()
 
         # Add a source without sidecars
-        result = runner.invoke(main, [
-            "add", "--root", str(rk_root_manual),
-            "--no-prompt",
-            "# Quantum Computing\\n\\nQuantum computers use qubits for parallel computation.",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "add",
+                "--root",
+                str(rk_root_manual),
+                "--no-prompt",
+                "# Quantum Computing\\n\\nQuantum computers use qubits for parallel computation.",
+            ],
+        )
         assert result.exit_code == 0
 
         # Search via CLI -- may fail gracefully if no synthesizer, but should not crash
-        result = runner.invoke(main, [
-            "search", "--root", str(rk_root_manual),
-            "quantum computing",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "search",
+                "--root",
+                str(rk_root_manual),
+                "quantum computing",
+            ],
+        )
         # Accept either success or a graceful "no synthesizer" error
         # The key is it does not crash with a traceback
         assert result.exit_code in (0, 1)
@@ -301,15 +326,20 @@ class TestSearchFTS:
 
 
 class TestInvestigate:
-
     def test_investigate_creates_directory(self, rk_root_manual: Path):
         """rk investigate creates an investigation directory with brief.md."""
         runner = CliRunner()
-        result = runner.invoke(main, [
-            "investigate", "--root", str(rk_root_manual),
-            "test topic",
-            "--brief", "Testing investigation creation",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "investigate",
+                "--root",
+                str(rk_root_manual),
+                "test topic",
+                "--brief",
+                "Testing investigation creation",
+            ],
+        )
         assert result.exit_code == 0, result.output
         assert "Created investigation" in result.output
 
@@ -328,7 +358,6 @@ class TestInvestigate:
 
 
 class TestRebuildWithSidecars:
-
     def test_rebuild_restores_nodes_and_edges(self, rk_root_manual: Path):
         """Full cycle then rebuild restores source nodes, tag nodes, and edges."""
         pipeline = _make_pipeline(rk_root_manual)
@@ -374,12 +403,13 @@ class TestRebuildWithSidecars:
 
 
 class TestMalformedTagResponse:
-
     def test_messy_tag_format_still_extracts(self, rk_root_manual: Path):
         """A tag.yaml with messy numbered-list format still extracts usable tags."""
         pipeline = _make_pipeline(rk_root_manual)
 
-        src = pipeline.add("# Messy Tags\n\nContent for messy tag test.", {"title": "Messy Tags"})
+        src = pipeline.add(
+            "# Messy Tags\n\nContent for messy tag test.", {"title": "Messy Tags"}
+        )
 
         # Write malformed tag.yaml (numbered list, not YAML)
         pending = rk_root_manual / "library" / "sources" / src.slug / ".pending"
@@ -394,7 +424,9 @@ class TestMalformedTagResponse:
         tag_store = FilesystemTagStore(rk_root_manual)
         tag_list = tag_store.list()
         # The parser should extract at least some tags from the messy format
-        assert len(tag_list) >= 1, f"No tags extracted from malformed response. Output: {output}"
+        assert len(tag_list) >= 1, (
+            f"No tags extracted from malformed response. Output: {output}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -403,11 +435,12 @@ class TestMalformedTagResponse:
 
 
 class TestDoctorStaleSidecars:
-
     def test_doctor_reports_unfilled_sidecar(self, rk_root_manual: Path):
         """rk doctor detects unfilled tag sidecars."""
         pipeline = _make_pipeline(rk_root_manual)
-        pipeline.add("# Stale Test\n\nContent for stale sidecar test.", {"title": "Stale Test"})
+        pipeline.add(
+            "# Stale Test\n\nContent for stale sidecar test.", {"title": "Stale Test"}
+        )
 
         # Don't fill the sidecar -- run doctor
         runner = CliRunner()
@@ -425,7 +458,6 @@ class TestDoctorStaleSidecars:
 
 
 class TestResolveLock:
-
     def test_lock_prevents_concurrent_resolve(self, rk_root_manual: Path):
         """A .rk-resolve.lock with a live PID blocks resolve."""
         # Create lock with current PID (which is alive)
@@ -435,7 +467,10 @@ class TestResolveLock:
         runner = CliRunner()
         result = runner.invoke(main, ["resolve", "--root", str(rk_root_manual)])
         assert result.exit_code == 1
-        assert "resolve in progress" in result.output.lower() or "in progress" in result.output.lower()
+        assert (
+            "resolve in progress" in result.output.lower()
+            or "in progress" in result.output.lower()
+        )
 
         # Remove lock -> resolve works
         lock_path.unlink()
@@ -460,7 +495,6 @@ class TestResolveLock:
 
 
 class TestNoPromptNoPending:
-
     def test_no_prompt_source_exists_no_pending(self, rk_root_manual: Path):
         """rk add --no-prompt creates the source but no .pending/tag.j2."""
         pipeline = _make_pipeline(rk_root_manual)
@@ -482,12 +516,149 @@ class TestNoPromptNoPending:
 
 
 # ---------------------------------------------------------------------------
+# Scenario 14: hash-based slug collision handling
+# ---------------------------------------------------------------------------
+
+
+class TestHashSlugCollisions:
+    def test_add_with_same_title_different_content_gets_hash_suffixes(
+        self, rk_root_manual: Path
+    ):
+        """Given two sources with identical title (via markdown heading) but distinct body,
+        when added via CLI, then each gets a unique hash-based suffix instead of a numeric counter."""
+        runner = CliRunner()
+        result1 = runner.invoke(
+            main,
+            [
+                "add",
+                "--root",
+                str(rk_root_manual),
+                "--no-prompt",
+                "--text",
+                "# Shared Title\n\nFirst body paragraph.",
+            ],
+        )
+        assert result1.exit_code == 0, result1.output
+
+        result2 = runner.invoke(
+            main,
+            [
+                "add",
+                "--root",
+                str(rk_root_manual),
+                "--no-prompt",
+                "--text",
+                "# Shared Title\n\nSecond body paragraph.",
+            ],
+        )
+        assert result2.exit_code == 0, result2.output
+
+        sources_dir = rk_root_manual / "library" / "sources"
+        slugs = sorted(d.name for d in sources_dir.iterdir() if d.is_dir())
+        assert len(slugs) == 2
+        assert slugs[0] != slugs[1]
+        # The second source's slug should contain a hash suffix (6 hex chars after "shared-title-").
+        # It must NOT be the old numeric fallback "shared-title-2".
+        for slug in slugs:
+            assert slug.startswith("shared-title"), f"Unexpected slug: {slug}"
+        assert not any(s == "shared-title-2" for s in slugs), (
+            "Expected hash suffix, got numeric fallback"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 15: explicit --slug flag
+# ---------------------------------------------------------------------------
+
+
+class TestExplicitSlugFlag:
+    def test_add_with_slug_flag_uses_provided_slug(self, rk_root_manual: Path):
+        """Given --slug my-article, when rk add is called, source is filed under that slug."""
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            [
+                "add",
+                "--root",
+                str(rk_root_manual),
+                "--no-prompt",
+                "--text",
+                "Explicit content for a named article.",
+                "--slug",
+                "my-article",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        source_dir = rk_root_manual / "library" / "sources" / "my-article"
+        assert source_dir.is_dir()
+        assert (source_dir / "source.md").exists()
+        assert "Explicit content" in (source_dir / "source.md").read_text()
+
+    def test_duplicate_explicit_slug_raises(self, rk_root_manual: Path):
+        """Given --slug used twice for the same slug, the second add raises error."""
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            [
+                "add",
+                "--root",
+                str(rk_root_manual),
+                "--no-prompt",
+                "--text",
+                "First use of the slug.",
+                "--slug",
+                "shared-slug",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+
+        result2 = runner.invoke(
+            main,
+            [
+                "add",
+                "--root",
+                str(rk_root_manual),
+                "--no-prompt",
+                "--text",
+                "Second use of the slug.",
+                "--slug",
+                "shared-slug",
+            ],
+        )
+        assert result2.exit_code != 0
+        full_output = result2.output + (getattr(result2, "stderr", "") or "")
+        assert (
+            "already exists" in full_output.lower()
+            or "duplicate" in full_output.lower()
+        )
+
+    def test_explicit_slug_is_cleaned(self, rk_root_manual: Path):
+        """Given --slug with spaces and uppercase, when added, it is normalized."""
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            [
+                "add",
+                "--root",
+                str(rk_root_manual),
+                "--no-prompt",
+                "--text",
+                "Another one.",
+                "--slug",
+                "My Article Title!",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        source_dir = rk_root_manual / "library" / "sources" / "my-article-title"
+        assert source_dir.exists()
+
+
+# ---------------------------------------------------------------------------
 # Scenario 13: cp -rL export after full sidecar cycle
 # ---------------------------------------------------------------------------
 
 
 class TestCpExport:
-
     def test_cp_rl_follows_symlinks(self, rk_root_manual: Path, tmp_path: Path):
         """cp -rL on a tag directory produces real files from followed symlinks."""
         pipeline = _make_pipeline(rk_root_manual)

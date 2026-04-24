@@ -36,12 +36,18 @@ def test_add_creates_ingestion_date_symlink(library_root: Path, sample_metadata:
     source = store.add("# Test", sample_metadata)
     today = datetime.date.today()
     symlink_dir = (
-        library_root / "library" / "ingestion-dates"
-        / str(today.year) / f"{today.month:02d}"
+        library_root
+        / "library"
+        / "ingestion-dates"
+        / str(today.year)
+        / f"{today.month:02d}"
     )
     symlink = symlink_dir / source.slug
     assert symlink.is_symlink()
-    assert symlink.resolve() == (library_root / "library" / "sources" / source.slug).resolve()
+    assert (
+        symlink.resolve()
+        == (library_root / "library" / "sources" / source.slug).resolve()
+    )
 
 
 def test_get_source(library_root: Path, sample_metadata: dict):
@@ -80,6 +86,7 @@ def test_add_duplicate_raises(library_root: Path, sample_metadata: dict):
     store = FilesystemSourceStore(library_root)
     store.add("# Same content", sample_metadata)
     import pytest
+
     with pytest.raises(ValueError, match="[Dd]uplicate"):
         store.add("# Same content", sample_metadata)
 
@@ -90,6 +97,20 @@ def test_slug_collision_appends_suffix(library_root: Path):
     source_b = store.add("# Content B", {"title": "Test", "origin": "inline"})
     assert source_b.slug.startswith("test-")
     assert source_b.slug != "test"
+
+
+def test_slug_collision_uses_hash_suffix(library_root: Path):
+    store = FilesystemSourceStore(library_root)
+    store.add("# Content A", {"title": "Test", "origin": "inline"})
+    source_b = store.add("# Content B", {"title": "Test", "origin": "inline"})
+    # Slug should include a hash suffix, not just "test-2".
+    assert source_b.slug.startswith("test-")
+    assert source_b.slug != "test"
+    assert source_b.slug != "test-2"
+    # The suffix after "test-" should be a 6-char hex string (hash prefix).
+    suffix = source_b.slug[len("test-") :]
+    assert len(suffix) == 6
+    assert suffix.isalnum()
 
 
 def test_exists_hash_uses_cache_after_add(library_root: Path):
@@ -154,7 +175,13 @@ def test_remove_cleans_ingestion_symlink(library_root: Path, sample_metadata: di
 
     # Find the ingestion symlink
     today = datetime.date.today()
-    symlink_dir = library_root / "library" / "ingestion-dates" / str(today.year) / f"{today.month:02d}"
+    symlink_dir = (
+        library_root
+        / "library"
+        / "ingestion-dates"
+        / str(today.year)
+        / f"{today.month:02d}"
+    )
     symlink = symlink_dir / slug
     assert symlink.is_symlink(), "Symlink should exist before removal"
 
@@ -181,7 +208,9 @@ def test_remove_leaves_tag_symlinks_broken(library_root: Path, sample_metadata: 
 
     # Tag symlink should still exist but be broken
     assert tag_symlink.is_symlink()
-    assert not tag_symlink.exists()  # exists() follows the link and finds target missing
+    assert (
+        not tag_symlink.exists()
+    )  # exists() follows the link and finds target missing
 
 
 def test_remove_nonexistent_raises_keyerror(library_root: Path):
@@ -189,11 +218,14 @@ def test_remove_nonexistent_raises_keyerror(library_root: Path):
     store = FilesystemSourceStore(library_root)
 
     import pytest
+
     with pytest.raises(KeyError):
         store.remove("nonexistent-slug")
 
 
-def test_remove_overwrites_existing_deleted_entry(library_root: Path, sample_metadata: dict):
+def test_remove_overwrites_existing_deleted_entry(
+    library_root: Path, sample_metadata: dict
+):
     """If .deleted/sources/{slug} already exists, remove() should overwrite it."""
     store = FilesystemSourceStore(library_root)
 

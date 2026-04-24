@@ -133,6 +133,7 @@ def init(path: str) -> None:
     hidden=True,
     help="Deprecated: use --text instead",
 )
+@click.option("--slug", default=None, help="Override the auto-generated source slug")
 def add(
     sources: tuple[str, ...],
     root: str,
@@ -142,6 +143,7 @@ def add(
     no_prompt: bool,
     text_content: str | None,
     content_deprecated: str | None,
+    slug: str | None,
 ) -> None:
     """Add one or more sources to the library.
 
@@ -191,6 +193,7 @@ def add(
                     metadata,
                     investigation_id=investigation,
                     no_prompt=no_prompt,
+                    slug=slug,
                 )
 
                 sidecar_path = None
@@ -232,6 +235,7 @@ def add(
                     metadata,
                     investigation_id=investigation,
                     no_prompt=no_prompt,
+                    slug=slug,
                 )
 
                 sidecar_path = None

@@ -2,6 +2,7 @@
 .agents/*.log
 .swain-init
 rk.db
+qmd_index.db
 __pycache__/
 *.pyc
 .pytest_cache/

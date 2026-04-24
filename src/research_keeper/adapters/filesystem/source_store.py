@@ -28,11 +28,17 @@ class FilesystemSourceStore:
         content: str,
         metadata: dict,
         original_file: Path | None = None,
+        slug: str | None = None,
     ) -> Source:
         content_hash = hashlib.sha256(content.encode()).hexdigest()
         if self.exists_hash(content_hash):
             raise ValueError(f"Duplicate content (hash {content_hash[:12]}...)")
-        slug = self._unique_slug(metadata.get("title", "untitled"))
+        if slug is not None:
+            slug = slugify(slug)
+            if (self._sources_dir / slug).exists():
+                raise ValueError(f"Slug '{slug}' already exists")
+        else:
+            slug = self._unique_slug(metadata.get("title", "untitled"), content_hash)
         source_dir = self._sources_dir / slug
         source_dir.mkdir(parents=True)
         published = None
@@ -211,12 +217,18 @@ class FilesystemSourceStore:
         if content_hash and content_hash in self._hash_cache:
             self._hash_cache.discard(content_hash)
 
-    def _unique_slug(self, title: str) -> str:
+    def _unique_slug(self, title: str, content_hash: str) -> str:
         base = slugify(title)
         if not (self._sources_dir / base).exists():
             return base
+        # Append first 6 chars of content hash to guarantee uniqueness across different content.
+        suffix = content_hash[:6]
+        candidate = f"{base}-{suffix}"
+        if not (self._sources_dir / candidate).exists():
+            return candidate
+        # Fallback (same title + same hash = same content, should have been caught by dedup).
         for i in range(2, 100):
-            candidate = f"{base}-{i}"
+            candidate = f"{base}-{suffix}-{i}"
             if not (self._sources_dir / candidate).exists():
                 return candidate
         raise ValueError(f"Too many slug collisions for '{base}'")

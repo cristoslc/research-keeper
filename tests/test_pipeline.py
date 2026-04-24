@@ -56,6 +56,18 @@ def test_add_note_updates_index(pipeline: IntakePipeline):
     assert len(results) == 1
 
 
+def test_add_with_explicit_slug(pipeline: IntakePipeline):
+    source = pipeline.add("# My Title\n\nContent", slug="custom-slug")
+    assert source.slug == "custom-slug"
+
+
+def test_add_duplicate_explicit_slug_raises(pipeline: IntakePipeline):
+    pipeline.add("# First", slug="custom-slug")
+
+    with pytest.raises(ValueError, match="already exists"):
+        pipeline.add("# Second", slug="custom-slug")
+
+
 def test_add_duplicate_raises(pipeline: IntakePipeline):
     pipeline.add("# Unique Content\n\nExactly this text.")
 
