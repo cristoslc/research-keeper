@@ -98,6 +98,7 @@ def _resolve_impl(root: Path, config) -> str:
     """Core resolve logic."""
     store = FilesystemSourceStore(root)
     tag_store = FilesystemTagStore(root)
+    inv_store = FilesystemInvestigationStore(root)
     index = SqliteIndex(root / "rk.db")
     sidecar_gen = SidecarGenerator(root, config.completion)
 
@@ -235,7 +236,7 @@ def _resolve_impl(root: Path, config) -> str:
                 if tags:
                     tag_results[slug] = tags
                     newly_linked = _apply_tags(
-                        root, store, tag_store, index, slug, tags
+                        root, store, tag_store, inv_store, index, slug, tags
                     )
                     tags_with_new_sources.update(newly_linked)
                     resolved_count += 1
@@ -460,7 +461,6 @@ def _resolve_impl(root: Path, config) -> str:
         has_pending = True
 
     # Eagerly generate investigation sidecars for investigations that need them
-    inv_store = FilesystemInvestigationStore(root)
     invs_needing_synthesis = _find_investigations_needing_synthesis(root, inv_store)
     generated_inv: list[tuple[str, Path]] = []
     for inv in invs_needing_synthesis:
@@ -700,15 +700,36 @@ def _find_pending_investigation_syntheses(root: Path) -> list[Path]:
     return sorted(pending)
 
 
+def _investigations_containing_source(root: Path, source_slug: str) -> list[str]:
+    """Find investigation IDs whose sources/ directory contains a symlink to the given source."""
+    inv_dir = root / "investigations"
+    if not inv_dir.exists():
+        return []
+    result = []
+    for d in inv_dir.iterdir():
+        if not d.is_dir():
+            continue
+        sources_dir = d / "sources"
+        if not sources_dir.exists():
+            continue
+        link = sources_dir / source_slug
+        if link.is_symlink():
+            result.append(d.name)
+    return result
+
+
 def _apply_tags(
     root: Path,
     store: FilesystemSourceStore,
     tag_store: FilesystemTagStore,
+    inv_store: FilesystemInvestigationStore,
     index: SqliteIndex,
     source_slug: str,
     tags: list[str],
 ) -> set[str]:
     """Create tag directories, symlinks, update manifest and index.
+
+    Also links tags into investigations that contain the source.
 
     Returns the set of tag slugs that received a new source link
     (symlink did not already exist).
@@ -732,6 +753,11 @@ def _apply_tags(
         manifest_path.write_text(
             yaml.dump(manifest, default_flow_style=False, sort_keys=False)
         )
+
+    # Link tags into investigations that contain this source
+    for inv_id in _investigations_containing_source(root, source_slug):
+        for tag_slug in tags:
+            inv_store.link(inv_id, tag_slug, "tag")
 
     return newly_linked
 
@@ -996,16 +1022,18 @@ def _resolve_pruned_sources(
             if not investigation_dir.is_dir():
                 continue
             inv_id = investigation_dir.name
-            sources_dir = investigation_dir / "sources"
-            if not sources_dir.exists():
-                continue
-            for symlink in sources_dir.iterdir():
-                if symlink.is_symlink() and not symlink.exists():
-                    # Broken symlink - remove and tombstone
-                    source_slug = symlink.name
-                    symlink.unlink()
-                    _tombstone_investigation_source(investigation_dir, source_slug)
-                    result["investigations"].append(inv_id)
+            for subdir in ("sources", "queries", "tags"):
+                sub = investigation_dir / subdir
+                if not sub.exists():
+                    continue
+                for symlink in sub.iterdir():
+                    if symlink.is_symlink() and not symlink.exists():
+                        symlink.unlink()
+                        if subdir == "sources":
+                            _tombstone_investigation_source(
+                                investigation_dir, symlink.name
+                            )
+                        result["investigations"].append(inv_id)
 
     return result
 

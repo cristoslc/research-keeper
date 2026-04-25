@@ -1331,3 +1331,123 @@ class TestTagSynthesisTwoCycleGate:
         assert "pending_synthesis_check" not in updated, (
             "pending_synthesis_check should be cleared after synthesis."
         )
+
+
+class TestInvestigationSymlinksOnResolve:
+    def test_resolve_links_tags_to_investigation(self, pipeline_and_root):
+        """When resolve processes a tag sidecar for a source in an investigation,
+        the tag should be symlinked into the investigation's tags/ directory."""
+        from research_keeper.adapters.filesystem.investigation_store import (
+            FilesystemInvestigationStore,
+        )
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+        source = pipeline.add("# ML content", {"title": "ML"})
+
+        inv_store = FilesystemInvestigationStore(root)
+        inv_id = inv_store.create("test-topic", "test brief")
+        inv_store.link(inv_id, source.slug, "source")
+
+        # Simulate agent filling the tag sidecar
+        pending_dir = root / "library" / "sources" / source.slug / ".pending"
+        (pending_dir / "tag.yaml").write_text("tags:\n  - machine-learning\n")
+
+        run_resolve(root)
+
+        # Tag symlink should exist in investigation's tags/ directory
+        tag_symlink = root / "investigations" / inv_id / "tags" / "machine-learning"
+        assert tag_symlink.is_symlink(), f"Expected tag symlink at {tag_symlink}"
+        assert tag_symlink.resolve() == (root / "tags" / "machine-learning").resolve()
+
+    def test_resolve_links_multiple_tags(self, pipeline_and_root):
+        """Multiple tags from one source get linked into the investigation."""
+        from research_keeper.adapters.filesystem.investigation_store import (
+            FilesystemInvestigationStore,
+        )
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+        source = pipeline.add("# Content", {"title": "Content"})
+
+        inv_store = FilesystemInvestigationStore(root)
+        inv_id = inv_store.create("multi-tag", "multi tag test")
+        inv_store.link(inv_id, source.slug, "source")
+
+        pending_dir = root / "library" / "sources" / source.slug / ".pending"
+        (pending_dir / "tag.yaml").write_text("tags:\n  - alpha\n  - beta\n  - gamma\n")
+
+        run_resolve(root)
+
+        for tag in ("alpha", "beta", "gamma"):
+            tag_link = root / "investigations" / inv_id / "tags" / tag
+            assert tag_link.is_symlink(), f"Expected symlink for tag {tag}"
+
+    def test_resolve_skips_tags_for_unlinked_source(self, pipeline_and_root):
+        """Sources not in any investigation should not trigger investigation tag links."""
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+        source = pipeline.add("# Orphan", {"title": "Orphan"})
+
+        pending_dir = root / "library" / "sources" / source.slug / ".pending"
+        (pending_dir / "tag.yaml").write_text("tags:\n  - orphan-tag\n")
+
+        run_resolve(root)
+
+        # Tag should exist in tags/ but no investigation should have it
+        assert (root / "tags" / "orphan-tag").is_dir()
+        inv_tags = list(root.glob("investigations/*/tags/orphan-tag"))
+        assert len(inv_tags) == 0
+
+    def test_broken_tag_symlink_cleaned_from_investigation(self, resolve_root: Path):
+        """Broken tag symlinks in investigations/*/tags/ should be cleaned during Phase 0."""
+        from research_keeper.resolve import run_resolve
+
+        inv_dir = resolve_root / "investigations" / "inv-broken-tag"
+        inv_dir.mkdir(parents=True)
+        (inv_dir / "sources").mkdir()
+        (inv_dir / "tags").mkdir()
+        (inv_dir / "queries").mkdir()
+        meta = {
+            "inv_id": "inv-broken-tag",
+            "topic": "broken",
+            "kind": "investigation",
+            "status": "open",
+            "created": "2026-04-25",
+        }
+        (inv_dir / "meta.yaml").write_text(yaml.dump(meta, default_flow_style=False))
+
+        # Create a broken symlink in tags/
+        broken_link = inv_dir / "tags" / "deleted-tag"
+        broken_link.symlink_to(Path("..") / ".." / ".." / "tags" / "deleted-tag")
+
+        run_resolve(resolve_root)
+
+        # Broken symlink should be removed
+        assert not broken_link.exists(), "Broken tag symlink should be cleaned up"
+
+    def test_investigation_list_shows_correct_counts(self, pipeline_and_root):
+        """rk investigate --list should show correct source and tag counts after resolve."""
+        from research_keeper.adapters.filesystem.investigation_store import (
+            FilesystemInvestigationStore,
+        )
+        from research_keeper.resolve import run_resolve
+
+        pipeline, root = pipeline_and_root
+        source = pipeline.add("# Count me", {"title": "Count"})
+
+        inv_store = FilesystemInvestigationStore(root)
+        inv_id = inv_store.create("counting", "count test")
+        inv_store.link(inv_id, source.slug, "source")
+
+        pending_dir = root / "library" / "sources" / source.slug / ".pending"
+        (pending_dir / "tag.yaml").write_text("tags:\n  - counted-tag\n")
+
+        run_resolve(root)
+
+        inv = inv_store.get(inv_id)
+        assert inv is not None
+        assert len(inv.linked_sources) == 1
+        assert len(inv.linked_tags) == 1
+        assert "counted-tag" in inv.linked_tags
