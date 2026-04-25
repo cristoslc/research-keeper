@@ -1,6 +1,6 @@
 trove: qmd-semantically-aware-markdown-search
 created: 2026-04-18
-refreshed: 2026-04-18
+refreshed: 2026-04-24
 tags:
   - semantic-search
   - markdown
@@ -12,6 +12,8 @@ tags:
   - cli
   - mcp
   - gguf
+  - operational-integration
+  - sdk
 
 freshness-ttl:
   web: 30d
@@ -22,13 +24,18 @@ history:
     date: 2026-04-18
     commit: "e64a9fb"
     sources: 2
+  - event: refreshed
+    date: 2026-04-24
+    commit: "HEAD"
+    sources: 4
+    notes: "Added v2.1.0 operational details, SDK docs, HTTP/MCP protocol, per-index isolation"
 
 sources:
   # === QMD Core Documentation ===
   - source-id: qmd-semantic-markdown-search
     type: web
     url: "https://github.com/tobi/qmd"
-    title: "QMD - Query Markup Documents (On-device semantic search for markdown knowledge bases)"
+    title: "QMD - Query Markdown Documents (On-device semantic search for markdown knowledge bases)"
     fetched: 2026-04-18T12:00:00Z
     hash: "f9df5b8aaef6c29d7700aeeef298ff4b6009e843c16d16b14046622dc8d40b7a"
 
@@ -39,3 +46,27 @@ sources:
     title: "Introducing lazyqmd: a TUI for QMD - and a little more..."
     fetched: 2026-04-18T12:00:00Z
     hash: "9e08f275b3ca41ce241f9463430f1d48eeed59ae01fa1d0a13b3fcb17483dd92"
+
+  # === QMD v2.1.0 README (operational details) ===
+  - source-id: qmd-readme-v210
+    type: web
+    url: "https://raw.githubusercontent.com/tobi/qmd/main/README.md"
+    title: "QMD v2.1.0 README - SDK, MCP HTTP, daemon lifecycle, per-index isolation"
+    fetched: 2026-04-24T22:00:00Z
+    hash: "manual-refresh-spike-008"
+
+  # === QMD npm registry v2.1.0 ===
+  - source-id: qmd-npm-v210
+    type: web
+    url: "https://www.npmjs.com/package/@tobilu/qmd"
+    title: "@tobilu/qmd npm package v2.1.0 - dependencies, engines, exports"
+    fetched: 2026-04-24T22:00:00Z
+    hash: "manual-refresh-spike-008"
+
+  # === QMD CHANGELOG v2.1.0 ===
+  - source-id: qmd-changelog-v210
+    type: web
+    url: "https://raw.githubusercontent.com/tobi/qmd/main/CHANGELOG.md"
+    title: "QMD CHANGELOG - v2.1.0, v2.0.0, v1.1.6, v1.1.5 changes"
+    fetched: 2026-04-24T22:00:00Z
+    hash: "manual-refresh-spike-008"
