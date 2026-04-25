@@ -1,4 +1,16 @@
 # Changelog
+## [1.11.1] - 2026-04-25
+
+### Features
+
+#### Investigation tag symlinks populated on resolve
+
+`rk resolve` now creates tag symlinks in investigation `tags/` directories when processing tag sidecars for sources that belong to investigations. Previously, only source links (via `rk add --investigation`) and query links (via `rk search --investigation`) were created, leaving the `tags/` directory empty and `rk investigate --list` always showing 0 for tag counts. Broken tag and query symlinks in investigations are also cleaned up during Phase 0 prune resolution.
+
+### Supporting Changes
+
+- Extended investigation broken-symlink cleanup from `sources/` only to all three subdirectories (`sources/`, `queries/`, `tags/`).
+
 ## [1.0.0-alpha.11] - 2026-04-23
 
 ### Features
