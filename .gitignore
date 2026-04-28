@@ -1,5 +1,6 @@
 .agents/bin/
 .agents/*.log
+.agents/session.json
 .swain-init
 rk.db
 qmd_index.db
