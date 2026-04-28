@@ -2,10 +2,10 @@
 title: "Reference (not Source) as the Atomic Unit of Memory"
 artifact: ADR-011
 track: standing
-status: Proposed
+status: Active
 author: cristos
 created: 2026-04-25
-last-updated: 2026-04-25
+last-updated: 2026-04-28
 linked-artifacts:
   - INITIATIVE-003
   - DESIGN-013

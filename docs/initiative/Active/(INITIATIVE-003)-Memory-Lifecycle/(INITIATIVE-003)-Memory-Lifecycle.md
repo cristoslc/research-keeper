@@ -5,7 +5,7 @@ track: container
 status: Active
 author: cristos
 created: 2026-04-17
-last-updated: 2026-04-17
+last-updated: 2026-04-28
 parent-vision:
   - VISION-001
 priority-weight: high
@@ -28,11 +28,21 @@ success-criteria:
   - "rk reembed regenerates embeddings under the currently-configured model after a model swap; queries automatically exclude rows from prior models"
   - "Git clone + rk resolve rebuilds identical state (reproducibility invariant applies to committed artifacts only; in-flight sidecar work is non-deterministic)"
   - "Three troves of research evidence support the design decisions"
-  - "Three ADRs document the architecture: data model, memory pipeline, lifecycle operations"
+  - "Seven architectural decisions are captured as ADRs (ADR-011 through ADR-017) with measurable fitness functions"
+  - "Four detailed designs (DESIGN-013 through DESIGN-016) realize the architectural decisions"
 linked-artifacts:
-  - ADR-007
-  - ADR-008
-  - ADR-009
+  - ADR-010
+  - ADR-011
+  - ADR-012
+  - ADR-013
+  - ADR-014
+  - ADR-015
+  - ADR-016
+  - ADR-017
+  - DESIGN-013
+  - DESIGN-014
+  - DESIGN-015
+  - DESIGN-016
 depends-on-artifacts: []
 addresses: []
 evidence-pool: "trove: knowledge-aging-decay@da14b80, trove: timeless-vs-timebound-knowledge@ee53255, trove: bibliometric-aging-retention@efc2e8a"
@@ -205,16 +215,16 @@ Key design decisions reached through research and iteration:
 ## Tracks
 
 ### Track 1: Core Data Model
-Sources immutable. References as atomic unit. Context manifests as membership lists. Pipeline config separate. Status computed not stored. Disk state as deterministic projection. **ADR-007**
+Sources immutable; references as atomic unit; context manifests as membership lists; pipeline config separate; status computed not stored; disk state as deterministic projection. Architectural decisions: **ADR-011** (reference is atomic), **ADR-012** (sources immutable), **ADR-013** (deterministic projection). Detailed design: **DESIGN-013**.
 
 ### Track 2: Memory Pipeline and File Structure
-Three-tier materialized state (full/summary/placeholder). Context-local summaries and claims. Pipeline config schema. `rk resolve` as projection engine: compute target, diff, iterate. File ops direct; LLM work via sidecars. Embedding management across tiers. **ADR-008**
+Three-tier materialized state (full/summary/placeholder); context-local summaries and claims; `rk resolve` as projection engine (compute target, diff, iterate); file ops direct, LLM work via sidecars; embedding management across tiers; concurrency locking; sidecar output validation. Architectural decisions: **ADR-013** (projection), **ADR-015** (SQLite embeddings, eventually-consistent transitions), **ADR-016** (advisory file lock), **ADR-017** (sidecar output as untrusted input). Detailed design: **DESIGN-014**.
 
 ### Track 3: Lifecycle Operations
-`rk resolve --quick` / `--deep`. `rk forget`. `rk recall`. `rk release-recall`. `rk reembed` (regenerates embeddings using the currently-configured model after a model swap). Decay scoring. Query pipeline integration. Cross-context claim visibility. **ADR-009**
+`rk resolve --quick` / `--deep`; `rk forget`; `rk recall`; `rk release-recall`; `rk reembed` (regenerates embeddings using the currently-configured model after a model swap); decay scoring; query pipeline integration; cross-context claim visibility. Architectural decision: **ADR-014** (hyperbolic decay with tier-boundary step-down). Detailed design: **DESIGN-015**.
 
-### Track 4: Default TTL Configuration / Price Index (Deferred to ADR-010 candidate)
-Topic-level TTL defaults based on the 4-category framework (Timeless/Enduring/Evolving/Ephemeral). Per-topic pipeline configs. The Price Index as a potential dynamic calibrator.
+### Track 4: Default TTL Configuration
+Topic-level TTL defaults based on the 4-category framework (Timeless/Enduring/Evolving/Ephemeral); per-topic pipeline configs. Architectural choice: **ADR-010** (4-class taxonomy with default TTL pairs). Detailed design: **DESIGN-016**. The Price Index as a potential dynamic calibrator remains out of scope; a future ADR may revisit.
 
 ## Key Dependencies
 

@@ -2,17 +2,30 @@
 title: "Memory Pipeline and File Structure"
 artifact: ADR-008
 track: standing
-status: Active
+status: Superseded
 author: cristos
 created: 2026-04-17
-last-updated: 2026-04-17
+last-updated: 2026-04-28
+superseded-by:
+  - ADR-013
+  - ADR-015
+  - ADR-016
+  - ADR-017
 linked-artifacts:
   - INITIATIVE-003
+  - ADR-013
+  - ADR-015
+  - ADR-016
+  - ADR-017
+  - DESIGN-013
+  - DESIGN-014
 depends-on-artifacts:
   - ADR-001
   - ADR-007
 evidence-pool: "trove: knowledge-aging-decay@da14b80, trove: timeless-vs-timebound-knowledge@ee53255, trove: bibliometric-aging-retention@efc2e8a"
 ---
+
+> **Superseded.** The architectural decisions in this ADR have been distilled into ADR-013 (disk state as deterministic projection), ADR-015 (SQLite embeddings with eventually-consistent transitions), ADR-016 (advisory file lock for concurrency), and ADR-017 (sidecar output as untrusted input). The detailed mechanics live in DESIGN-014; the data model lives in DESIGN-013. This file is retained for historical context.
 
 # Memory Pipeline and File Structure
 

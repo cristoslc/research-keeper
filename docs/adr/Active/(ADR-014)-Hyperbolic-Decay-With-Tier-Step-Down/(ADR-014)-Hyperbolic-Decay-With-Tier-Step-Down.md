@@ -2,10 +2,10 @@
 title: "Hyperbolic Decay with Tier-Boundary Step-Down"
 artifact: ADR-014
 track: standing
-status: Proposed
+status: Active
 author: cristos
 created: 2026-04-25
-last-updated: 2026-04-25
+last-updated: 2026-04-28
 linked-artifacts:
   - INITIATIVE-003
   - DESIGN-014

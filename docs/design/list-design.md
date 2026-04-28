@@ -7,10 +7,6 @@
 | DESIGN-006 | Topic Detail Page | 2026-03-31 | _pending_ |
 | DESIGN-007 | Source Reading Page | 2026-03-31 | _pending_ |
 | DESIGN-008 | Investigation Detail Page | 2026-03-31 | _pending_ |
-| DESIGN-013 | Memory Lifecycle Data Model | 2026-04-25 | _pending_ |
-| DESIGN-014 | Memory Pipeline Mechanics | 2026-04-25 | _pending_ |
-| DESIGN-015 | Memory Lifecycle Commands | 2026-04-25 | _pending_ |
-| DESIGN-016 | Topic TTL Configuration | 2026-04-25 | _pending_ |
 
 ## Active
 
@@ -25,3 +21,7 @@
 | DESIGN-010 | Research Flow and Investigation Promotion | 2026-04-02 | -- |
 | DESIGN-011 | Research Orchestration and Query Persistence | 2026-04-02 | -- |
 | DESIGN-012 | Sentence Transformers Embedding Backend | 2026-04-13 | -- |
+| DESIGN-013 | Memory Lifecycle Data Model | 2026-04-28 | -- |
+| DESIGN-014 | Memory Pipeline Mechanics | 2026-04-28 | -- |
+| DESIGN-015 | Memory Lifecycle Commands | 2026-04-28 | -- |
+| DESIGN-016 | Topic TTL Configuration | 2026-04-28 | -- |

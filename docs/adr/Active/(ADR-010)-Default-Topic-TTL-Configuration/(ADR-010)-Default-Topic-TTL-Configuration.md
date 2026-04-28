@@ -2,10 +2,10 @@
 title: "Default Topic TTL Configuration"
 artifact: ADR-010
 track: standing
-status: Proposed
+status: Active
 author: cristos
 created: 2026-04-25
-last-updated: 2026-04-25
+last-updated: 2026-04-28
 linked-artifacts:
   - INITIATIVE-003
   - DESIGN-016

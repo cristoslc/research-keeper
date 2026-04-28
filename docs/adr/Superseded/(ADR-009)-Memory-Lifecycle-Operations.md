@@ -2,18 +2,24 @@
 title: "Memory Lifecycle Operations"
 artifact: ADR-009
 track: standing
-status: Active
+status: Superseded
 author: cristos
 created: 2026-04-17
-last-updated: 2026-04-17
+last-updated: 2026-04-28
+superseded-by:
+  - ADR-014
 linked-artifacts:
   - INITIATIVE-003
+  - ADR-014
+  - DESIGN-015
 depends-on-artifacts:
   - ADR-001
   - ADR-007
   - ADR-008
 evidence-pool: "trove: knowledge-aging-decay@da14b80, trove: timeless-vs-timebound-knowledge@ee53255, trove: bibliometric-aging-retention@efc2e8a"
 ---
+
+> **Superseded.** The architectural decision in this ADR (hyperbolic decay with tier-boundary step-down) has been extracted to ADR-014. The detailed command specifications live in DESIGN-015. This file is retained for historical context.
 
 # Memory Lifecycle Operations
 

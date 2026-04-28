@@ -2,10 +2,10 @@
 title: "Memory Pipeline Mechanics"
 artifact: DESIGN-014
 track: standing
-status: Proposed
+status: Active
 author: cristos
 created: 2026-04-25
-last-updated: 2026-04-25
+last-updated: 2026-04-28
 linked-artifacts:
   - INITIATIVE-003
   - ADR-013

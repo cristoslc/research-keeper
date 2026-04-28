@@ -2,10 +2,10 @@
 title: "Amendment 001 to INITIATIVE-003: Adopt Refactored ADR + DESIGN Package"
 artifact: INITIATIVE-003-AMENDMENT-001
 track: container
-status: Proposed
+status: Adopted
 author: cristos
 created: 2026-04-26
-last-updated: 2026-04-26
+last-updated: 2026-04-28
 amends: INITIATIVE-003
 linked-artifacts:
   - INITIATIVE-003
@@ -205,3 +205,4 @@ After all steps complete, verify the following:
 | Date | Event | Commit |
 |------|-------|--------|
 | 2026-04-26 | Amendment proposed | _pending_ |
+| 2026-04-28 | Adopted | -- |

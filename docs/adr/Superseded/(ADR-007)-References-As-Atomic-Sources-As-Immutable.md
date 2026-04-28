@@ -2,16 +2,24 @@
 title: "References as Atomic, Sources as Immutable"
 artifact: ADR-007
 track: standing
-status: Active
+status: Superseded
 author: cristos
 created: 2026-04-17
-last-updated: 2026-04-17
+last-updated: 2026-04-28
+superseded-by:
+  - ADR-011
+  - ADR-012
 linked-artifacts:
   - INITIATIVE-003
+  - ADR-011
+  - ADR-012
+  - DESIGN-013
 depends-on-artifacts:
   - ADR-001
 evidence-pool: "trove: knowledge-aging-decay@da14b80, trove: timeless-vs-timebound-knowledge@ee53255, trove: bibliometric-aging-retention@efc2e8a"
 ---
+
+> **Superseded.** The architectural decisions in this ADR have been distilled into ADR-011 (reference is the atomic memory unit) and ADR-012 (sources are immutable, lifecycle on derived state). The detailed data model lives in DESIGN-013. This file is retained for historical context.
 
 # References as Atomic, Sources as Immutable
 
