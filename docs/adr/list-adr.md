@@ -20,6 +20,12 @@
 | ADR-018 | AGENTS.md as Per-Scope Sidecar Advisory | 2026-04-28 | -- |
 | ADR-019 | Tag Graph with SKOS-Lite Semantic Edges | 2026-04-28 | -- |
 
+## Proposed
+
+| Artifact | Title | Last Updated |
+|----------|-------|-------------|
+| ADR-000 | Architectural Conformance Baseline | 2026-04-28 |
+
 ## Superseded
 
 | Artifact | Title | Last Updated | Superseded By | Commit |

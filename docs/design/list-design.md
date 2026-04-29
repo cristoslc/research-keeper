@@ -7,6 +7,7 @@
 | DESIGN-006 | Topic Detail Page | 2026-03-31 | _pending_ |
 | DESIGN-007 | Source Reading Page | 2026-03-31 | _pending_ |
 | DESIGN-008 | Investigation Detail Page | 2026-03-31 | _pending_ |
+| DESIGN-017 | Architectural Conformance Suite | 2026-04-28 | _pending_ |
 
 ## Active
 
