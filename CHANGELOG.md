@@ -1,4 +1,26 @@
 # Changelog
+## [1.11.2] - 2026-04-28
+
+### Features
+
+#### Empty semantic search raises a clear error with a fallback suggestion
+
+When semantic search and tag expansion return zero results, `rk search` now raises `SearchResultsNotFoundError` instead of creating a sidecar with no sources. The CLI reports the error and tells the operator to use `rk keyword-search` for full-text matching instead.
+
+#### Full-text keyword search
+
+New `rk keyword-search` command and `rk_keyword_search` MCP tool use SQLite FTS5 to find sources by exact text match. Useful when the embedding model produces no matches (for example, after a model version change) or when the operator knows the exact phrase they are looking for.
+
+### Planned
+
+- Four EPICs decomposing INITIATIVE-003 (memory lifecycle refactor).
+- Two ADRs adopted: AGENTS.md as per-scope advisory (ADR-018) and tag graph with SKOS-lite semantic edges (ADR-019).
+
+### Supporting Changes
+
+- Session state tracking file added to gitignore.
+- MCP server returns an error response instead of crashing on empty semantic results.
+
 ## [1.11.1] - 2026-04-25
 
 ### Features
