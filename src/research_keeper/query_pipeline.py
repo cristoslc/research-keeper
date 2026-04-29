@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
+from research_keeper.adapters.retriever.hyde import HYDEExpander
 from research_keeper.adapters.retriever.semantic import SemanticRetriever
 from research_keeper.adapters.sqlite.index import SqliteIndex
 from research_keeper.models import ScoredNode
@@ -38,7 +41,10 @@ class QuerySearchResult:
 
 
 class QueryPipeline:
-    """Orchestrates: embed query -> retrieve -> tag expand -> persist pending -> generate sidecar."""
+    """Orchestrates: QMD → embed + retrieve → FTS fallback → tag expand → persist pending → generate sidecar."""
+
+    _WEAK_RESULT_COUNT = 3
+    _WEAK_RESULT_SCORE = 0.2
 
     def __init__(
         self,
@@ -53,6 +59,8 @@ class QueryPipeline:
         tag_store: TagStore | None = None,
         tag_expansion_tags: int = 5,
         tag_expansion_sources: int = 20,
+        qmd_retriever: Any = None,
+        hyde_expander: HYDEExpander | None = None,
     ) -> None:
         self._retriever = retriever
         self._query_store = query_store
@@ -65,6 +73,68 @@ class QueryPipeline:
         self._tag_store = tag_store
         self._tag_expansion_tags = tag_expansion_tags
         self._tag_expansion_sources = tag_expansion_sources
+        self._qmd_retriever = qmd_retriever
+        self._hyde = hyde_expander
+
+    def _search_with_fallback(self, query_text: str, top_k: int) -> list[ScoredNode]:
+        """Three-layer search with graceful fallback.
+
+        Layer 1: QMD subprocess (hybrid search with reranking)
+        Layer 2: RK Semantic (embedding cosine similarity)
+        Layer 3: FTS + HYDE expansion (keyword with LLM-expanded terms)
+        """
+        if self._qmd_retriever is not None and self._qmd_retriever.is_available:
+            try:
+                qmd_results = self._qmd_retriever.search(query_text)
+                if qmd_results:
+                    return qmd_results
+            except Exception:
+                logger.debug("QMD layer failed", exc_info=True)
+
+        try:
+            query_embedding = self._embedder.embed(query_text)
+            if query_embedding:
+                scored_nodes = self._retriever.search_by_embedding(
+                    query_embedding, top_k=top_k
+                )
+                if scored_nodes and (
+                    len(scored_nodes) > self._WEAK_RESULT_COUNT
+                    or scored_nodes[0].score >= self._WEAK_RESULT_SCORE
+                ):
+                    return scored_nodes
+        except Exception:
+            logger.debug("Semantic layer failed", exc_info=True)
+
+        return self._search_fts(query_text, top_k)
+
+    def _search_fts(self, query_text: str, top_k: int) -> list[ScoredNode]:
+        """Full-text search fallback with optional HYDE expansion."""
+        from research_keeper.models import ScoredNode
+
+        search_query = query_text
+        if self._hyde is not None:
+            try:
+                search_query = self._hyde.expand_query(query_text)
+            except Exception:
+                logger.debug("HYDE expansion failed", exc_info=True)
+
+        sanitized = re.sub(r"[^\w\s]", "", search_query).strip()
+        if not sanitized:
+            return []
+
+        sources = self._index.search_fts(sanitized, limit=top_k)
+        return [
+            ScoredNode(
+                slug=s.slug,
+                content=s.content,
+                score=1.0,
+                similarity=1.0,
+                freshness_weight=1.0,
+                kind=s.kind,
+                provenance="fts-fallback",
+            )
+            for s in sources
+        ]
 
     def _expand_tags(self, scored_nodes: list[ScoredNode]) -> list[ScoredNode]:
         """Expand results by pulling in sources from top tags.
@@ -129,11 +199,8 @@ class QueryPipeline:
         if self._remote and self._remote.is_remote:
             self._remote.sync()
 
-        # Step 1: Embed the query (fails fast if embedder unavailable)
-        query_embedding = self._embedder.embed(query_text)
-
-        # Step 2: Retrieve top-k results
-        scored_nodes = self._retriever.search_by_embedding(query_embedding, top_k=top_k)
+        # Step 1: Embed the query (with FTS fallback)
+        scored_nodes = self._search_with_fallback(query_text, top_k)
 
         # Step 3: Tag expansion — pull in additional sources from top tags
         expanded_nodes = self._expand_tags(scored_nodes)
@@ -175,6 +242,16 @@ class QueryPipeline:
         ]
 
         # Step 6: Create pending query (directory, meta.yaml, embedding.bin)
+        # Only embed if we got semantic results; FTS fallback has no embedding
+        fts_fallback = scored_nodes and any(
+            n.provenance == "fts-fallback" for n in scored_nodes
+        )
+        try:
+            query_embedding = (
+                self._embedder.embed(query_text) if not fts_fallback else b""
+            )
+        except Exception:
+            query_embedding = b""
         query_id = self._query_store.create_pending(
             query_text=query_text,
             retrieval=retrieval,

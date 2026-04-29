@@ -1710,6 +1710,8 @@ def _build_search_pipeline(root: Path):
         FilesystemInvestigationStore,
     )
     from research_keeper.adapters.filesystem.query_store import FilesystemQueryStore
+    from research_keeper.adapters.retriever.hyde import HYDEExpander
+    from research_keeper.adapters.retriever.qmd import QMDRetriever
     from research_keeper.adapters.retriever.semantic import SemanticRetriever
     from research_keeper.adapters.sqlite.index import SqliteIndex
     from research_keeper.query_pipeline import QueryPipeline
@@ -1728,6 +1730,8 @@ def _build_search_pipeline(root: Path):
     sidecar_gen = SidecarGenerator(root, config.completion)
     inv_store = FilesystemInvestigationStore(root)
     tag_store = FilesystemTagStore(root)
+    qmd_retriever = QMDRetriever(config.qmd)
+    hyde = HYDEExpander()
 
     return QueryPipeline(
         retriever=retriever,
@@ -1738,6 +1742,8 @@ def _build_search_pipeline(root: Path):
         top_k=config.retrieval.top_k,
         investigation_store=inv_store,
         tag_store=tag_store,
+        qmd_retriever=qmd_retriever,
+        hyde_expander=hyde,
     )
 
 

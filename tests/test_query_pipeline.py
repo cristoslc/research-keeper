@@ -165,8 +165,8 @@ class TestQueryPipeline:
 
 
 class TestQueryPipelineEmbedderOffline:
-    def test_raises_on_embedder_failure(self, setup):
-        """When embedder fails, search raises — no silent degradation."""
+    def test_falls_back_to_fts_on_embedder_failure(self, setup):
+        """When embedder fails, search falls back to FTS (not silent degradation)."""
         setup["embedder"].embed.side_effect = ConnectionError("ollama offline")
 
         pipeline = QueryPipeline(
@@ -176,8 +176,9 @@ class TestQueryPipelineEmbedderOffline:
             embedder=setup["embedder"],
             index=setup["index"],
         )
-        with pytest.raises(ConnectionError, match="ollama offline"):
-            pipeline.search("alpha")
+        result = pipeline.search("alpha")
+        assert result.query_id.startswith("qry-")
+        assert result.sidecar_path.exists()
 
 
 class TestTagExpansion:
