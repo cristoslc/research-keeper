@@ -1451,3 +1451,43 @@ class TestInvestigationSymlinksOnResolve:
         assert len(inv.linked_sources) == 1
         assert len(inv.linked_tags) == 1
         assert "counted-tag" in inv.linked_tags
+
+    def test_clean_self_referencing_symlink(self, resolve_root: Path):
+        """Resolve should remove self-referencing symlinks inside source directories."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
+
+        store = FilesystemSourceStore(resolve_root)
+        source = store.add("# test", {"title": "Test", "origin": "inline"})
+
+        src_dir = store.source_dir(source.slug)
+        self_link = src_dir / source.slug
+        self_link.symlink_to(src_dir.resolve())
+        assert self_link.exists()
+
+        run_resolve(resolve_root)
+
+        assert not self_link.exists()
+
+    def test_clean_cross_dir_symlink_in_source(self, resolve_root: Path):
+        """Resolve should remove any symlink inside a source directory."""
+        from research_keeper.resolve import run_resolve
+        from research_keeper.adapters.filesystem.source_store import (
+            FilesystemSourceStore,
+        )
+
+        store = FilesystemSourceStore(resolve_root)
+        source = store.add("# test", {"title": "Test", "origin": "inline"})
+        other_source = store.add("# other", {"title": "Other", "origin": "inline"})
+
+        src_dir = store.source_dir(source.slug)
+        other_link = src_dir / other_source.slug
+        other_dir = store.source_dir(other_source.slug)
+        other_link.symlink_to(other_dir.resolve())
+        assert other_link.exists()
+
+        run_resolve(resolve_root)
+
+        assert not other_link.exists()

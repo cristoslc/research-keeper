@@ -145,6 +145,7 @@ def _resolve_impl(root: Path, config) -> str:
         lines.append("")
 
     # --- Phase 0: Prune resolution (SPEC-049) ---
+    _clean_source_dir_symlinks(root)
     pruned = _resolve_pruned_sources(root, tag_store)
     if pruned["tags"] or pruned["queries"] or pruned["investigations"]:
         if pruned["tags"]:
@@ -951,6 +952,25 @@ def _apply_investigation_synthesis(
     cur = index._conn.cursor()
     cur.execute("UPDATE nodes SET kind = ? WHERE id = ?", ("investigation", inv_id))
     index._conn.commit()
+
+
+def _clean_source_dir_symlinks(root: Path) -> None:
+    """Remove symlinks found inside source directories."""
+
+    sources_dir = root / "library" / "sources"
+    if not sources_dir.exists():
+        return
+    for source_dir in sources_dir.iterdir():
+        if source_dir.is_symlink():
+            continue
+        if not source_dir.is_dir():
+            continue
+        for item in list(source_dir.iterdir()):
+            if item.is_symlink():
+                logger.info(
+                    "Removing unexpected symlink inside source directory: %s", item
+                )
+                item.unlink()
 
 
 def _cleanup_pending(pending_dir: Path) -> None:

@@ -113,7 +113,7 @@ class TestFTSFallback:
         embedder.embed.return_value = _pack([0.1, 0.1, 0.1])
 
         pipeline = _make_pipeline(setup_with_fts, embedder=embedder)
-        result = pipeline.search("random unrelated query")
+        result = pipeline.search("neural")
 
         assert result.query_id.startswith("qry-")
         assert result.sidecar_path.exists()
@@ -183,7 +183,7 @@ class TestQMDLayer:
         qmd.search.return_value = []
 
         pipeline = _make_pipeline(setup_with_fts, embedder=embedder, qmd=qmd)
-        result = pipeline.search("some query")
+        result = pipeline.search("neural")
 
         assert result.query_id.startswith("qry-")
         embedder.embed.assert_called()
@@ -197,7 +197,7 @@ class TestQMDLayer:
         qmd.search.side_effect = RuntimeError("subprocess crash")
 
         pipeline = _make_pipeline(setup_with_fts, embedder=embedder, qmd=qmd)
-        result = pipeline.search("some query")
+        result = pipeline.search("neural")
 
         assert result.query_id.startswith("qry-")
         embedder.embed.assert_called()
@@ -210,7 +210,7 @@ class TestQMDLayer:
         qmd.is_available = False
 
         pipeline = _make_pipeline(setup_with_fts, embedder=embedder, qmd=qmd)
-        result = pipeline.search("some query")
+        result = pipeline.search("neural")
 
         assert result.query_id.startswith("qry-")
         qmd.search.assert_not_called()
@@ -220,15 +220,16 @@ class TestQMDLayer:
 class TestThreeLayerScenarios:
     """Full fallback chain scenarios."""
 
-    def test_all_layers_fail_returns_empty(self, setup_with_fts):
+    def test_all_layers_fail_raises_error(self, setup_with_fts):
+        from research_keeper.query_pipeline import SearchResultsNotFoundError
+
         embedder = MagicMock()
         embedder.embed.return_value = b""
         hyde = HYDEExpander(complete_fn=lambda p: "no-match-phrase")
 
         pipeline = _make_pipeline(setup_with_fts, embedder=embedder, hyde=hyde)
-        result = pipeline.search("xyzzy none such")
-
-        assert result.query_id.startswith("qry-")
+        with pytest.raises(SearchResultsNotFoundError):
+            pipeline.search("xyzzy none such")
 
     def test_fts_provenance_tag(self, setup_with_fts):
         embedder = MagicMock()
