@@ -94,6 +94,36 @@ def check_orphaned_symlinks(root: Path, fix: bool = False) -> list[DiagnosticRes
     return results
 
 
+def check_source_dir_symlinks(root: Path, fix: bool = False) -> list[DiagnosticResult]:
+    """Check for unexpected symlinks inside source directories in library/sources/."""
+
+    sources_dir = root / "library" / "sources"
+    if not sources_dir.exists():
+        return []
+
+    results: list[DiagnosticResult] = []
+    for source_dir in sources_dir.iterdir():
+        if source_dir.is_symlink():
+            continue
+        if not source_dir.is_dir():
+            continue
+        for item in source_dir.iterdir():
+            if item.is_symlink():
+                results.append(
+                    DiagnosticResult(
+                        severity=Severity.WARNING,
+                        check="source_dir_symlinks",
+                        message=f"Unexpected symlink inside source directory: {item}",
+                        remediation="Run 'rk doctor --fix' or 'rk resolve' to remove it.",
+                    )
+                )
+                if fix:
+                    item.unlink()
+                    logger.info("Removed unexpected symlink inside source: %s", item)
+
+    return results
+
+
 def check_missing_embeddings(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     """Check for sources missing embedding.bin files."""
     sources_dir = root / "library" / "sources"
@@ -102,7 +132,7 @@ def check_missing_embeddings(root: Path, fix: bool = False) -> list[DiagnosticRe
 
     results = []
     for src_dir in sources_dir.iterdir():
-        if not src_dir.is_dir():
+        if src_dir.is_symlink() or not src_dir.is_dir():
             continue
         if not (src_dir / "manifest.yaml").exists():
             continue
@@ -580,6 +610,7 @@ def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     results: list[DiagnosticResult] = []
     results.extend(check_duplicate_hashes(root))
     results.extend(check_orphaned_symlinks(root, fix=fix))
+    results.extend(check_source_dir_symlinks(root, fix=fix))
     results.extend(check_missing_embeddings(root, fix=fix))
     results.extend(check_stale_nodes(root))
     results.extend(check_divergent_syntheses(root))

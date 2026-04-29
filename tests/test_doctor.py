@@ -496,3 +496,40 @@ class TestRemediations:
         drift = [r for r in results if r.check == "db_filesystem_drift"]
         assert len(drift) == 1
         assert drift[0].remediation is not None
+
+    def test_source_dir_self_referencing_symlink(self, lib_root: Path):
+        """Doctor should flag self-referencing symlinks inside source directories."""
+        from research_keeper.doctor import check_source_dir_symlinks
+
+        src_dir = lib_root / "library" / "sources" / "my-source"
+        src_dir.mkdir(parents=True)
+        (src_dir / "manifest.yaml").write_text(
+            yaml.dump({"slug": "my-source", "freshness": {"ingested": "2026-01-01"}})
+        )
+        (src_dir / "source.md").write_text("# test")
+
+        self_link = src_dir / "my-source"
+        self_link.symlink_to(src_dir.resolve())
+
+        results = check_source_dir_symlinks(lib_root, fix=False)
+        assert len(results) == 1
+        assert results[0].check == "source_dir_symlinks"
+        assert self_link.exists()
+
+    def test_source_dir_symlink_fix_removes_it(self, lib_root: Path):
+        """Doctor --fix should remove unexpected symlinks inside source directories."""
+        from research_keeper.doctor import check_source_dir_symlinks
+
+        src_dir = lib_root / "library" / "sources" / "my-source"
+        src_dir.mkdir(parents=True)
+        (src_dir / "manifest.yaml").write_text(
+            yaml.dump({"slug": "my-source", "freshness": {"ingested": "2026-01-01"}})
+        )
+        (src_dir / "source.md").write_text("# test")
+
+        self_link = src_dir / "my-source"
+        self_link.symlink_to(src_dir.resolve())
+
+        results = check_source_dir_symlinks(lib_root, fix=True)
+        assert len(results) == 1
+        assert not self_link.exists()
