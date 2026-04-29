@@ -1,4 +1,39 @@
 # Changelog
+## [1.12.0] - 2026-04-29
+
+### Features
+
+#### Smarter search with automatic fallback
+
+`rk search` now tries three retrieval strategies in order — QMD
+(if available), semantic embeddings, then full-text keyword matching
+with HYDE expansion. If one layer produces weak results, the next
+takes over automatically, so you get useful answers even when the
+embedding model doesn't match your query well.
+
+### Supporting Changes
+
+- Source directories no longer risk infinite loops from self-referencing
+  symlinks on macOS. `rk resolve` cleans them automatically; `rk doctor`
+  flags them.
+- Default embedding model reverted to `nomic-ai/nomic-embed-text-v1.5`,
+  which is freely downloadable without HuggingFace authentication.
+  The previous default (`google/embeddinggemma-300m`) required gated-model
+  approval, causing silent failures at `rk add` and `rk rebuild`.
+  If the model isn't cached yet, rk downloads it on first use.
+- Trafilatura is now a default dependency, so `rk add --origin <url>`
+  works immediately after install without needing `research-keeper[web]`.
+- Embedding operations on Apple Silicon now cap the Metal allocator's
+  cache, preventing RSS from climbing into tens of GB during large
+  `rk rebuild` runs.
+- FTS5 queries no longer break on special characters in search terms.
+- 36 new tests covering search fallback behavior, model download,
+  symlink safety, and config defaults.
+
+### Planned
+
+- Architectural conformance baseline and structural fitness functions for long-term maintainability.
+
 ## [1.11.2] - 2026-04-28
 
 ### Features
