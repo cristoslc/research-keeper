@@ -43,7 +43,9 @@ class AuthConfig:
 @dataclass
 class EmbeddingsConfig:
     provider: str = "sentence-transformers"
-    model: str = "nomic-ai/nomic-embed-text-v1.5"
+    model: str = "google/embeddinggemma-300m"
+    qmd_mcp_url: str = "http://localhost:8181"
+    qmd_db_path: str | None = None
 
 
 @dataclass

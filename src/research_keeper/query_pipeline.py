@@ -55,6 +55,48 @@ class QueryPipeline:
         self._tag_expansion_tags = tag_expansion_tags
         self._tag_expansion_sources = tag_expansion_sources
 
+    def _search_with_fallback(self, query_text: str, top_k: int) -> list[ScoredNode]:
+        """Search with graceful fallback: semantic → FTS.
+
+        Layer 1: Try semantic embedding search
+        Layer 2: Fall back to FTS if semantic fails or returns weak results
+        """
+        # Try semantic search first
+        try:
+            query_embedding = self._embedder.embed(query_text)
+            if query_embedding:
+                scored_nodes = self._retriever.search_by_embedding(
+                    query_embedding, top_k=top_k
+                )
+                # Check for weak results: >3 results AND top_score >= 0.2
+                if scored_nodes and (
+                    len(scored_nodes) > 3 or scored_nodes[0].score >= 0.2
+                ):
+                    return scored_nodes
+        except Exception:
+            pass
+
+        # Fall back to FTS
+        return self._search_fts(query_text, top_k)
+
+    def _search_fts(self, query_text: str, top_k: int) -> list[ScoredNode]:
+        """Full-text search fallback."""
+        from research_keeper.models import ScoredNode
+
+        sources = self._index.search_fts(query_text, limit=top_k)
+        return [
+            ScoredNode(
+                slug=s.slug,
+                content=s.content,
+                score=1.0,
+                similarity=1.0,
+                freshness_weight=1.0,
+                kind=s.kind,
+                provenance="fts-fallback",
+            )
+            for s in sources
+        ]
+
     def _expand_tags(self, scored_nodes: list[ScoredNode]) -> list[ScoredNode]:
         """Expand results by pulling in sources from top tags.
 
@@ -118,11 +160,8 @@ class QueryPipeline:
         if self._remote and self._remote.is_remote:
             self._remote.sync()
 
-        # Step 1: Embed the query (fails fast if embedder unavailable)
-        query_embedding = self._embedder.embed(query_text)
-
-        # Step 2: Retrieve top-k results
-        scored_nodes = self._retriever.search_by_embedding(query_embedding, top_k=top_k)
+        # Step 1: Embed the query (with FTS fallback)
+        scored_nodes = self._search_with_fallback(query_text, top_k)
 
         # Step 3: Tag expansion — pull in additional sources from top tags
         expanded_nodes = self._expand_tags(scored_nodes)
@@ -161,6 +200,16 @@ class QueryPipeline:
         ]
 
         # Step 6: Create pending query (directory, meta.yaml, embedding.bin)
+        # Only embed if we got semantic results; FTS fallback has no embedding
+        fts_fallback = scored_nodes and any(
+            n.provenance == "fts-fallback" for n in scored_nodes
+        )
+        try:
+            query_embedding = (
+                self._embedder.embed(query_text) if not fts_fallback else b""
+            )
+        except Exception:
+            query_embedding = b""
         query_id = self._query_store.create_pending(
             query_text=query_text,
             retrieval=retrieval,

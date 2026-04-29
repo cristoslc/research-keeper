@@ -95,6 +95,11 @@ A future optimization: threshold-based daemon switchover where burst detection s
    - All libraries as collections in single QMD index, filter with `-c` at query time (recommended)
    - Subprocess calls require no daemon lifecycle management
 
+5. **Migration strategy for embedding swap**
+   - `rk rebuild --migrate-embeddings` command to re-embed all content
+   - Automatic detection of model mismatch (stored embeddings use old model)
+   - Rollback: keep old embeddings until migration succeeds, then swap atomically
+
 ### Out of Scope
 
 - QMD chunk-level embedding sync (keep RK and QMD separate)
@@ -122,6 +127,13 @@ class QMDConfig:
     timeout: int = 30  # subprocess timeout in seconds
     min_score: float = 0.2  # minimum result score
     max_results: int = 20  # number of results to request
+    rerank: bool = True  # enable QMD's built-in LLM reranking
+
+
+@dataclass
+class QMDSetupResult:
+    available: bool
+    reason: str | None = None
 ```
 
 ### Component: FTS Fallback with HYDE
@@ -139,20 +151,31 @@ def search(self, query_text: str, ...):
     query_embedding = self._embedder.embed(query_text)
     if query_embedding:
         results = self._semantic_retriever.search_by_embedding(query_embedding)
-        # Check for weak results: ≤3 results or top_score < 0.2
+        # Check for weak results: >3 results OR top_score >= 0.2
         if results and (len(results) > 3 or results[0].score >= 0.2):
             return results
     
     # Layer 3: FTS with HYDE expansion
     # Use existing completion config for HYDE LLM
-    expanded_query = self._completion.expand_query(query_text)
-    return self._index.search_fts(expanded_query)
+    expanded_query = self._hyde_expander.expand_query(query_text)
+    results = self._index.search_fts(expanded_query)
+    
+    # If all layers fail, return empty list (no results found)
+    return results if results else []
 ```
 
 ### Component: QMD Subprocess Client
 
 ```python
 # src/research_keeper/adapters/retriever/qmd.py
+@dataclass
+class QMDResult:
+    slug: str
+    content: str
+    score: float
+    kind: str
+    provenance: str = "qmd"
+
 class QMDRetriever:
     def __init__(self, config: QMDConfig):
         self._config = config
@@ -168,13 +191,15 @@ class QMDRetriever:
         
         cmd = [
             "qmd", "--index", self._config.index_name,
-            "query", "--json", "--no-rerank" if not self._config.rerank else "",
+            "query", "--json",
             "-n", str(self._config.max_results),
             "--min-score", str(self._config.min_score),
-            query,
         ]
+        if not self._config.rerank:
+            cmd.append("--no-rerank")
         if self._config.collection:
             cmd.extend(["-c", self._config.collection])
+        cmd.append(query)
         
         try:
             result = subprocess.run(
@@ -191,22 +216,55 @@ class QMDRetriever:
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning(f"qmd output parse error: {e}")
             return []
+    
+    def _parse_results(self, data: dict) -> list[ScoredNode]:
+        """Parse QMD JSON output into ScoredNode list."""
+        nodes = []
+        for item in data.get("results", []):
+            nodes.append(ScoredNode(
+                slug=item["slug"],
+                content=item.get("content", ""),
+                score=item.get("score", 0.0),
+                similarity=item.get("score", 0.0),  # QMD score is hybrid+rerank
+                freshness_weight=1.0,  # QMD handles freshness internally
+                kind=item.get("kind", "source"),
+                provenance="qmd",
+            ))
+        return nodes
 ```
 
 ### Component: HYDE Query Expansion
 
 ```python
 # Uses existing completion config (SPEC-004 pattern)
-# Prompt: "Expand this query with 5-10 related terms for semantic search"
-# Example: "neural architecture" → "neural network deep learning transformer MLP CNN"
+# Prompt template produces space-separated terms for FTS
+# Example: "neural architecture" → "neural network deep learning transformer MLP CNN attention mechanism"
+
+HYDE_PROMPT = """You are expanding a search query for a research knowledge base.
+
+Given the query below, generate 8-12 related search terms that would help find relevant documents.
+
+Rules:
+- Output ONLY space-separated terms, no punctuation, no explanations
+- Include synonyms, related concepts, acronyms, and broader/narrower terms
+- Prefer technical terms a researcher would use
+- Do not repeat words from the original query
+
+Query: {query}
+
+Expanded terms:"""
+
 class HYDEExpander:
     def __init__(self, completion_config: CompletionConfig):
         self._model = completion_config.resolve_model("query")
+        self._llm = CompletionClient(completion_config)  # uses existing completion port
     
     def expand_query(self, query: str) -> str:
-        # Use LLM to broaden query terms
-        prompt = f"Expand this search query with 5-10 related terms: {query}"
-        return self._llm.complete(prompt)
+        prompt = HYDE_PROMPT.format(query=query)
+        expanded = self._llm.complete(prompt)
+        # Sanitize: strip punctuation, lowercase, dedupe
+        terms = re.sub(r"[^a-zA-Z0-9\s]", " ", expanded).lower().split()
+        return " ".join(dict.fromkeys(terms))  # preserve order, remove dupes
 ```
 
 ### Component: QMD Setup Verification
@@ -214,40 +272,88 @@ class HYDEExpander:
 ```python
 # src/research_keeper/adapters/retriever/qmd.py
 def verify_qmd_setup(library_path: str, index_name: str) -> QMDSetupResult:
-    """Verify QMD is installed and configured for a library."""
-    if not shutil.which("qmd"):
-        return QMDSetupResult(available=False, reason="qmd not found in PATH")
+    """Verify QMD is installed and configured for a library.
     
-    # Check if collection exists for this library
+    Returns QMDSetupResult with available=True if ready, or available=False
+    with a reason string explaining what the user needs to do.
+    """
+    if not shutil.which("qmd"):
+        return QMDSetupResult(
+            available=False,
+            reason="qmd not found in PATH. Install with: pip install qmd"
+        )
+    
+    # Check if index exists
     result = subprocess.run(
         ["qmd", "--index", index_name, "status", "--json"],
         capture_output=True, text=True, timeout=10,
     )
     if result.returncode != 0:
-        return QMDSetupResult(available=False, reason="qmd status failed")
+        # Index doesn't exist - user needs to create it
+        return QMDSetupResult(
+            available=False,
+            reason=f"Index '{index_name}' does not exist. Create with: qmd --index {index_name} init"
+        )
     
     # Parse status to check collections
     status = json.loads(result.stdout)
-    if not status.get("collections"):
-        return QMDSetupResult(
-            available=False,
-            reason=f"No collections in index '{index_name}'. Run: qmd --index {index_name} collection add {library_path}",
-        )
-    return QMDSetupResult(available=True)
+    collections = status.get("collections", [])
+    
+    # Check if library path is in any collection
+    lib_resolved = Path(library_path).resolve()
+    for coll in collections:
+        coll_path = Path(coll.get("path", "")).resolve()
+        if coll_path == lib_resolved:
+            return QMDSetupResult(available=True)
+    
+    # Library not in any collection
+    return QMDSetupResult(
+        available=False,
+        reason=f"Library not in index '{index_name}'. Add with: qmd --index {index_name} collection add {library_path}"
+    )
 ```
 
 ## Acceptance Criteria
 
-- [ ] RK uses embeddinggemma-300m for embeddings (config change verified)
-- [ ] Re-embed all existing content (migration completed)
-- [ ] Search returns results when QMD is unavailable (falls back to semantic)
-- [ ] Search returns results when embeddings fail (falls back to FTS)
-- [ ] HYDE query expansion works (uses existing completion config)
-- [ ] QMD subprocess integration works when `qmd` is in PATH
-- [ ] Per-library QMD isolation works via `--index` flag
-- [ ] Weak result threshold: ≤3 results or top_score < 0.2 triggers fallback
-- [ ] All three layers tested with various failure scenarios
-- [ ] QMD setup verification helps user configure collections when missing
+### Embedding Model Swap
+
+- [ ] Config default is `google/embeddinggemma-300m`
+- [ ] Existing embeddings detected as "stale" (different model)
+- [ ] `rk rebuild --migrate-embeddings` re-embeds all content
+- [ ] Migration is atomic: old embeddings kept until new ones complete
+- [ ] Rollback works: if migration fails, old embeddings still usable
+
+### Three-Layer Fallback
+
+- [ ] QMD layer: returns results when `qmd` in PATH and index configured
+- [ ] QMD layer: gracefully returns empty when `qmd` not installed
+- [ ] Semantic layer: returns results when QMD unavailable
+- [ ] Semantic layer: triggers fallback on ≤3 results OR top_score < 0.2
+- [ ] FTS+HYDE layer: returns expanded keyword results when semantic fails
+- [ ] All-layers-fail: returns empty list (not exception or crash)
+
+### HYDE Expansion
+
+- [ ] Prompt template produces 8-12 space-separated terms
+- [ ] Output sanitized: no punctuation, lowercase, deduped
+- [ ] FTS search uses expanded terms, not original query
+
+### QMD Integration
+
+- [ ] `verify_qmd_setup()` returns clear error messages for:
+  - qmd not installed
+  - index not created
+  - library not in collection
+- [ ] Subprocess timeout enforced (30s default)
+- [ ] JSON parse errors handled gracefully
+- [ ] `--index` and `-c` flags work correctly
+
+### Testing
+
+- [ ] Unit tests for HYDE prompt and sanitization
+- [ ] Unit tests for QMD result parsing
+- [ ] Integration test: all 3 layers with mock failures
+- [ ] Integration test: migration command on existing corpus
 
 ## Risks & Mitigations
 
@@ -257,9 +363,12 @@ def verify_qmd_setup(library_path: str, index_name: str) -> QMDSetupResult:
 | QMD subprocess latency (~1.5s per query) | Accept tradeoff: latency for zero always-on RAM. See ADR section. |
 | Per-library QMD isolation | Use `--index` flag, all libraries as collections in single index |
 | HYDE LLM unavailable | Fall back to plain FTS (no expansion) |
-| Migration time for re-embed | Run as background task; RK remains usable |
+| Migration time for re-embed | Run as background task; RK remains usable. Show progress bar. |
+| Migration failure (partial re-embed) | Atomic swap: old embeddings kept until migration completes. Rollback on error. |
 | QMD not installed | Subprocess returns empty, falls back to layer 2/3. QMDSetupResult guides user. |
 | MCP HTTP complexity | Not used. Subprocess CLI avoids protocol entirely. |
+| embeddinggemma model load failure | Cache model loading; fall back to FTS+HYDE if model fails to load. |
+| QMD index/collection misconfiguration | `verify_qmd_setup()` provides exact fix command in error message. |
 
 ## SPIKE Corrections Applied
 
