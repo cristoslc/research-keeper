@@ -44,8 +44,23 @@ class AuthConfig:
 class EmbeddingsConfig:
     provider: str = "sentence-transformers"
     model: str = "google/embeddinggemma-300m"
-    qmd_mcp_url: str = "http://localhost:8181"
-    qmd_db_path: str | None = None
+
+
+@dataclass
+class QMDConfig:
+    enabled: bool = True
+    index_name: str = "rk"
+    collection: str | None = None
+    timeout: int = 30
+    min_score: float = 0.2
+    max_results: int = 20
+    rerank: bool = True
+
+
+@dataclass
+class QMDSetupResult:
+    available: bool
+    reason: str | None = None
 
 
 @dataclass
@@ -81,6 +96,7 @@ class Config:
     intake: IntakeConfig = field(default_factory=IntakeConfig)
     auth: AuthConfig = field(default_factory=AuthConfig)
     embeddings: EmbeddingsConfig = field(default_factory=EmbeddingsConfig)
+    qmd: QMDConfig = field(default_factory=QMDConfig)
     completion: CompletionConfig = field(default_factory=CompletionConfig)
 
     def resolve_root(self, config_parent: Path) -> Path:
@@ -107,6 +123,7 @@ def load_config(path: Path) -> Config:
         ("intake", config.intake),
         ("auth", config.auth),
         ("embeddings", config.embeddings),
+        ("qmd", config.qmd),
         ("completion", config.completion),
     ]:
         if section_name in raw and isinstance(raw[section_name], dict):
