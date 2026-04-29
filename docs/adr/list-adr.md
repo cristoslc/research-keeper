@@ -17,6 +17,8 @@
 | ADR-015 | SQLite-Backed Embeddings with Eventually-Consistent Tier Transitions | 2026-04-28 | -- |
 | ADR-016 | Advisory File Lock for Cross-Process Concurrency | 2026-04-28 | -- |
 | ADR-017 | LLM Sidecar Output as Untrusted Input Validated by CLI | 2026-04-28 | -- |
+| ADR-018 | AGENTS.md as Per-Scope Sidecar Advisory | 2026-04-28 | -- |
+| ADR-019 | Tag Graph with SKOS-Lite Semantic Edges | 2026-04-28 | -- |
 
 ## Superseded
 
