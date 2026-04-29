@@ -245,17 +245,17 @@ class TestThreeLayerScenarios:
 class TestEmbeddingModelConfig:
     """Tests for embedding model configuration."""
 
-    def test_embeddinggemma_is_default_model(self):
+    def test_nomic_is_default_model(self):
         config = load_config(Path("/nonexistent"))
-        assert config.embeddings.model == "google/embeddinggemma-300m"
+        assert config.embeddings.model == "nomic-ai/nomic-embed-text-v1.5"
 
-    def test_embedder_uses_embeddinggemma(self):
+    def test_embedder_uses_nomic(self):
         from research_keeper.adapters.embedder.sentence_transformers import (
             SentenceTransformerEmbedder,
         )
 
         embedder = SentenceTransformerEmbedder()
-        assert embedder._model_name == "google/embeddinggemma-300m"
+        assert embedder._model_name == "nomic-ai/nomic-embed-text-v1.5"
 
     def test_embeddings_config_has_no_mcp_fields(self):
         config = load_config(Path("/nonexistent"))

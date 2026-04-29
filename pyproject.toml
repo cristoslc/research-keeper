@@ -12,18 +12,18 @@ dependencies = [
     "sentence-transformers>=5.3.0",
     "torch>=2.11.0",
     "tqdm>=4.67.3",
+    "trafilatura>=2.0",
     "transformers>=5.5.0",
 ]
 
 [project.optional-dependencies]
-web = ["trafilatura>=2.0"]
 media = ["yt-dlp", "faster-whisper>=1.0"]
 documents = [
     "pymupdf>=1.24",
     "pymupdf4llm>=0.0.17",
 ]
 mcp = ["mcp>=1.0"]
-all = ["research-keeper[web,media,documents,mcp]"]
+all = ["research-keeper[media,documents,mcp]"]
 dev = ["pytest>=8.0", "pytest-tmp-files>=0.0.2"]
 
 [project.scripts]

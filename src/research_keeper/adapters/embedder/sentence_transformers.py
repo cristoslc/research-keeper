@@ -35,7 +35,7 @@ def _ensure_mps_watermark() -> None:
 class SentenceTransformerEmbedder:
     """Generate embeddings via sentence-transformers library."""
 
-    def __init__(self, model_name: str = "google/embeddinggemma-300m"):
+    def __init__(self, model_name: str = "nomic-ai/nomic-embed-text-v1.5"):
         self._model_name = model_name
         self._model: SentenceTransformer | None = None
         _ensure_mps_watermark()
@@ -44,7 +44,15 @@ class SentenceTransformerEmbedder:
         """Lazy-load model on first use."""
         if self._model is None:
             logger.info(f"Loading embedding model: {self._model_name}")
-            self._model = SentenceTransformer(self._model_name, local_files_only=True)
+            try:
+                self._model = SentenceTransformer(
+                    self._model_name, local_files_only=True
+                )
+            except OSError:
+                logger.info("Model not cached, downloading from HuggingFace Hub...")
+                self._model = SentenceTransformer(
+                    self._model_name, local_files_only=False
+                )
 
     def embed(self, content: str) -> bytes:
         """Generate embedding for content.

@@ -43,7 +43,7 @@ class AuthConfig:
 @dataclass
 class EmbeddingsConfig:
     provider: str = "sentence-transformers"
-    model: str = "google/embeddinggemma-300m"
+    model: str = "nomic-ai/nomic-embed-text-v1.5"
 
 
 @dataclass

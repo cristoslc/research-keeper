@@ -2040,6 +2040,7 @@ dependencies = [
     { name = "sentence-transformers" },
     { name = "torch" },
     { name = "tqdm" },
+    { name = "trafilatura" },
     { name = "transformers" },
 ]
 
@@ -2049,7 +2050,6 @@ all = [
     { name = "mcp" },
     { name = "pymupdf" },
     { name = "pymupdf4llm" },
-    { name = "trafilatura" },
     { name = "yt-dlp" },
 ]
 dev = [
@@ -2067,9 +2067,6 @@ media = [
     { name = "faster-whisper" },
     { name = "yt-dlp" },
 ]
-web = [
-    { name = "trafilatura" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -2084,15 +2081,15 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-tmp-files", marker = "extra == 'dev'", specifier = ">=0.0.2" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "research-keeper", extras = ["web", "media", "documents", "mcp"], marker = "extra == 'all'" },
+    { name = "research-keeper", extras = ["media", "documents", "mcp"], marker = "extra == 'all'" },
     { name = "sentence-transformers", specifier = ">=5.3.0" },
     { name = "torch", specifier = ">=2.11.0" },
     { name = "tqdm", specifier = ">=4.67.3" },
-    { name = "trafilatura", marker = "extra == 'web'", specifier = ">=2.0" },
+    { name = "trafilatura", specifier = ">=2.0" },
     { name = "transformers", specifier = ">=5.5.0" },
     { name = "yt-dlp", marker = "extra == 'media'" },
 ]
-provides-extras = ["web", "media", "documents", "mcp", "all", "dev"]
+provides-extras = ["media", "documents", "mcp", "all", "dev"]
 
 [[package]]
 name = "rich"

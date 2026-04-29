@@ -8,10 +8,7 @@ from typing import Any
 
 from research_keeper.ports.normalizer import NormalizationError
 
-try:
-    import trafilatura
-except ImportError:
-    trafilatura = None  # type: ignore[assignment]
+import trafilatura
 
 MIN_WORD_COUNT = 50
 
@@ -80,12 +77,6 @@ class WebNormalizer:
     """Normalize web page HTML to markdown content."""
 
     def normalize(self, raw: str | bytes, metadata: dict) -> tuple[str, dict]:
-        if trafilatura is None:
-            raise NormalizationError(
-                "trafilatura not installed. Install with: uv add research-keeper[web]",
-                stage="web-normalize",
-            )
-
         html = raw if isinstance(raw, str) else raw.decode("utf-8", errors="replace")
 
         url = metadata.get("url", "")
