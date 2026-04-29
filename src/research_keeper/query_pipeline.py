@@ -18,6 +18,17 @@ from research_keeper.sidecar import SidecarGenerator
 logger = logging.getLogger(__name__)
 
 
+class SearchResultsNotFoundError(Exception):
+    """Semantic search and tag expansion returned zero results."""
+
+    def __init__(self, query_text: str) -> None:
+        self.query_text = query_text
+        super().__init__(
+            f"No semantic results found for '{query_text}'. "
+            f"Try a broader query or use keyword search to find exact matches."
+        )
+
+
 @dataclass(frozen=True)
 class QuerySearchResult:
     query_id: str
@@ -127,6 +138,9 @@ class QueryPipeline:
         # Step 3: Tag expansion — pull in additional sources from top tags
         expanded_nodes = self._expand_tags(scored_nodes)
         all_nodes = scored_nodes + expanded_nodes
+
+        if not all_nodes:
+            raise SearchResultsNotFoundError(query_text)
 
         # Step 4: Build tag expansion metadata
         tag_expansion_meta = []

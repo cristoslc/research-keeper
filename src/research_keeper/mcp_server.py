@@ -57,6 +57,28 @@ TOOL_DEFINITIONS = [
         },
     },
     {
+        "name": "rk_keyword_search",
+        "description": "Search the library using full-text keyword matching (FTS5). Use when semantic search returns no results.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Keyword search query",
+                },
+                "root": {
+                    "type": "string",
+                    "description": "Path to research-keeper instance",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum results to return (default 20)",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
         "name": "rk_tags",
         "description": "List all tags in the research library with source counts and synthesis status.",
         "inputSchema": {
@@ -134,6 +156,7 @@ def handle_tool_call(tool_name: str, arguments: dict) -> str:
     handlers = {
         "rk_add": _handle_add,
         "rk_search": _handle_search,
+        "rk_keyword_search": _handle_keyword_search,
         "rk_tags": _handle_tags,
         "rk_investigate": _handle_investigate,
         "rk_rebuild": _handle_rebuild,
@@ -167,20 +190,46 @@ def _handle_add(args: dict) -> str:
 
 def _handle_search(args: dict) -> str:
     from research_keeper.cli import _build_search_pipeline
+    from research_keeper.query_pipeline import SearchResultsNotFoundError
 
     root = Path(args.get("root", ".")).resolve()
     pipeline = _build_search_pipeline(root)
 
-    result = pipeline.search(
-        args["query"],
-        top_k=args.get("top_k"),
-        investigation_id=args.get("investigation"),
-    )
+    try:
+        result = pipeline.search(
+            args["query"],
+            top_k=args.get("top_k"),
+            investigation_id=args.get("investigation"),
+        )
+    except SearchResultsNotFoundError:
+        return json.dumps({"error": str(SearchResultsNotFoundError(args["query"]))})
+
     return json.dumps(
         {
             "query_id": result.query_id,
             "sidecar_path": str(result.sidecar_path),
             "retrieved": len(result.scored_nodes),
+        }
+    )
+
+
+def _handle_keyword_search(args: dict) -> str:
+    from research_keeper.adapters.sqlite.index import SqliteIndex
+
+    root = Path(args.get("root", ".")).resolve()
+    db_path = root / "rk.db"
+    if not db_path.exists():
+        return json.dumps({"error": "No library database found"})
+
+    index = SqliteIndex(db_path)
+    results = index.search_fts(args["query"], limit=args.get("limit", 20))
+    return json.dumps(
+        {
+            "results": [
+                {"slug": s.slug, "kind": s.kind, "content": s.content[:500]}
+                for s in results
+            ],
+            "count": len(results),
         }
     )
 

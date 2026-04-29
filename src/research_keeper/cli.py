@@ -12,6 +12,7 @@ import yaml
 from tqdm import tqdm
 
 from research_keeper.config import Config, load_config
+from research_keeper.query_pipeline import SearchResultsNotFoundError
 
 if TYPE_CHECKING:
     from research_keeper.adapters.filesystem.source_store import (
@@ -1059,6 +1060,40 @@ def search(query: str, root: str, top_k: int | None, investigation: str | None) 
 
         if investigation:
             click.echo(f"Linked to investigation: {investigation}")
+    except SearchResultsNotFoundError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        click.echo(err=True)
+        click.echo("Use 'rk keyword-search' for exact-text matches instead.", err=True)
+    except Exception as exc:
+        _handle_error(exc)
+
+
+@main.command("keyword-search")
+@click.argument("query")
+@click.option("--root", type=click.Path(exists=True), default=".")
+def keyword_search(query: str, root: str) -> None:
+    """Search the library using full-text keyword matching."""
+    try:
+        root_path = Path(root).resolve()
+        from research_keeper.adapters.sqlite.index import SqliteIndex
+
+        db_path = root_path / "rk.db"
+        if not db_path.exists():
+            click.echo("No library database found. Run 'rk add' first.", err=True)
+            raise SystemExit(1)
+
+        index = SqliteIndex(db_path)
+        results = index.search_fts(query, limit=20)
+
+        if not results:
+            click.echo(f"No keyword matches found for '{query}'.")
+            return
+
+        click.echo(f"\n--- Keyword search: {query} ---\n")
+        click.echo(f"Found {len(results)} sources:")
+        for src in results:
+            click.echo(f"  {src.slug:<30s} ({src.kind})")
+        click.echo()
     except Exception as exc:
         _handle_error(exc)
 

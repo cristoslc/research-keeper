@@ -13,7 +13,11 @@ from research_keeper.adapters.retriever.semantic import SemanticRetriever
 from research_keeper.adapters.sqlite.index import SqliteIndex
 from research_keeper.config import CompletionConfig
 from research_keeper.models import Freshness, Provenance, Source
-from research_keeper.query_pipeline import QueryPipeline, QuerySearchResult
+from research_keeper.query_pipeline import (
+    QueryPipeline,
+    QuerySearchResult,
+    SearchResultsNotFoundError,
+)
 from research_keeper.sidecar import SidecarGenerator
 
 
@@ -156,11 +160,8 @@ class TestQueryPipeline:
             embedder=embedder,
             index=index,
         )
-        result = pipeline.search("anything?")
-        assert result.query_id.startswith("qry-")
-        assert result.sidecar_path.exists()
-        content = result.sidecar_path.read_text()
-        assert "anything?" in content
+        with pytest.raises(SearchResultsNotFoundError, match="anything?"):
+            pipeline.search("anything?")
 
 
 class TestQueryPipelineEmbedderOffline:

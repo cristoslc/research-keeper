@@ -12,7 +12,15 @@ class TestMCPToolDefinitions:
     def test_tool_definitions_exist(self):
         from research_keeper.mcp_server import TOOL_DEFINITIONS
 
-        expected_tools = {"rk_add", "rk_search", "rk_tags", "rk_investigate", "rk_rebuild", "rk_status"}
+        expected_tools = {
+            "rk_add",
+            "rk_search",
+            "rk_keyword_search",
+            "rk_tags",
+            "rk_investigate",
+            "rk_rebuild",
+            "rk_status",
+        }
         tool_names = {t["name"] for t in TOOL_DEFINITIONS}
         assert expected_tools == tool_names
 
