@@ -785,15 +785,36 @@ def tags(root: str) -> None:
 @click.option("--root", type=click.Path(exists=True), default=".")
 def rebuild(root: str) -> None:
     """Rebuild SQLite index from filesystem."""
+    from research_keeper.memory_guard import MemoryPressureError
+
     try:
         _rebuild_impl(root)
+    except MemoryPressureError:
+        raise SystemExit(1)
     except Exception as exc:
         _handle_error(exc)
 
 
+def _release_mps_cache() -> None:
+    """Release MPS GPU memory back to system."""
+    try:
+        import torch
+
+        if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+            torch.mps.empty_cache()
+    except Exception:
+        pass
+
+
 def _rebuild_impl(root: str) -> None:
+    import gc
+    from research_keeper.memory_guard import MemoryGuard, MemoryPressureError
+
     root_path = Path(root).resolve()
     config = load_config(root_path / "rk.yaml")
+    batch_size = getattr(config.embeddings, "batch_size", 64)
+    memory_limit = float(getattr(config.embeddings, "memory_limit", 85))
+    guard = MemoryGuard(threshold_percent=memory_limit)
 
     from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
     from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
@@ -804,7 +825,10 @@ def _rebuild_impl(root: str) -> None:
     index = SqliteIndex(root_path / "rk.db")
 
     sources = store.list()
+    guard.check()
     index.rebuild(sources)
+    gc.collect()
+    _release_mps_cache()
 
     # Skip legacy embedding.bin reload — chunk backfill below handles all embeddings
 
@@ -899,6 +923,10 @@ def _rebuild_impl(root: str) -> None:
         f"{query_count} query(s), {inv_count} investigation(s) indexed"
     )
 
+    guard.check()
+    gc.collect()
+    _release_mps_cache()
+
     # Embedding backfill phase: generate chunk embeddings for sources missing them
     from research_keeper.chunker import chunk_markdown
 
@@ -941,57 +969,63 @@ def _rebuild_impl(root: str) -> None:
 
     backfilled = 0
     skipped = 0
-    for node_id, content in tqdm(missing, desc="Backfilling embeddings"):
-        if node_id not in source_slugs:
-            # Non-source node (tag, query, investigation) — chunk if long, then embed
-            try:
-                model_name = getattr(embedder, "_model_name", "unknown")
-                chunks = chunk_markdown(content)
-                if len(chunks) == 1:
-                    emb_bytes = embedder.embed(chunks[0].content)
-                    if emb_bytes:
-                        index.upsert_embedding(node_id, model_name, emb_bytes)
-                else:
-                    for chunk in chunks:
-                        emb_bytes = embedder.embed(chunk.content)
-                        if emb_bytes:
-                            chunk_id = f"{node_id}#chunk-{chunk.index}"
-                            index.upsert_embedding(
-                                chunk_id, model_name, emb_bytes, content=chunk.content
-                            )
-                backfilled += 1
-            except Exception:
-                skipped += 1
-            continue
+    # Batch buffer for embed_batch calls
+    batch_texts: list[str] = []
+    batch_ids: list[str] = []
+    batch_model: str = ""
 
-        # Source node — derive chunks and embed each
-        source = next((s for s in sources if s.slug == node_id), None)
-        if source is None:
-            continue
-
+    def _flush_batch() -> None:
+        nonlocal backfilled, skipped, batch_texts, batch_ids, batch_model
+        if not batch_texts:
+            return
         try:
-            chunks = chunk_markdown(source.content, title=source.title)
-            model_name = getattr(embedder, "_model_name", "unknown")
-            first_embedding: bytes | None = None
-            for chunk in chunks:
-                emb_bytes = embedder.embed(chunk.content)
-                if emb_bytes:
-                    chunk_id = f"{node_id}#chunk-{chunk.index}"
-                    index.upsert_embedding(
-                        chunk_id, model_name, emb_bytes, content=chunk.content
-                    )
-                    if chunk.index == 0:
-                        first_embedding = emb_bytes
-            # Write embedding.bin for sources missing it
-            if first_embedding:
-                emb_file = (
-                    root_path / "library" / "sources" / source.slug / "embedding.bin"
-                )
-                if not emb_file.exists():
-                    emb_file.write_bytes(first_embedding)
-            backfilled += 1
+            emb_list = embedder.embed_batch(batch_texts)
+            model = batch_model or getattr(embedder, "_model_name", "unknown")
+            if not isinstance(model, str):
+                model = "unknown"
+            for chunk_id, emb_bytes in zip(batch_ids, emb_list):
+                if chunk_id and emb_bytes:
+                    index.upsert_embedding(chunk_id, model, emb_bytes)
         except Exception:
             skipped += 1
+        finally:
+            batch_texts.clear()
+            batch_ids.clear()
+            batch_model = ""
+
+    for node_idx, (node_id, content) in enumerate(
+        tqdm(missing, desc="Backfilling embeddings")
+    ):
+        chunks = chunk_markdown(content)
+        if not chunks:
+            continue
+        model_name = getattr(embedder, "_model_name", "unknown")
+        if not isinstance(model_name, str):
+            model_name = "unknown"
+        if not batch_model:
+            batch_model = model_name
+        for chunk in chunks:
+            chunk_id = f"{node_id}#chunk-{chunk.index}"
+            batch_texts.append(chunk.content)
+            batch_ids.append(chunk_id)
+            if len(batch_texts) >= batch_size:
+                _flush_batch()
+        backfilled += 1
+
+        # Memory guard: check every 5 nodes
+        if node_idx % 5 == 0:
+            try:
+                guard.check()
+            except Exception:
+                _flush_batch()
+                raise
+            gc.collect()
+            _release_mps_cache()
+
+    _flush_batch()
+    guard.check()
+    gc.collect()
+    _release_mps_cache()
 
     emb_bin_written = 0
     for src in sources:

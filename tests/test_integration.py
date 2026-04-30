@@ -49,6 +49,9 @@ class DeterministicEmbedder:
         h = hashlib.sha256(content.encode()).digest()
         return struct.pack("4f", *[b / 255.0 for b in h[:4]])
 
+    def embed_batch(self, contents: list[str]) -> list[bytes]:
+        return [self.embed(c) for c in contents]
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -144,7 +147,9 @@ def _simulate_synthesis_response(root: Path, tag_slug: str, content: str) -> Non
 
 class TestIntakeGeneratesSidecars:
     def test_add_creates_tag_sidecar(
-        self, rk_root: Path, embedder: DeterministicEmbedder,
+        self,
+        rk_root: Path,
+        embedder: DeterministicEmbedder,
     ) -> None:
         root = rk_root
         pipeline = _make_intake(root, embedder)
@@ -169,7 +174,9 @@ class TestIntakeGeneratesSidecars:
         assert "Agent Memory" in content
 
     def test_batch_add_creates_sidecars_for_all(
-        self, rk_root: Path, embedder: DeterministicEmbedder,
+        self,
+        rk_root: Path,
+        embedder: DeterministicEmbedder,
     ) -> None:
         root = rk_root
         pipeline = _make_intake(root, embedder)
@@ -196,15 +203,23 @@ class TestIntakeGeneratesSidecars:
 
 class TestRebuildFromScratch:
     def test_rebuild_restores_index(
-        self, rk_root: Path, embedder: DeterministicEmbedder,
+        self,
+        rk_root: Path,
+        embedder: DeterministicEmbedder,
     ) -> None:
         root = rk_root
         pipeline = _make_intake(root, embedder)
 
         # Add 3 sources
-        src_a = pipeline.add("# Memory systems\n\nAgents use memory.", {"title": "Memory"})
-        src_b = pipeline.add("# Persistence layer\n\nPersistence is key.", {"title": "Persistence"})
-        src_c = pipeline.add("# Agent design\n\nAgents are complex.", {"title": "Agent Design"})
+        src_a = pipeline.add(
+            "# Memory systems\n\nAgents use memory.", {"title": "Memory"}
+        )
+        src_b = pipeline.add(
+            "# Persistence layer\n\nPersistence is key.", {"title": "Persistence"}
+        )
+        src_c = pipeline.add(
+            "# Agent design\n\nAgents are complex.", {"title": "Agent Design"}
+        )
 
         # Delete the database
         db_path = root / "rk.db"
@@ -241,20 +256,28 @@ class TestRebuildFromScratch:
 
 class TestDoctorFindsAndFixes:
     def test_doctor_detects_issues(
-        self, rk_root: Path, embedder: DeterministicEmbedder,
+        self,
+        rk_root: Path,
+        embedder: DeterministicEmbedder,
     ) -> None:
         root = rk_root
         pipeline = _make_intake(root, embedder)
 
-        src_a = pipeline.add("# Memory research\n\nMemory is fundamental.", {"title": "Memory Research"})
-        src_b = pipeline.add("# Agent patterns\n\nAgents use memory.", {"title": "Agent Patterns"})
+        src_a = pipeline.add(
+            "# Memory research\n\nMemory is fundamental.", {"title": "Memory Research"}
+        )
+        src_b = pipeline.add(
+            "# Agent patterns\n\nAgents use memory.", {"title": "Agent Patterns"}
+        )
 
         # Problem 1: Create orphaned symlink (tag pointing to deleted source)
         tag_store = FilesystemTagStore(root)
         tag_store.ensure("memory")
         fake_slug = "deleted-source"
         orphan_link = root / "tags" / "memory" / "sources" / fake_slug
-        orphan_link.symlink_to(Path("..") / ".." / ".." / "library" / "sources" / fake_slug)
+        orphan_link.symlink_to(
+            Path("..") / ".." / ".." / "library" / "sources" / fake_slug
+        )
 
         # Problem 2: Remove embedding.bin from a source
         emb_path = root / "library" / "sources" / src_b.slug / "embedding.bin"
@@ -284,7 +307,9 @@ class TestDoctorFindsAndFixes:
 
 class TestConfigFlags:
     def test_no_prompt_skips_sidecars(
-        self, rk_root: Path, embedder: DeterministicEmbedder,
+        self,
+        rk_root: Path,
+        embedder: DeterministicEmbedder,
     ) -> None:
         root = rk_root
         pipeline = _make_intake(root, embedder)
@@ -299,7 +324,9 @@ class TestConfigFlags:
         assert not (pending_dir / "tag.j2").exists()
 
     def test_dedup_rejects_duplicates(
-        self, rk_root: Path, embedder: DeterministicEmbedder,
+        self,
+        rk_root: Path,
+        embedder: DeterministicEmbedder,
     ) -> None:
         root = rk_root
         pipeline = _make_intake(root, embedder)
@@ -351,4 +378,6 @@ class TestSelfBootstrap:
         assert source.slug
         assert (tmp_path / "library" / "sources" / source.slug / "source.md").exists()
         # Tag sidecar should be generated
-        assert (tmp_path / "library" / "sources" / source.slug / ".pending" / "tag.j2").exists()
+        assert (
+            tmp_path / "library" / "sources" / source.slug / ".pending" / "tag.j2"
+        ).exists()

@@ -81,6 +81,9 @@ class TestRebuildEmbeddingBackfill:
         mock_embedder = MagicMock()
         mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
+        mock_embedder.embed_batch.side_effect = lambda contents: (
+            [_fake_embedding()] * len(contents)
+        )
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
             runner = CliRunner()
@@ -97,7 +100,7 @@ class TestRebuildEmbeddingBackfill:
         assert len(chunk_ids) >= 1
 
         # Embedder should have been called
-        assert mock_embedder.embed.call_count >= 1
+        assert mock_embedder.embed_batch.call_count >= 1
 
     def test_skips_existing_embeddings(self, lib_root: Path):
         """Sources that already have embeddings are not re-embedded."""
@@ -105,16 +108,22 @@ class TestRebuildEmbeddingBackfill:
         mock_embedder = MagicMock()
         mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
+        mock_embedder.embed_batch.side_effect = lambda contents: (
+            [_fake_embedding()] * len(contents)
+        )
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
             runner = CliRunner()
             runner.invoke(main, ["rebuild", "--root", str(lib_root)])
 
-        first_call_count = mock_embedder.embed.call_count
+        first_call_count = mock_embedder.embed_batch.call_count
 
         # Reset and run rebuild again
         mock_embedder.reset_mock()
         mock_embedder.embed.return_value = _fake_embedding()
+        mock_embedder.embed_batch.side_effect = lambda contents: (
+            [_fake_embedding()] * len(contents)
+        )
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
             result = runner.invoke(main, ["rebuild", "--root", str(lib_root)])
@@ -122,13 +131,16 @@ class TestRebuildEmbeddingBackfill:
         assert result.exit_code == 0, result.output
         # Embedder should NOT have been called the second time
         # because rebuild preserves embeddings and the backfill skips existing
-        assert mock_embedder.embed.call_count == 0
+        assert mock_embedder.embed_batch.call_count == 0
 
     def test_reports_backfill_count(self, lib_root: Path):
         """CLI output includes the backfill count message."""
         mock_embedder = MagicMock()
         mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
+        mock_embedder.embed_batch.side_effect = lambda contents: (
+            [_fake_embedding()] * len(contents)
+        )
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
             runner = CliRunner()
@@ -142,7 +154,7 @@ class TestRebuildEmbeddingBackfill:
         """Rebuild completes gracefully when embedder raises errors."""
         mock_embedder = MagicMock()
         mock_embedder._model_name = "test-model"
-        mock_embedder.embed.side_effect = ConnectionError("Ollama offline")
+        mock_embedder.embed_batch.side_effect = ConnectionError("Ollama offline")
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
             runner = CliRunner()
@@ -167,6 +179,9 @@ class TestRebuildEmbeddingBinWrite:
         mock_embedder._model_name = "test-model"
         fake_emb = _fake_embedding()
         mock_embedder.embed.return_value = fake_emb
+        mock_embedder.embed_batch.side_effect = lambda contents, e=fake_emb: (
+            [e] * len(contents)
+        )
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
             runner = CliRunner()
@@ -184,6 +199,9 @@ class TestRebuildEmbeddingBinWrite:
         mock_embedder = MagicMock()
         mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
+        mock_embedder.embed_batch.side_effect = lambda contents: (
+            [_fake_embedding()] * len(contents)
+        )
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
             runner = CliRunner()
@@ -198,6 +216,9 @@ class TestRebuildChunkMigration:
         mock_embedder = MagicMock()
         mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
+        mock_embedder.embed_batch.side_effect = lambda contents: (
+            [_fake_embedding()] * len(contents)
+        )
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
             runner = CliRunner()
@@ -220,6 +241,9 @@ class TestRebuildChunkMigration:
         mock_embedder = MagicMock()
         mock_embedder._model_name = "test-model"
         mock_embedder.embed.return_value = _fake_embedding()
+        mock_embedder.embed_batch.side_effect = lambda contents: (
+            [_fake_embedding()] * len(contents)
+        )
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
             runner = CliRunner()
@@ -250,7 +274,7 @@ class TestRebuildEmbeddingBinRecovery:
         # but should still recover embedding.bin from existing SQLite data.
         mock_embedder = MagicMock()
         mock_embedder._model_name = "test-model"
-        mock_embedder.embed.side_effect = RuntimeError("embedder broken")
+        mock_embedder.embed_batch.side_effect = RuntimeError("embedder broken")
 
         with patch("research_keeper.cli._build_embedder", return_value=mock_embedder):
             runner = CliRunner()
