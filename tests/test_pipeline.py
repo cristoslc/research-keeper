@@ -22,6 +22,9 @@ def pipeline(library_root: Path) -> IntakePipeline:
     embedder = MagicMock()
     embedder._model_name = "test-model"
     embedder.embed.return_value = b"\x00" * 16
+    embedder.embed_batch.side_effect = lambda contents, e=embedder.embed.return_value: (
+        [e] * len(contents)
+    )
 
     normalizers = {"note": NotesNormalizer()}
 
@@ -103,6 +106,7 @@ def pipeline_with_broken_embedder(library_root: Path) -> IntakePipeline:
     embedder = MagicMock()
     embedder._model_name = "test-model"
     embedder.embed.side_effect = ConnectionError("Ollama not running")
+    embedder.embed_batch.side_effect = ConnectionError("Ollama not running")
     return IntakePipeline(
         source_store=store,
         index=index,
@@ -136,6 +140,9 @@ def test_pipeline_uses_source_dir_not_internal_root(library_root: Path):
     embedder = MagicMock()
     embedder._model_name = "test-model"
     embedder.embed.return_value = b"\x00" * 16
+    embedder.embed_batch.side_effect = lambda contents, e=embedder.embed.return_value: (
+        [e] * len(contents)
+    )
     pipeline = IntakePipeline(
         source_store=store,
         index=index,
@@ -154,6 +161,9 @@ def chunk_pipeline(library_root: Path):
     index = SqliteIndex(library_root / "rk.db")
     embedder = MagicMock()
     embedder.embed.return_value = b"\x00" * 16
+    embedder.embed_batch.side_effect = lambda contents, e=embedder.embed.return_value: (
+        [e] * len(contents)
+    )
     embedder._model_name = "test-model"
     normalizers = {"note": NotesNormalizer()}
     pipe = IntakePipeline(
@@ -236,7 +246,7 @@ class TestChunkEmbedding:
             + "Content for part two. " * 60
         )
         chunk_pipeline["pipeline"].add(content, metadata={"title": "Multi-Part"})
-        assert chunk_pipeline["embedder"].embed.call_count >= 2
+        assert chunk_pipeline["embedder"].embed_batch.call_count >= 1
 
     def test_no_bare_slug_embedding_created(self, chunk_pipeline):
         source = chunk_pipeline["pipeline"].add("# Test\n\nAny content.")
@@ -245,7 +255,7 @@ class TestChunkEmbedding:
         assert cur.fetchone() is None
 
     def test_embedding_failure_skips_all_chunks(self, chunk_pipeline):
-        chunk_pipeline["embedder"].embed.side_effect = ConnectionError("offline")
+        chunk_pipeline["embedder"].embed_batch.side_effect = ConnectionError("offline")
         source = chunk_pipeline["pipeline"].add("# Fail\n\nSome content.")
         assert chunk_pipeline["pipeline"].embedding_failed is True
         cur = chunk_pipeline["index"]._conn.cursor()
@@ -276,6 +286,9 @@ class TestNormalizationGracefulFailure:
         embedder = MagicMock()
         embedder._model_name = "test-model"
         embedder.embed.return_value = b"\x00" * 16
+        embedder.embed_batch.side_effect = (
+            lambda contents, e=embedder.embed.return_value: [e] * len(contents)
+        )
 
         pipeline = IntakePipeline(
             source_store=store,
@@ -314,6 +327,9 @@ class TestNormalizationGracefulFailure:
         embedder = MagicMock()
         embedder._model_name = "test-model"
         embedder.embed.return_value = b"\x00" * 16
+        embedder.embed_batch.side_effect = (
+            lambda contents, e=embedder.embed.return_value: [e] * len(contents)
+        )
 
         pipeline = IntakePipeline(
             source_store=store,
@@ -345,6 +361,9 @@ class TestNormalizationGracefulFailure:
         embedder = MagicMock()
         embedder._model_name = "test-model"
         embedder.embed.return_value = b"\x00" * 16
+        embedder.embed_batch.side_effect = (
+            lambda contents, e=embedder.embed.return_value: [e] * len(contents)
+        )
 
         pipeline = IntakePipeline(
             source_store=store,
@@ -378,6 +397,9 @@ class TestNormalizationGracefulFailure:
         embedder = MagicMock()
         embedder._model_name = "test-model"
         embedder.embed.return_value = b"\x00" * 16
+        embedder.embed_batch.side_effect = (
+            lambda contents, e=embedder.embed.return_value: [e] * len(contents)
+        )
 
         pipeline = IntakePipeline(
             source_store=store,
@@ -415,21 +437,16 @@ class TestChunkEmbeddingIntegration:
             + "This paper reviewed recent advances. " * 60
         )
 
-        # Make embedder return different vectors per chunk
-        call_count = 0
         vectors = [
             struct.pack("4f", 0.1, 0.9, 0.0, 0.0),  # ML basics
             struct.pack("4f", 0.9, 0.1, 0.0, 0.0),  # NAS section
             struct.pack("4f", 0.0, 0.0, 0.1, 0.9),  # Conclusion
         ]
 
-        def mock_embed(text):
-            nonlocal call_count
-            idx = min(call_count, len(vectors) - 1)
-            call_count += 1
-            return vectors[idx]
+        def mock_embed_batch(texts):
+            return vectors[: len(texts)]
 
-        chunk_pipeline["embedder"].embed.side_effect = mock_embed
+        chunk_pipeline["embedder"].embed_batch.side_effect = mock_embed_batch
 
         source = chunk_pipeline["pipeline"].add(
             content, metadata={"title": "ML Survey"}

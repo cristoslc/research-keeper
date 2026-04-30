@@ -4,6 +4,7 @@
 Per ADR-001 and SPEC-019, tagging and synthesis are no longer done in-process.
 Instead, IntakePipeline generates tag.j2 sidecars that the agent fills.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -34,6 +35,7 @@ def tagging_pipeline(tagging_root: Path) -> IntakePipeline:
     index = SqliteIndex(tagging_root / "rk.db")
     embedder = MagicMock()
     embedder.embed.return_value = b"\x00" * 16
+    embedder.embed_batch.side_effect = lambda contents: [b"\x00" * 16] * len(contents)
     sidecar = SidecarGenerator(tagging_root)
 
     return IntakePipeline(
@@ -47,9 +49,13 @@ def tagging_pipeline(tagging_root: Path) -> IntakePipeline:
     )
 
 
-def test_add_generates_tag_sidecar(tagging_pipeline: IntakePipeline, tagging_root: Path):
+def test_add_generates_tag_sidecar(
+    tagging_pipeline: IntakePipeline, tagging_root: Path
+):
     """Adding a source should generate a .pending/tag.j2 sidecar."""
-    source = tagging_pipeline.add("# Agent Memory\n\nContent about memory architectures.")
+    source = tagging_pipeline.add(
+        "# Agent Memory\n\nContent about memory architectures."
+    )
 
     pending_dir = tagging_root / "library" / "sources" / source.slug / ".pending"
     tag_j2 = pending_dir / "tag.j2"
@@ -61,7 +67,9 @@ def test_add_generates_tag_sidecar(tagging_pipeline: IntakePipeline, tagging_roo
     assert source.slug in content or "agent-memory" in content
 
 
-def test_add_sidecar_contains_source_content(tagging_pipeline: IntakePipeline, tagging_root: Path):
+def test_add_sidecar_contains_source_content(
+    tagging_pipeline: IntakePipeline, tagging_root: Path
+):
     """The tag sidecar should contain the source content in comments."""
     source = tagging_pipeline.add("# Unique Content\n\nVery specific text here.")
 
@@ -78,12 +86,16 @@ def test_add_no_prompt_skips_sidecar(tagging_root: Path):
     index = SqliteIndex(tagging_root / "rk.db")
     embedder = MagicMock()
     embedder.embed.return_value = b"\x00" * 16
+    embedder.embed_batch.side_effect = lambda contents: [b"\x00" * 16] * len(contents)
     sidecar = SidecarGenerator(tagging_root)
 
     pipeline = IntakePipeline(
-        source_store=store, index=index, embedder=embedder,
+        source_store=store,
+        index=index,
+        embedder=embedder,
         normalizers={"note": NotesNormalizer()},
-        tag_store=tag_store, config=Config(),
+        tag_store=tag_store,
+        config=Config(),
         sidecar_generator=sidecar,
     )
 
@@ -99,9 +111,12 @@ def test_add_without_sidecar_generator_still_files(tagging_root: Path):
     index = SqliteIndex(tagging_root / "rk.db")
     embedder = MagicMock()
     embedder.embed.return_value = b"\x00" * 16
+    embedder.embed_batch.side_effect = lambda contents: [b"\x00" * 16] * len(contents)
 
     pipeline = IntakePipeline(
-        source_store=store, index=index, embedder=embedder,
+        source_store=store,
+        index=index,
+        embedder=embedder,
         normalizers={"note": NotesNormalizer()},
     )
 
@@ -117,7 +132,9 @@ def test_no_tags_in_source_object(tagging_pipeline: IntakePipeline):
     assert source.tags == []
 
 
-def test_intake_lock_removed_after_sidecar(tagging_pipeline: IntakePipeline, tagging_root: Path):
+def test_intake_lock_removed_after_sidecar(
+    tagging_pipeline: IntakePipeline, tagging_root: Path
+):
     """intake.lock should be removed after tag.j2 is generated."""
     source = tagging_pipeline.add("# Content\n\nAbout memory.")
 
@@ -133,12 +150,16 @@ def test_add_batch_files_all_before_sidecars(tagging_root: Path):
     index = SqliteIndex(tagging_root / "rk.db")
     embedder = MagicMock()
     embedder.embed.return_value = b"\x00" * 16
+    embedder.embed_batch.side_effect = lambda contents: [b"\x00" * 16] * len(contents)
     sidecar = SidecarGenerator(tagging_root)
 
     pipeline = IntakePipeline(
-        source_store=store, index=index, embedder=embedder,
+        source_store=store,
+        index=index,
+        embedder=embedder,
         normalizers={"note": NotesNormalizer()},
-        tag_store=tag_store, config=Config(),
+        tag_store=tag_store,
+        config=Config(),
         sidecar_generator=sidecar,
     )
 
@@ -155,7 +176,9 @@ def test_add_batch_files_all_before_sidecars(tagging_root: Path):
 
     # All should have tag.j2 sidecars
     for source in sources:
-        tag_j2 = tagging_root / "library" / "sources" / source.slug / ".pending" / "tag.j2"
+        tag_j2 = (
+            tagging_root / "library" / "sources" / source.slug / ".pending" / "tag.j2"
+        )
         assert tag_j2.exists()
 
 
@@ -166,12 +189,16 @@ def test_add_batch_with_no_prompt(tagging_root: Path):
     index = SqliteIndex(tagging_root / "rk.db")
     embedder = MagicMock()
     embedder.embed.return_value = b"\x00" * 16
+    embedder.embed_batch.side_effect = lambda contents: [b"\x00" * 16] * len(contents)
     sidecar = SidecarGenerator(tagging_root)
 
     pipeline = IntakePipeline(
-        source_store=store, index=index, embedder=embedder,
+        source_store=store,
+        index=index,
+        embedder=embedder,
         normalizers={"note": NotesNormalizer()},
-        tag_store=tag_store, config=Config(),
+        tag_store=tag_store,
+        config=Config(),
         sidecar_generator=sidecar,
     )
 
@@ -194,12 +221,16 @@ def test_add_batch_error_continues(tagging_root: Path):
     index = SqliteIndex(tagging_root / "rk.db")
     embedder = MagicMock()
     embedder.embed.return_value = b"\x00" * 16
+    embedder.embed_batch.side_effect = lambda contents: [b"\x00" * 16] * len(contents)
     sidecar = SidecarGenerator(tagging_root)
 
     pipeline = IntakePipeline(
-        source_store=store, index=index, embedder=embedder,
+        source_store=store,
+        index=index,
+        embedder=embedder,
         normalizers={"note": NotesNormalizer()},
-        tag_store=tag_store, config=Config(),
+        tag_store=tag_store,
+        config=Config(),
         sidecar_generator=sidecar,
     )
 
@@ -228,12 +259,16 @@ def test_sidecar_model_hint_from_config(tagging_root: Path):
     index = SqliteIndex(tagging_root / "rk.db")
     embedder = MagicMock()
     embedder.embed.return_value = b"\x00" * 16
+    embedder.embed_batch.side_effect = lambda contents: [b"\x00" * 16] * len(contents)
     sidecar = SidecarGenerator(tagging_root, config.completion)
 
     pipeline = IntakePipeline(
-        source_store=store, index=index, embedder=embedder,
+        source_store=store,
+        index=index,
+        embedder=embedder,
         normalizers={"note": NotesNormalizer()},
-        tag_store=tag_store, config=config,
+        tag_store=tag_store,
+        config=config,
         sidecar_generator=sidecar,
     )
 

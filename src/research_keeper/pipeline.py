@@ -159,23 +159,52 @@ class IntakePipeline:
             )
         else:
             try:
-                chunks = chunk_markdown(content, title=merged.get("title"))
+                import gc
+
+                chunks = list(chunk_markdown(content, title=merged.get("title")))
                 model_name = getattr(self._embedder, "_model_name", "unknown")
                 if not isinstance(model_name, str):
                     model_name = "unknown"
                 emb_dir = self._store.source_dir(source.slug)
                 first_embedding: bytes | None = None
+
+                batch_size = getattr(
+                    getattr(self._config, "embeddings", None), "batch_size", 64
+                )
+                buf_chunks: list[tuple[int, str]] = []
+
+                def _flush_buffer() -> None:
+                    nonlocal first_embedding
+                    if not buf_chunks:
+                        return
+                    contents_to_encode = [c for _, c in buf_chunks]
+                    emb_list = self._embedder.embed_batch(contents_to_encode)
+                    for (chunk_idx, chunk_text), emb_bytes in zip(buf_chunks, emb_list):
+                        chunk_id = f"{source.slug}#chunk-{chunk_idx}"
+                        self._index.upsert_embedding(
+                            chunk_id, model_name, emb_bytes, content=chunk_text
+                        )
+                        if chunk_idx == 0:
+                            first_embedding = emb_bytes
+                    buf_chunks.clear()
+
                 for chunk in chunks:
-                    embedding = self._embedder.embed(chunk.content)
-                    chunk_id = f"{source.slug}#chunk-{chunk.index}"
-                    self._index.upsert_embedding(
-                        chunk_id, model_name, embedding, content=chunk.content
-                    )
-                    if chunk.index == 0:
-                        first_embedding = embedding
-                # Write first chunk embedding as embedding.bin for backward compat
+                    buf_chunks.append((chunk.index, chunk.content))
+                    if len(buf_chunks) >= batch_size:
+                        _flush_buffer()
+                _flush_buffer()
+
                 if first_embedding:
                     (emb_dir / "embedding.bin").write_bytes(first_embedding)
+
+                try:
+                    import torch
+
+                    gc.collect()
+                    if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+                        torch.mps.empty_cache()
+                except Exception:
+                    pass
             except Exception:
                 self.embedding_failed = True
                 logger.warning(
