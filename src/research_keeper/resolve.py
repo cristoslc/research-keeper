@@ -34,6 +34,17 @@ from research_keeper.sidecar import SidecarGenerator
 logger = logging.getLogger(__name__)
 
 
+def _release_mps_cache() -> None:
+    """Release MPS GPU memory back to system."""
+    try:
+        import torch
+
+        if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+            torch.mps.empty_cache()
+    except Exception:
+        pass
+
+
 class ResolveLock:
     """File-based lock for rk resolve. Only one resolve at a time."""
 
@@ -96,6 +107,12 @@ def run_resolve(root: Path) -> str:
 
 def _resolve_impl(root: Path, config) -> str:
     """Core resolve logic."""
+    import gc
+    from research_keeper.memory_guard import MemoryGuard, MemoryPressureError
+
+    memory_limit = float(getattr(config.embeddings, "memory_limit", 85))
+    guard = MemoryGuard(threshold_percent=memory_limit)
+
     store = FilesystemSourceStore(root)
     tag_store = FilesystemTagStore(root)
     inv_store = FilesystemInvestigationStore(root)
@@ -144,6 +161,9 @@ def _resolve_impl(root: Path, config) -> str:
             )
         lines.append("")
 
+    gc.collect()
+    _release_mps_cache()
+
     # --- Phase 0: Prune resolution (SPEC-049) ---
     _clean_source_dir_symlinks(root)
     pruned = _resolve_pruned_sources(root, tag_store)
@@ -161,6 +181,9 @@ def _resolve_impl(root: Path, config) -> str:
                 f"Pruned sources tombstoned in {len(pruned['investigations'])} investigation(s)"
             )
         lines.append("")
+
+    gc.collect()
+    _release_mps_cache()
 
     # --- Phase 1: Process any rendered output files ---
 
@@ -338,6 +361,10 @@ def _resolve_impl(root: Path, config) -> str:
             lines.append(f"  {inv_id}")
         lines.append("")
 
+    guard.check()
+    gc.collect()
+    _release_mps_cache()
+
     # --- Phase 2: Generate sidecars (eager — no batch gates) ---
 
     has_pending = False
@@ -513,6 +540,10 @@ def _resolve_impl(root: Path, config) -> str:
             lines.append(f"  {path}")
         lines.append("")
         has_pending = True
+
+    guard.check()
+    gc.collect()
+    _release_mps_cache()
 
     # --- Phase 3: Report result ---
     if has_pending:
@@ -1223,19 +1254,36 @@ def _apply_normalize(
         embedder = SentenceTransformerEmbedder(model_name=model_name)
 
         title = manifest.get("title")
-        chunks = chunk_markdown(new_content, title=title)
+        chunks = list(chunk_markdown(new_content, title=title))
         first_embedding: bytes | None = None
+
+        batch_size = getattr(getattr(config, "embeddings", None), "batch_size", 64)
+        buf_texts: list[str] = []
+        buf_ids: list[str] = []
+
+        def _flush() -> None:
+            nonlocal first_embedding
+            if not buf_texts:
+                return
+            emb_list = embedder.embed_batch(buf_texts)
+            for chunk_id, emb_bytes in zip(buf_ids, emb_list):
+                index.upsert_embedding(chunk_id, model_label, emb_bytes, content=None)
+                if chunk_id == f"{slug}#chunk-0":
+                    first_embedding = emb_bytes
+            buf_texts.clear()
+            buf_ids.clear()
+
+        model_label = getattr(embedder, "_model_name", model_name)
+        if not isinstance(model_label, str):
+            model_label = model_name
         for chunk in chunks:
-            embedding = embedder.embed(chunk.content)
             chunk_id = f"{slug}#chunk-{chunk.index}"
-            model_label = getattr(embedder, "_model_name", model_name)
-            if not isinstance(model_label, str):
-                model_label = model_name
-            index.upsert_embedding(
-                chunk_id, model_label, embedding, content=chunk.content
-            )
-            if chunk.index == 0:
-                first_embedding = embedding
+            buf_texts.append(chunk.content)
+            buf_ids.append(chunk_id)
+            if len(buf_texts) >= batch_size:
+                _flush()
+        _flush()
+
         if first_embedding:
             (source_dir / "embedding.bin").write_bytes(first_embedding)
     except Exception:
