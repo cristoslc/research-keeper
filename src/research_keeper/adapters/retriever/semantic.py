@@ -43,7 +43,7 @@ class SemanticRetriever:
         # Score each embedding, track best per source slug
         best_per_slug: dict[str, ScoredNode] = {}
 
-        for row in cur.fetchall():
+        for row in cur:
             embedding = row[1]
             if len(embedding) != len(query_embedding):
                 continue
