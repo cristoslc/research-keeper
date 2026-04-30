@@ -51,3 +51,42 @@ def test_embedding_quality():
     assert sim_similar > 0.5, (
         f"Similar texts should have sim > 0.5, got {sim_similar:.3f}"
     )
+
+
+def test_embed_batch_returns_correct_size():
+    """embed_batch should return one packed array per input string."""
+    embedder = SentenceTransformerEmbedder()
+    contents = ["first chunk", "second chunk", "third piece"]
+    results = embedder.embed_batch(contents)
+    assert len(results) == 3, f"Expected 3 results, got {len(results)}"
+    for r in results:
+        assert len(r) == 3072, f"Expected 3072 bytes, got {len(r)}"
+
+
+def test_embed_batch_preserves_ordering():
+    """First input maps to first output, etc."""
+    embedder = SentenceTransformerEmbedder()
+    import numpy as np
+
+    a_text = "quantum computing breakthroughs in silicon photonics"
+    b_text = "Italian Renaissance painting techniques and patronage"
+    a_emb, b_emb = embedder.embed_batch([a_text, b_text])
+    a_vec = np.frombuffer(a_emb, dtype=np.float32)
+    b_vec = np.frombuffer(b_emb, dtype=np.float32)
+    sim = float(np.dot(a_vec, b_vec) / (np.linalg.norm(a_vec) * np.linalg.norm(b_vec)))
+    assert sim < 0.6, f"Unrelated texts should have low similarity, got {sim:.3f}"
+
+
+def test_embed_batch_handles_single_item():
+    """Single-item batch returns one result."""
+    embedder = SentenceTransformerEmbedder()
+    results = embedder.embed_batch(["single chunk"])
+    assert len(results) == 1
+    assert len(results[0]) == 3072
+
+
+def test_embed_batch_handles_empty_list():
+    """Empty list returns empty list."""
+    embedder = SentenceTransformerEmbedder()
+    results = embedder.embed_batch([])
+    assert results == []

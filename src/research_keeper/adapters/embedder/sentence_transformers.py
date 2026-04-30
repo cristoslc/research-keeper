@@ -79,3 +79,33 @@ class SentenceTransformerEmbedder:
                 exc_info=True,
             )
             return b""
+
+    def embed_batch(self, contents: list[str]) -> list[bytes]:
+        """Generate embeddings for multiple content strings at once.
+
+        Args:
+            contents: List of content strings to embed.
+
+        Returns:
+            list[bytes]: Packed float arrays, or empty bytes for failures.
+                         Length matches input.
+        """
+        if not contents:
+            return []
+        try:
+            self._load_model()
+            model = self._model
+            assert model is not None
+            truncated = [
+                c[:_MAX_EMBED_CHARS] if len(c) > _MAX_EMBED_CHARS else c
+                for c in contents
+            ]
+            embeddings = model.encode(truncated, convert_to_numpy=True)
+            return [struct.pack(f"{len(emb)}f", *emb) for emb in embeddings]
+        except Exception:
+            logger.warning(
+                "Batch embedding failed for %d item(s)",
+                len(contents),
+                exc_info=True,
+            )
+            return [b""] * len(contents)
