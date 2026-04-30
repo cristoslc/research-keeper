@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from research_keeper.config import Config, load_config
 
+
 def test_default_config():
     c = Config()
     assert c.data_dir == "."
@@ -10,6 +11,7 @@ def test_default_config():
     assert c.intake.dedup is True
     assert c.intake.auto_tag is True
     assert c.intake.auto_synthesize is True
+
 
 def test_load_config_from_yaml(tmp_path: Path):
     yaml_file = tmp_path / "rk.yaml"
@@ -26,9 +28,11 @@ def test_load_config_from_yaml(tmp_path: Path):
     assert c.freshness.default_ttl == "7d"
     assert c.intake.dedup is True
 
+
 def test_load_config_missing_file(tmp_path: Path):
     c = load_config(tmp_path / "nonexistent.yaml")
     assert c.data_dir == "."
+
 
 def test_config_resolved_root(tmp_path: Path):
     yaml_file = tmp_path / "rk.yaml"
@@ -36,3 +40,23 @@ def test_config_resolved_root(tmp_path: Path):
     c = load_config(yaml_file)
     root = c.resolve_root(yaml_file.parent)
     assert root == tmp_path
+
+
+def test_embeddings_config_defaults():
+    from research_keeper.config import EmbeddingsConfig
+
+    cfg = EmbeddingsConfig()
+    assert cfg.batch_size == 64
+    assert cfg.memory_limit == 85
+
+
+def test_embeddings_config_from_yaml(tmp_path: Path):
+    import yaml
+    from research_keeper.config import load_config
+
+    (tmp_path / "rk.yaml").write_text(
+        yaml.dump({"embeddings": {"batch_size": 32, "memory_limit": 90}})
+    )
+    config = load_config(tmp_path / "rk.yaml")
+    assert config.embeddings.batch_size == 32
+    assert config.embeddings.memory_limit == 90
