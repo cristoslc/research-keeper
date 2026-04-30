@@ -955,6 +955,7 @@ def _rebuild_impl(root: str) -> None:
         cur2.execute("SELECT embedding FROM embeddings WHERE node_id = ?", (chunk_id,))
         row = cur2.fetchone()
         if row and row["embedding"]:
+            emb_file.parent.mkdir(parents=True, exist_ok=True)
             emb_file.write_bytes(row["embedding"])
             emb_bin_written += 1
 
@@ -1037,6 +1038,7 @@ def _rebuild_impl(root: str) -> None:
         cur2.execute("SELECT embedding FROM embeddings WHERE node_id = ?", (chunk_id,))
         row = cur2.fetchone()
         if row and row["embedding"]:
+            emb_file.parent.mkdir(parents=True, exist_ok=True)
             emb_file.write_bytes(row["embedding"])
             emb_bin_written += 1
 

@@ -10,6 +10,7 @@ from sentence_transformers import SentenceTransformer
 logger = logging.getLogger(__name__)
 
 _MAX_EMBED_CHARS = 24_000
+_MAX_BATCH_CHARS = 250_000
 
 
 def _ensure_mps_watermark() -> None:
@@ -83,29 +84,87 @@ class SentenceTransformerEmbedder:
     def embed_batch(self, contents: list[str]) -> list[bytes]:
         """Generate embeddings for multiple content strings at once.
 
+        Auto-splits oversized batches to avoid GPU out-of-memory on
+        Apple Silicon's unified memory architecture.
+
         Args:
             contents: List of content strings to embed.
 
         Returns:
-            list[bytes]: Packed float arrays, or empty bytes for failures.
-                         Length matches input.
+            list[bytes]: Packed float arrays, one per input, in order.
         """
         if not contents:
             return []
-        try:
-            self._load_model()
-            model = self._model
-            assert model is not None
-            truncated = [
-                c[:_MAX_EMBED_CHARS] if len(c) > _MAX_EMBED_CHARS else c
-                for c in contents
-            ]
-            embeddings = model.encode(truncated, convert_to_numpy=True)
-            return [struct.pack(f"{len(emb)}f", *emb) for emb in embeddings]
-        except Exception:
-            logger.warning(
-                "Batch embedding failed for %d item(s)",
-                len(contents),
-                exc_info=True,
-            )
-            return [b""] * len(contents)
+
+        self._load_model()
+        model = self._model
+        assert model is not None
+
+        truncated = [
+            c[:_MAX_EMBED_CHARS] if len(c) > _MAX_EMBED_CHARS else c for c in contents
+        ]
+
+        total_chars = sum(len(t) for t in truncated)
+        if total_chars <= _MAX_BATCH_CHARS:
+            try:
+                embeddings = model.encode(truncated, convert_to_numpy=True)
+                return [struct.pack(f"{len(emb)}f", *emb) for emb in embeddings]
+            except Exception:
+                if len(truncated) == 1:
+                    logger.warning(
+                        "Embedding failed for single item",
+                        exc_info=True,
+                    )
+                    return [b""]
+                logger.info(
+                    "Batch encode failed, falling back to per-item (batch size %d)",
+                    len(truncated),
+                )
+
+        return self._encode_split_groups(model, truncated)
+
+    def _encode_split_groups(self, model, truncated: list[str]) -> list[bytes]:
+        """Encode in sub-batches that each stay under _MAX_BATCH_CHARS.
+
+        Falls back to per-item encoding if any sub-batch fails.
+        """
+        results: list[bytes] = []
+        buf_texts: list[str] = []
+        buf_chars = 0
+
+        def _flush() -> None:
+            nonlocal buf_texts, buf_chars
+            if not buf_texts:
+                return
+            try:
+                embs = model.encode(buf_texts, convert_to_numpy=True)
+                for emb in embs:
+                    results.append(struct.pack(f"{len(emb)}f", *emb))
+            except Exception:
+                logger.warning(
+                    "Sub-batch of %d item(s) failed, falling back to per-item",
+                    len(buf_texts),
+                )
+                for text in buf_texts:
+                    try:
+                        embs = model.encode([text], convert_to_numpy=True)
+                        results.append(struct.pack(f"{len(embs[0])}f", *embs[0]))
+                    except Exception:
+                        logger.warning(
+                            "Per-item encoding failed",
+                            exc_info=True,
+                        )
+                        results.append(b"")
+            finally:
+                buf_texts.clear()
+                buf_chars = 0
+
+        for text in truncated:
+            text_len = len(text)
+            if buf_chars + text_len > _MAX_BATCH_CHARS and buf_texts:
+                _flush()
+            buf_texts.append(text)
+            buf_chars += text_len
+        _flush()
+
+        return results
