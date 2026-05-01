@@ -1,4 +1,33 @@
 # Changelog
+
+## [1.13.0] - 2026-05-01
+
+### Features
+
+#### Memory lifecycle overhaul
+
+All embedding operations — intake, rebuild, resolve, and semantic
+search — now use batched encoding with a configurable batch size
+(default 64). A MemoryGuard safety valve aborts processing if
+memory pressure exceeds 85%, preventing the system-killing RAM
+exhaustion that occurred on large libraries. Semantic search uses
+cursor iteration instead of loading all embeddings into memory at
+once. Oversized batches auto-split with per-item fallback when the
+embedder rejects a sub-batch. GC and MemoryGuard checkpoints run
+between every pipeline phase.
+
+#### EmbeddingsConfig
+
+`batch_size` (64) and `memory_limit` (85) fields added to
+EmbeddingsConfig, settable via `rk.yaml`.
+
+### Supporting Changes
+
+- Resolve Phase D handles missing source directories gracefully
+  instead of crashing.
+- 18 new tests covering MemoryGuard, batch embedding, cursor
+  iteration, and config defaults.
+
 ## [1.12.0] - 2026-04-29
 
 ### Features
