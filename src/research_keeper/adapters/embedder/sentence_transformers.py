@@ -10,7 +10,7 @@ from sentence_transformers import SentenceTransformer
 logger = logging.getLogger(__name__)
 
 _MAX_EMBED_CHARS = 24_000
-_MAX_BATCH_CHARS = 250_000
+_INTERNAL_BATCH_SIZE = 8
 
 
 def _ensure_mps_watermark() -> None:
@@ -30,6 +30,19 @@ def _ensure_mps_watermark() -> None:
         if torch.backends.mps.is_available():
             os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "2.0"
     except ImportError:
+        pass
+
+
+def _empty_cache() -> None:
+    """Release cached GPU memory between encode calls."""
+    try:
+        import torch
+
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+        elif torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except (ImportError, AttributeError):
         pass
 
 
@@ -84,8 +97,10 @@ class SentenceTransformerEmbedder:
     def embed_batch(self, contents: list[str]) -> list[bytes]:
         """Generate embeddings for multiple content strings at once.
 
-        Auto-splits oversized batches to avoid GPU out-of-memory on
-        Apple Silicon's unified memory architecture.
+        Delegates internal mini-batching to sentence-transformers via the
+        ``batch_size`` parameter. On failure, halves the input and recurses
+        until per-item, so convergence is logarithmic in batch size rather
+        than linear.
 
         Args:
             contents: List of content strings to embed.
@@ -103,68 +118,35 @@ class SentenceTransformerEmbedder:
         truncated = [
             c[:_MAX_EMBED_CHARS] if len(c) > _MAX_EMBED_CHARS else c for c in contents
         ]
+        return self._encode_with_halving(model, truncated)
 
-        total_chars = sum(len(t) for t in truncated)
-        if total_chars <= _MAX_BATCH_CHARS:
-            try:
-                embeddings = model.encode(truncated, convert_to_numpy=True)
-                return [struct.pack(f"{len(emb)}f", *emb) for emb in embeddings]
-            except Exception:
-                if len(truncated) == 1:
-                    logger.warning(
-                        "Embedding failed for single item",
-                        exc_info=True,
-                    )
-                    return [b""]
-                logger.info(
-                    "Batch encode failed, falling back to per-item (batch size %d)",
-                    len(truncated),
-                )
-
-        return self._encode_split_groups(model, truncated)
-
-    def _encode_split_groups(self, model, truncated: list[str]) -> list[bytes]:
-        """Encode in sub-batches that each stay under _MAX_BATCH_CHARS.
-
-        Falls back to per-item encoding if any sub-batch fails.
-        """
-        results: list[bytes] = []
-        buf_texts: list[str] = []
-        buf_chars = 0
-
-        def _flush() -> None:
-            nonlocal buf_texts, buf_chars
-            if not buf_texts:
-                return
-            try:
-                embs = model.encode(buf_texts, convert_to_numpy=True)
-                for emb in embs:
-                    results.append(struct.pack(f"{len(emb)}f", *emb))
-            except Exception:
+    def _encode_with_halving(self, model, texts: list[str]) -> list[bytes]:
+        """Encode texts; on failure, halve and recurse to per-item."""
+        if not texts:
+            return []
+        try:
+            embeddings = model.encode(
+                texts,
+                convert_to_numpy=True,
+                batch_size=_INTERNAL_BATCH_SIZE,
+            )
+            _empty_cache()
+            return [struct.pack(f"{len(emb)}f", *emb) for emb in embeddings]
+        except Exception:
+            _empty_cache()
+            if len(texts) == 1:
                 logger.warning(
-                    "Sub-batch of %d item(s) failed, falling back to per-item",
-                    len(buf_texts),
+                    "Embedding failed for single item (length: %d)",
+                    len(texts[0]),
+                    exc_info=True,
                 )
-                for text in buf_texts:
-                    try:
-                        embs = model.encode([text], convert_to_numpy=True)
-                        results.append(struct.pack(f"{len(embs[0])}f", *embs[0]))
-                    except Exception:
-                        logger.warning(
-                            "Per-item encoding failed",
-                            exc_info=True,
-                        )
-                        results.append(b"")
-            finally:
-                buf_texts.clear()
-                buf_chars = 0
-
-        for text in truncated:
-            text_len = len(text)
-            if buf_chars + text_len > _MAX_BATCH_CHARS and buf_texts:
-                _flush()
-            buf_texts.append(text)
-            buf_chars += text_len
-        _flush()
-
-        return results
+                return [b""]
+            logger.warning(
+                "Batch encode failed at size %d, halving",
+                len(texts),
+                exc_info=True,
+            )
+            mid = len(texts) // 2
+            left = self._encode_with_halving(model, texts[:mid])
+            right = self._encode_with_halving(model, texts[mid:])
+            return left + right
