@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 from pathlib import Path
 
 import pytest
@@ -136,3 +135,123 @@ class TestFilesystemInvestigationStore:
         emb_path = root / "investigations" / inv_id / "embedding.bin"
         emb_path.write_bytes(b"\x00\x01\x02\x03")
         assert emb_path.exists()
+
+    def test_create_seeds_empty_manifest(self, inv_store: FilesystemInvestigationStore):
+        import yaml as _yaml
+
+        inv_id = inv_store.create(topic="test", brief="brief")
+        meta_path = inv_store._root / "investigations" / inv_id / "meta.yaml"
+        meta = _yaml.safe_load(meta_path.read_text())
+        assert meta["cited_sources"] == []
+        assert meta["cited_queries"] == []
+        assert meta["cited_tags"] == []
+
+    def test_link_appends_to_cited_sources_manifest(
+        self, inv_store: FilesystemInvestigationStore
+    ):
+        import yaml as _yaml
+
+        root = inv_store._root
+        (root / "library" / "sources" / "src-a").mkdir(parents=True, exist_ok=True)
+        (root / "library" / "sources" / "src-b").mkdir(parents=True, exist_ok=True)
+        inv_id = inv_store.create(topic="test", brief="brief")
+        inv_store.link(inv_id, "src-a", "source")
+        inv_store.link(inv_id, "src-b", "source")
+
+        meta = _yaml.safe_load((root / "investigations" / inv_id / "meta.yaml").read_text())
+        assert meta["cited_sources"] == ["src-a", "src-b"]
+
+    def test_link_routes_to_correct_manifest_key(
+        self, inv_store: FilesystemInvestigationStore
+    ):
+        import yaml as _yaml
+
+        root = inv_store._root
+        (root / "library" / "sources" / "src-a").mkdir(parents=True, exist_ok=True)
+        (root / "queries" / "qry-a").mkdir(parents=True, exist_ok=True)
+        (root / "tags" / "tag-a").mkdir(parents=True, exist_ok=True)
+        inv_id = inv_store.create(topic="test", brief="brief")
+        inv_store.link(inv_id, "src-a", "source")
+        inv_store.link(inv_id, "qry-a", "query")
+        inv_store.link(inv_id, "tag-a", "tag")
+
+        meta = _yaml.safe_load((root / "investigations" / inv_id / "meta.yaml").read_text())
+        assert meta["cited_sources"] == ["src-a"]
+        assert meta["cited_queries"] == ["qry-a"]
+        assert meta["cited_tags"] == ["tag-a"]
+
+    def test_link_idempotent_in_manifest(self, inv_store: FilesystemInvestigationStore):
+        import yaml as _yaml
+
+        root = inv_store._root
+        (root / "library" / "sources" / "src-a").mkdir(parents=True, exist_ok=True)
+        inv_id = inv_store.create(topic="test", brief="brief")
+        inv_store.link(inv_id, "src-a", "source")
+        inv_store.link(inv_id, "src-a", "source")
+
+        meta = _yaml.safe_load((root / "investigations" / inv_id / "meta.yaml").read_text())
+        assert meta["cited_sources"] == ["src-a"]
+
+    def test_get_backfills_manifest_for_legacy_investigation(
+        self, inv_store: FilesystemInvestigationStore
+    ):
+        """Pre-existing investigations without the manifest in meta.yaml get
+        cited_sources/cited_queries/cited_tags backfilled from symlinks."""
+        import yaml as _yaml
+
+        root = inv_store._root
+        (root / "library" / "sources" / "src-a").mkdir(parents=True, exist_ok=True)
+        inv_id = inv_store.create(topic="test", brief="brief")
+        inv_store.link(inv_id, "src-a", "source")
+
+        # Simulate a legacy meta.yaml that lacks the manifest fields.
+        meta_path = root / "investigations" / inv_id / "meta.yaml"
+        legacy_meta = {
+            "inv_id": inv_id,
+            "topic": "test",
+            "kind": "investigation",
+            "status": "open",
+            "created": "2026-01-01",
+        }
+        meta_path.write_text(_yaml.dump(legacy_meta, default_flow_style=False, sort_keys=False))
+
+        inv_store.get(inv_id)
+
+        meta = _yaml.safe_load(meta_path.read_text())
+        assert meta["cited_sources"] == ["src-a"]
+        assert meta["cited_queries"] == []
+        assert meta["cited_tags"] == []
+
+    def test_get_migrates_pre_rename_manifest_keys(
+        self, inv_store: FilesystemInvestigationStore
+    ):
+        """Investigations written under the earlier sources/queries/tags
+        manifest naming get migrated to cited_* on next read."""
+        import yaml as _yaml
+
+        root = inv_store._root
+        (root / "library" / "sources" / "src-a").mkdir(parents=True, exist_ok=True)
+        inv_id = inv_store.create(topic="test", brief="brief")
+        inv_store.link(inv_id, "src-a", "source")
+
+        # Rewrite meta.yaml with the pre-rename key names.
+        meta_path = root / "investigations" / inv_id / "meta.yaml"
+        pre_rename = {
+            "inv_id": inv_id,
+            "topic": "test",
+            "kind": "investigation",
+            "status": "open",
+            "created": "2026-01-01",
+            "sources": ["src-a"],
+            "queries": [],
+            "tags": [],
+        }
+        meta_path.write_text(_yaml.dump(pre_rename, default_flow_style=False, sort_keys=False))
+
+        inv_store.get(inv_id)
+
+        meta = _yaml.safe_load(meta_path.read_text())
+        assert meta["cited_sources"] == ["src-a"]
+        assert "sources" not in meta
+        assert "queries" not in meta
+        assert "tags" not in meta

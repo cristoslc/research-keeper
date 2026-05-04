@@ -1,7 +1,6 @@
 # tests/test_tag_store.py
 from __future__ import annotations
 
-import datetime
 from pathlib import Path
 
 import pytest
@@ -39,6 +38,60 @@ def test_ensure_creates_tag_directory(tag_store: FilesystemTagStore, tag_root: P
     meta = yaml.safe_load((tag_dir / "meta.yaml").read_text())
     assert meta["slug"] == "memory"
     assert meta["kind"] == "tag-synthesis"
+    assert meta["cited_sources"] == []
+
+
+def test_link_source_appends_to_cited_sources(
+    tag_store: FilesystemTagStore,
+    source_store: FilesystemSourceStore,
+    tag_root: Path,
+):
+    source_store.add("# A", {"title": "Alpha", "origin": "test"})
+    source_store.add("# B", {"title": "Beta", "origin": "test"})
+    tag_store.ensure("memory")
+    tag_store.link_source("memory", "alpha")
+    tag_store.link_source("memory", "beta")
+
+    meta = yaml.safe_load((tag_root / "tags" / "memory" / "meta.yaml").read_text())
+    assert meta["cited_sources"] == ["alpha", "beta"]
+
+
+def test_link_source_idempotent_in_manifest(
+    tag_store: FilesystemTagStore,
+    source_store: FilesystemSourceStore,
+    tag_root: Path,
+):
+    source_store.add("# A", {"title": "Alpha", "origin": "test"})
+    tag_store.ensure("memory")
+    tag_store.link_source("memory", "alpha")
+    tag_store.link_source("memory", "alpha")
+
+    meta = yaml.safe_load((tag_root / "tags" / "memory" / "meta.yaml").read_text())
+    assert meta["cited_sources"] == ["alpha"]
+
+
+def test_get_meta_backfills_cited_sources_for_legacy_tag(
+    tag_store: FilesystemTagStore,
+    source_store: FilesystemSourceStore,
+    tag_root: Path,
+):
+    """Tags written before the cited_sources field existed get the manifest
+    backfilled from on-disk symlinks on first read."""
+    source_store.add("# A", {"title": "Alpha", "origin": "test"})
+    tag_store.ensure("memory")
+    tag_store.link_source("memory", "alpha")
+
+    # Strip cited_sources to simulate a pre-migration tag.
+    meta_path = tag_root / "tags" / "memory" / "meta.yaml"
+    legacy = yaml.safe_load(meta_path.read_text())
+    del legacy["cited_sources"]
+    meta_path.write_text(yaml.dump(legacy, default_flow_style=False, sort_keys=False))
+
+    meta = tag_store.get_meta("memory")
+    assert meta is not None
+    assert meta["cited_sources"] == ["alpha"]
+    on_disk = yaml.safe_load(meta_path.read_text())
+    assert on_disk["cited_sources"] == ["alpha"]
 
 
 def test_ensure_idempotent(tag_store: FilesystemTagStore, tag_root: Path):
