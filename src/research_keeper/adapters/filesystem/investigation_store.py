@@ -40,13 +40,21 @@ class FilesystemInvestigationStore:
         # Write brief
         (inv_path / "brief.md").write_text(brief)
 
-        # Write metadata
+        # Write metadata. cited_sources/cited_queries/cited_tags are the
+        # explicit manifest of what this investigation links to, mirroring
+        # the vocabulary used by query meta.yaml. They are kept in sync with
+        # the corresponding subdirectory symlinks by link() so that consumers
+        # (agents, exports, doctor) can read the manifest from meta.yaml
+        # without scanning the filesystem.
         meta = {
             "inv_id": inv_id,
             "topic": topic,
             "kind": "investigation",
             "status": "open",
             "created": str(today),
+            "cited_sources": [],
+            "cited_queries": [],
+            "cited_tags": [],
         }
         (inv_path / "meta.yaml").write_text(
             yaml.dump(meta, default_flow_style=False, sort_keys=False)
@@ -73,6 +81,8 @@ class FilesystemInvestigationStore:
         linked_queries = self._list_symlinks(inv_path / "queries")
         linked_tags = self._list_symlinks(inv_path / "tags")
 
+        self._backfill_manifest(meta_path, meta, linked_sources, linked_queries, linked_tags)
+
         return Investigation(
             inv_id=meta["inv_id"],
             topic=meta["topic"],
@@ -95,6 +105,12 @@ class FilesystemInvestigationStore:
                 if inv:
                     result.append(inv)
         return result
+
+    _SUBDIR_TO_MANIFEST_KEY = {
+        "sources": "cited_sources",
+        "queries": "cited_queries",
+        "tags": "cited_tags",
+    }
 
     def link(self, inv_id: str, node_slug: str, node_kind: str) -> None:
         inv_path = self._inv_dir / inv_id
@@ -122,6 +138,23 @@ class FilesystemInvestigationStore:
         target = kind_to_target.get(node_kind, Path("..") / ".." / ".." / "library" / "sources" / node_slug)
         symlink.symlink_to(target)
 
+        self._append_manifest(inv_path, subdir, node_slug)
+
+    def _append_manifest(self, inv_path: Path, subdir: str, node_slug: str) -> None:
+        meta_path = inv_path / "meta.yaml"
+        if not meta_path.exists():
+            return
+        manifest_key = self._SUBDIR_TO_MANIFEST_KEY[subdir]
+        meta = yaml.safe_load(meta_path.read_text()) or {}
+        manifest = list(meta.get(manifest_key) or [])
+        if node_slug in manifest:
+            return
+        manifest.append(node_slug)
+        meta[manifest_key] = manifest
+        meta_path.write_text(
+            yaml.dump(meta, default_flow_style=False, sort_keys=False)
+        )
+
     def update_synthesis(self, inv_id: str, synthesis: str) -> None:
         inv_path = self._inv_dir / inv_id
         (inv_path / "synthesis.md").write_text(synthesis)
@@ -145,3 +178,37 @@ class FilesystemInvestigationStore:
         if not directory.exists():
             return []
         return sorted(s.name for s in directory.iterdir() if s.is_symlink())
+
+    def _backfill_manifest(
+        self,
+        meta_path: Path,
+        meta: dict,
+        linked_sources: list[str],
+        linked_queries: list[str],
+        linked_tags: list[str],
+    ) -> None:
+        # Self-healing migration: ensure meta.yaml carries the explicit
+        # cited_sources/cited_queries/cited_tags manifest derived from the
+        # on-disk symlinks. Pre-existing investigations created before the
+        # manifest was added (or under the older "sources/queries/tags"
+        # naming) get the manifest backfilled the first time they are read.
+        desired = {
+            "cited_sources": list(linked_sources),
+            "cited_queries": list(linked_queries),
+            "cited_tags": list(linked_tags),
+        }
+        changed = False
+        for key, value in desired.items():
+            if meta.get(key) != value:
+                meta[key] = value
+                changed = True
+        # Drop the pre-rename keys if present so meta.yaml has one canonical
+        # form. The symlinks remain authoritative either way.
+        for legacy_key in ("sources", "queries", "tags"):
+            if legacy_key in meta:
+                del meta[legacy_key]
+                changed = True
+        if changed:
+            meta_path.write_text(
+                yaml.dump(meta, default_flow_style=False, sort_keys=False)
+            )

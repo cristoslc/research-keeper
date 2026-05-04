@@ -21,10 +21,13 @@ class FilesystemTagStore:
             return
         tag_dir.mkdir(parents=True)
         (tag_dir / "sources").mkdir()
+        # cited_sources mirrors the on-disk symlinks under sources/, using the
+        # same vocabulary as query and investigation meta.yaml.
         meta = {
             "slug": slug,
             "kind": "tag-synthesis",
             "created": str(datetime.date.today()),
+            "cited_sources": [],
         }
         (tag_dir / "meta.yaml").write_text(
             yaml.dump(meta, default_flow_style=False, sort_keys=False)
@@ -36,12 +39,36 @@ class FilesystemTagStore:
             return
         target = Path("..") / ".." / ".." / "library" / "sources" / source_slug
         symlink.symlink_to(target)
+        self._append_cited_source(tag_slug, source_slug)
+
+    def _append_cited_source(self, tag_slug: str, source_slug: str) -> None:
+        meta_path = self._tags_dir / tag_slug / "meta.yaml"
+        if not meta_path.exists():
+            return
+        meta = yaml.safe_load(meta_path.read_text()) or {}
+        cited = list(meta.get("cited_sources") or [])
+        if source_slug in cited:
+            return
+        cited.append(source_slug)
+        meta["cited_sources"] = cited
+        meta_path.write_text(
+            yaml.dump(meta, default_flow_style=False, sort_keys=False)
+        )
 
     def get_meta(self, slug: str) -> dict | None:
         meta_path = self._tags_dir / slug / "meta.yaml"
         if not meta_path.exists():
             return None
-        return yaml.safe_load(meta_path.read_text())
+        meta = yaml.safe_load(meta_path.read_text()) or {}
+        # Self-healing migration: tags created before cited_sources existed
+        # get the manifest backfilled from the on-disk symlinks on first read.
+        on_disk = self.sources_for_tag(slug)
+        if meta.get("cited_sources") != on_disk:
+            meta["cited_sources"] = on_disk
+            meta_path.write_text(
+                yaml.dump(meta, default_flow_style=False, sort_keys=False)
+            )
+        return meta
 
     def list(self) -> list[str]:
         if not self._tags_dir.exists():
