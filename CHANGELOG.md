@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.14.0] - 2026-05-04
+
+### Features
+
+#### `rk skill install` — accurate command routing
+
+The skill installed by `rk skill install` now routes user intents to
+the correct `rk` command in every case the prior version got wrong.
+Investigations always run via `rk investigate`, semantic vs.
+exact-phrase searches route to `rk search` and `rk keyword-search`
+respectively, and library publishing goes through `rk publish`
+instead of manual git plumbing. New rows cover `rk research`,
+`rk prune`, `rk normalize`, `rk import-trove`, `rk sync`, and
+`rk serve`. The skill body has been extracted from a Jinja string
+in code to a plain markdown resource at
+`src/research_keeper/templates/skill.md` — edit the file directly
+to change what the skill says.
+
+#### Explicit citation manifests in `meta.yaml`
+
+Investigations and tags now record their linked items as explicit
+`cited_*` lists in `meta.yaml`, mirroring the vocabulary already
+used by queries. Investigations carry `cited_sources`,
+`cited_queries`, and `cited_tags`; tags carry `cited_sources`. The
+on-disk symlinks remain authoritative — the manifest is a
+denormalized listing so consumers reading `meta.yaml` directly
+(agents, exports, doctor) no longer need to scan the filesystem.
+Pre-existing investigations and tags self-heal on first read,
+including any written under the short-lived intermediate
+`sources/queries/tags` naming.
+
+### Supporting Changes
+
+- Memory lifecycle retro and design artifacts captured for the
+  v1.13.0 release under `docs/`.
+- New tests covering manifest seeding, link append, idempotency,
+  legacy backfill, and migration from the pre-rename naming.
+
 ## [1.13.0] - 2026-05-01
 
 ### Features
