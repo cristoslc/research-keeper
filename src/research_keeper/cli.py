@@ -82,6 +82,9 @@ def init(path: str) -> None:
             "provider": "ollama",
             "model": "nomic-embed-text",
         },
+        "screenshots": {
+            "enabled": True,
+        },
         "completion": {
             "models": {
                 "heavy": "anthropic/claude-opus-4",

@@ -65,6 +65,11 @@ class QMDSetupResult:
 
 
 @dataclass
+class ScreenshotsConfig:
+    enabled: bool = True
+
+
+@dataclass
 class CompletionConfig:
     models: dict[str, str] = field(
         default_factory=lambda: {
@@ -98,6 +103,7 @@ class Config:
     auth: AuthConfig = field(default_factory=AuthConfig)
     embeddings: EmbeddingsConfig = field(default_factory=EmbeddingsConfig)
     qmd: QMDConfig = field(default_factory=QMDConfig)
+    screenshots: ScreenshotsConfig = field(default_factory=ScreenshotsConfig)
     completion: CompletionConfig = field(default_factory=CompletionConfig)
 
     def resolve_root(self, config_parent: Path) -> Path:
@@ -125,6 +131,7 @@ def load_config(path: Path) -> Config:
         ("auth", config.auth),
         ("embeddings", config.embeddings),
         ("qmd", config.qmd),
+        ("screenshots", config.screenshots),
         ("completion", config.completion),
     ]:
         if section_name in raw and isinstance(raw[section_name], dict):
