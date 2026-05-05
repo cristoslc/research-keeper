@@ -33,19 +33,28 @@ rk is a research library that never calls an LLM. It generates **sidecar templat
 7. If resolve reports more sidecars, repeat from step 2
 8. If resolve reports "Done", the cycle is complete — commit and push all changes
 
-## Source locations and search routing
+## Library disk layout
 
-rk stores data in predictable directories under the library root.
+All of these live as peer directories under the library root. None are nested inside any other — `tags/` is not inside `library/`.
 
-| Directory | What lives there |
-|-------------|----------------|
-| `library/sources/` | Raw source files as normalized markdown. One file per source named by slug. This is the canonical source of truth for original content. |
-| `tags/` | Syntheses for each tag — integrated summaries of all sources tagged with that name. |
-| `queries/` | Question and answer pairs from `rk search`, with cited sources. |
-| `investigations/` | Rolling investigations with linked sources, queries, and a synthesized summary. |
-| `rk.yaml` | Library configuration, including tag list. |
+```
+{library-root}/
+├── library/
+│   ├── sources/          # Normalized markdown, one file per source (slug.md)
+│   └── .deleted/         # Soft-deleted sources (rk prune)
+├── tags/                 # Syntheses per tag (tags/<tag>/synthesize.md)
+├── queries/              # Archived Q&A pairs (queries/<slug>/query.md)
+├── investigations/       # Rolling investigation containers
+└── rk.yaml               # Library configuration including tag list
+```
 
-### How to search
+Each leaf explained:
+- `library/sources/` — Canonical source of truth for original content.
+- `tags/` — Integrated summaries of all sources tagged with a given name.
+- `queries/` — Question and answer pairs from `rk search`, with cited sources.
+- `investigations/` — Rolling investigations with linked sources, queries, and a synthesized summary.
+
+## How to search
 
 | Search type | Method | Why |
 |-------------|--------|-----|
