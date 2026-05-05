@@ -42,10 +42,9 @@ class AuthConfig:
 
 @dataclass
 class EmbeddingsConfig:
-    provider: str = "sentence-transformers"
-    model: str = "nomic-ai/nomic-embed-text-v1.5"
+    provider: str = "ollama"
+    model: str = "nomic-embed-text"
     batch_size: int = 64
-    memory_limit: int = 85
 
 
 @dataclass

@@ -247,15 +247,17 @@ class TestEmbeddingModelConfig:
 
     def test_nomic_is_default_model(self):
         config = load_config(Path("/nonexistent"))
-        assert config.embeddings.model == "nomic-ai/nomic-embed-text-v1.5"
+        assert config.embeddings.model == "nomic-embed-text"
+
+    def test_ollama_is_default_provider(self):
+        config = load_config(Path("/nonexistent"))
+        assert config.embeddings.provider == "ollama"
 
     def test_embedder_uses_nomic(self):
-        from research_keeper.adapters.embedder.sentence_transformers import (
-            SentenceTransformerEmbedder,
-        )
+        from research_keeper.adapters.embedder.ollama import OllamaEmbedder
 
-        embedder = SentenceTransformerEmbedder()
-        assert embedder._model_name == "nomic-ai/nomic-embed-text-v1.5"
+        embedder = OllamaEmbedder()
+        assert embedder._model_name == "nomic-embed-text"
 
     def test_embeddings_config_has_no_mcp_fields(self):
         config = load_config(Path("/nonexistent"))
