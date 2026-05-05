@@ -145,7 +145,7 @@ def test_import_trove_empty_manifest(mock_build, mock_inv_build, runner: CliRunn
 @patch("research_keeper.cli._build_investigation_pipeline")
 @patch("research_keeper.cli._build_pipeline")
 def test_import_trove_skips_entries_without_url(mock_build, mock_inv_build, runner: CliRunner, tmp_path: Path):
-    """Sources without url or path are reported as errors."""
+    """Sources without url or path are rejected by validation."""
     mock_pipeline = MagicMock()
     mock_pipeline._store = MagicMock()
     mock_pipeline._config = MagicMock()
@@ -162,6 +162,6 @@ def test_import_trove_skips_entries_without_url(mock_build, mock_inv_build, runn
 
     result = runner.invoke(main, ["import-trove", str(manifest_path), "--root", str(tmp_path), "--no-prompt"])
 
-    assert result.exit_code == 0, result.output
-    assert "1 error(s)" in result.output
-    assert "no url or path" in result.output
+    assert result.exit_code == 1, result.output
+    assert "compatible format" in result.output
+    assert "url or path" in result.output

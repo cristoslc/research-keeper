@@ -1221,6 +1221,32 @@ def research(
         _handle_error(exc)
 
 
+def _validate_trove_manifest(manifest: dict) -> list[str]:
+    issues: list[str] = []
+    if not isinstance(manifest, dict):
+        issues.append("manifest is not a YAML mapping")
+        return issues
+    if "trove" not in manifest:
+        issues.append("missing required field: trove")
+    if "sources" not in manifest:
+        issues.append("missing required field: sources")
+    elif not isinstance(manifest["sources"], list):
+        issues.append("sources must be a list")
+    else:
+        for i, entry in enumerate(manifest["sources"]):
+            if not isinstance(entry, dict):
+                issues.append(f"sources[{i}]: entry is not a mapping")
+                continue
+            if "source-id" not in entry:
+                issues.append(f"sources[{i}]: missing source-id")
+            url = entry.get("url") or entry.get("path")
+            if not url:
+                issues.append(f"sources[{i}]: missing url or path")
+    if "tags" in manifest and not isinstance(manifest["tags"], list):
+        issues.append("tags must be a list")
+    return issues
+
+
 @main.command("import-trove")
 @click.argument("manifest_path", type=click.Path(exists=True))
 @click.option("--root", type=click.Path(exists=True), default=".")
@@ -1239,11 +1265,19 @@ def import_trove(
 
     try:
         root_path = Path(root).resolve()
-        manifest = yaml.safe_load(Path(manifest_path).read_text())
+        raw = Path(manifest_path).read_text()
+        manifest = yaml.safe_load(raw)
+
+        validation_issues = _validate_trove_manifest(manifest)
+        if validation_issues:
+            click.echo("Trove manifest is not in a compatible format:")
+            for issue in validation_issues:
+                click.echo(f"  - {issue}", err=True)
+            raise SystemExit(1)
 
         trove_id = manifest.get("trove", "unknown-trove")
         trove_tags = manifest.get("tags", [])
-        sources_list = manifest.get("sources", [])
+        sources_list = manifest["sources"]
 
         if not sources_list:
             click.echo("No sources in manifest.")
@@ -1264,16 +1298,13 @@ def import_trove(
         errors: list[tuple[str, str]] = []
 
         for entry in sources_list:
-            source_id = entry.get("source-id", "unknown")
+            source_id = entry["source-id"]
             url = entry.get("url") or entry.get("path")
-            if not url:
-                errors.append((source_id, "no url or path"))
-                continue
 
             metadata: dict = {}
             if entry.get("title"):
                 metadata["title"] = entry["title"]
-            if url.startswith(("http://", "https://")):
+            if url and url.startswith(("http://", "https://")):
                 metadata["origin"] = url
             if entry.get("fetched"):
                 metadata["published"] = str(entry["fetched"])[:10]
@@ -1309,6 +1340,124 @@ def import_trove(
 
         if added and not no_prompt:
             click.echo(f"\n{added} tag sidecar(s) pending. Run: rk resolve")
+
+    except Exception as exc:
+        _handle_error(exc)
+
+
+@main.command("import-rk")
+@click.argument("source_path", type=click.Path(exists=True))
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option(
+    "--kind", "kinds", multiple=True,
+    type=click.Choice(["source", "query", "tag", "investigation"]),
+    help="Entity kinds to import (repeatable; default: all)",
+)
+@click.option("--investigation", default=None, help="Link imported sources to an existing investigation ID")
+@click.option(
+    "--no-prompt", is_flag=True, default=False, help="Skip sidecar generation for imported sources"
+)
+@click.option(
+    "--validate", is_flag=True, default=False,
+    help="Validate the source library without importing anything",
+)
+def import_rk(
+    source_path: str,
+    root: str,
+    kinds: tuple[str, ...],
+    investigation: str | None,
+    no_prompt: bool,
+    validate: bool,
+) -> None:
+    """Import sources, queries, tags, and investigations from another rk library.
+
+    SOURCE_PATH must be the root of another research-keeper instance
+    (a directory containing rk.yaml).
+
+    Validates each entity before import. Entities that fail validation are
+    skipped and reported. Use --validate to inspect the source library
+    without importing anything.
+    """
+    try:
+        source_root = Path(source_path).resolve()
+        target_root = Path(root).resolve()
+
+        if source_root == target_root:
+            click.echo("Source and target are the same library. Nothing to do.", err=True)
+            raise SystemExit(1)
+
+        if not (source_root / "rk.yaml").exists():
+            click.echo(
+                f"Not a research-keeper library (no rk.yaml found at {source_root}).",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        kinds_set: set[str] | None = set(kinds) if kinds else None
+
+        from research_keeper.import_rk import validate_library
+
+        if validate:
+            issues = validate_library(source_root, kinds_set)
+            if not issues:
+                click.echo("Library is valid. All entities pass schema checks.")
+                return
+            click.echo("Validation found issues:")
+            total = 0
+            for kind, kind_issues in sorted(issues.items()):
+                click.echo(f"\n  [{kind}]")
+                for slug, msgs in sorted(kind_issues.items()):
+                    click.echo(f"    {slug}:")
+                    for msg in msgs:
+                        click.echo(f"      - {msg}")
+                        total += 1
+            if total:
+                click.echo(
+                    f"\n{total} issue(s) found across {len(issues)} kind(s)."
+                    " These entities would be skipped during import."
+                )
+            raise SystemExit(1)
+
+        pipeline = _build_pipeline(target_root)
+        inv_id = investigation
+
+        from research_keeper.import_rk import import_all
+
+        results = import_all(
+            source_root=source_root,
+            target_root=target_root,
+            kinds=kinds_set,
+            pipeline=pipeline,
+            no_prompt=no_prompt,
+        )
+
+        total_imported = 0
+        total_skipped = 0
+        total_errors: list[tuple[str, str, str]] = []
+
+        for kind in sorted(results):
+            r = results[kind]
+            total_imported += r.imported
+            total_skipped += r.skipped
+            for slug, msg in r.errors:
+                total_errors.append((kind, slug, msg))
+
+        click.echo(f"\nImported {total_imported} entities(s).")
+        if total_skipped:
+            click.echo(f"Skipped {total_skipped} (already present or duplicates).")
+        if total_errors:
+            click.echo(f"{len(total_errors)} error(s):")
+            for kind, slug, msg in total_errors[:20]:
+                click.echo(f"  [{kind}] {slug}: {msg}", err=True)
+
+        if inv_id:
+            click.echo(f"Investigation: {inv_id}")
+
+        if total_imported and not no_prompt:
+            click.echo(
+                f"\nSidecars may be pending for imported sources."
+                " Run: rk resolve"
+            )
 
     except Exception as exc:
         _handle_error(exc)
