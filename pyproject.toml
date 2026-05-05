@@ -10,11 +10,8 @@ dependencies = [
     "magic-wormhole>=0.14",
     "psutil>=7.2.2",
     "pyyaml>=6.0",
-    "sentence-transformers>=5.3.0",
-    "torch>=2.11.0",
     "tqdm>=4.67.3",
     "trafilatura>=2.0",
-    "transformers>=5.5.0",
 ]
 
 [project.optional-dependencies]

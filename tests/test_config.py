@@ -47,7 +47,8 @@ def test_embeddings_config_defaults():
 
     cfg = EmbeddingsConfig()
     assert cfg.batch_size == 64
-    assert cfg.memory_limit == 85
+    assert cfg.provider == "ollama"
+    assert cfg.model == "nomic-embed-text"
 
 
 def test_embeddings_config_from_yaml(tmp_path: Path):
@@ -55,8 +56,8 @@ def test_embeddings_config_from_yaml(tmp_path: Path):
     from research_keeper.config import load_config
 
     (tmp_path / "rk.yaml").write_text(
-        yaml.dump({"embeddings": {"batch_size": 32, "memory_limit": 90}})
+        yaml.dump({"embeddings": {"batch_size": 32, "model": "custom-model"}})
     )
     config = load_config(tmp_path / "rk.yaml")
     assert config.embeddings.batch_size == 32
-    assert config.embeddings.memory_limit == 90
+    assert config.embeddings.model == "custom-model"

@@ -16,7 +16,7 @@ class TestSkillFallbackWorkflow:
         """Verify the skill template includes fallback workflow instructions."""
         from research_keeper.skill_template import SKILL_CONTENT
 
-        assert "Fallback Workflow" in SKILL_CONTENT
+        assert "Fallback for manual extraction" in SKILL_CONTENT
         assert "JavaScript" in SKILL_CONTENT
         assert "Playwright" in SKILL_CONTENT
         assert "--content" in SKILL_CONTENT
@@ -25,10 +25,9 @@ class TestSkillFallbackWorkflow:
         """Verify the skill template teaches agents to recognize fetch failures."""
         from research_keeper.skill_template import SKILL_CONTENT
 
-        # Should include error pattern recognition
-        assert "Error adding" in SKILL_CONTENT
-        assert "Failed to fetch URL" in SKILL_CONTENT
-        assert "Hint:" in SKILL_CONTENT
+        assert "rk add" in SKILL_CONTENT and "fails on a single page" in SKILL_CONTENT
+        assert "--crawl" in SKILL_CONTENT
+        assert "--content" in SKILL_CONTENT
 
     def test_skill_template_includes_fallback_steps(self):
         """Verify the skill template provides clear fallback steps."""
@@ -52,8 +51,8 @@ class TestSkillFallbackWorkflow:
         """Verify the skill template emphasizes zero overhead for normal pages."""
         from research_keeper.skill_template import SKILL_CONTENT
 
-        assert "Zero overhead" in SKILL_CONTENT or "zero overhead" in SKILL_CONTENT
-        assert "Normal pages" in SKILL_CONTENT or "normal pages" in SKILL_CONTENT
+        assert "without special handling" in SKILL_CONTENT
+        assert "static sites" in SKILL_CONTENT or "Static sites" in SKILL_CONTENT
 
     def test_skill_template_updates_requirements(self):
         """Verify the requirements section includes Playwright."""

@@ -61,6 +61,7 @@ rk stores data in predictable directories under the library root.
 
 | User intent | Command | What to do |
 |-------------|---------|-----------|
+| "crawl a site" | `rk add <url> --crawl [--crawl-depth N] [--crawl-max-pages N]` | Playwright-based crawl. Files each page as a source, auto-tags with domain+path slug. Run `rk resolve` after for tag synthesis |
 | "add this article/video/note" | `rk add <source>` | Run add, fill tag sidecar, resolve, fill synthesis sidecars, resolve |
 | "what do I know about X?" / open-ended question | `rk search "<query>"` | Semantic search via embeddings; run, fill query sidecar, resolve |
 | "find every source mentioning Y" / exact phrase | `rk keyword-search "<query>"` | Indexed full-text search; results are immediate, no sidecar |
@@ -149,27 +150,24 @@ After the final `rk resolve` reports "Done" (no more pending sidecars), publish 
 
 This applies to every operation sequence — `rk add`, `rk search`, `rk investigate`, `rk research`, `rk rebuild`, etc. Pull updates first with `rk sync` if you suspect the remote has moved.
 
-## Fallback Workflow for JavaScript-Heavy Pages
+## Crawling JavaScript-Heavy and Multi-Page Sites
 
-Some websites require JavaScript rendering or employ anti-scraping measures. When `rk add` fails:
+**For single pages** — Use `rk add <url>` normally. Static sites and text-heavy pages work without special handling.
 
-**Recognition:** Error output includes:
+**For JavaScript-heavy sites or multi-page documentation** — Use the `--crawl` flag:
+
 ```
-Error adding 'https://example.com': Failed to fetch URL
-
-Hint: If this page requires JavaScript rendering, try:
-  rk add --content "<content>" --origin "https://example.com"
-
-Use Playwright or Chrome to fetch the content first.
+rk add <url> --crawl
 ```
 
-**Fallback steps:**
-1. **Fetch with browser automation** — Use Playwright, Puppeteer, or browser to get rendered HTML
-2. **Extract markdown** — Convert HTML to markdown (trafilatura, readability, or manual extraction)
-3. **Retry with --content** — `rk add --content "<markdown>" --origin "https://example.com"`
-4. **Continue normal workflow** — Fill sidecars, resolve as usual
+This scrapes the domain using Playwright, files each page as a normal source,
+and auto-tags them with a domain+path tag. The tag synthesis pipeline produces
+a unified site overview.
 
-**Example (Playwright):**
+**Fallback for manual extraction:** If `rk add` fails on a single page and
+`--crawl` is not appropriate, fetch with browser automation and retry with
+`--content`:
+
 ```python
 from playwright.sync_api import sync_playwright
 
@@ -182,11 +180,12 @@ with sync_playwright() as p:
     browser.close()
 ```
 
-**Zero overhead:** Normal pages work without fallback — only use when `rk add` errors with fetch failure.
+Then: `rk add --content "<markdown>" --origin "https://example.com"`
 
 ## Requirements
 
-- Embeddings are handled automatically by `sentence-transformers` — no external service required
-- First run downloads the model (~500MB), then cached locally
+- Embeddings are handled via Ollama — requires `ollama` installed and running
+- Install: `brew install ollama` (macOS) or `curl -fsSL https://ollama.com/install.sh | sh` (Linux)
+- Pull the embedding model: `ollama pull nomic-embed-text` (274 MB)
 - `rk add` generates embeddings automatically; `rk rebuild` backfills missing embeddings
 - **Playwright/browser** for fallback workflow — Install if not available: `uv add playwright` or use agent's browser tools

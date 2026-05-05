@@ -79,8 +79,8 @@ def init(path: str) -> None:
             "auto_synthesize": True,
         },
         "embeddings": {
-            "provider": "sentence-transformers",
-            "model": "nomic-ai/nomic-embed-text-v1.5",
+            "provider": "ollama",
+            "model": "nomic-embed-text",
         },
         "completion": {
             "models": {
@@ -435,14 +435,10 @@ def normalize(slug: str, root: str) -> None:
 
         try:
             from research_keeper.adapters.sqlite.index import SqliteIndex
-            from research_keeper.adapters.embedder.sentence_transformers import (
-                SentenceTransformerEmbedder,
-            )
+            from research_keeper.adapters.embedder import build_embedder
             from research_keeper.chunker import chunk_markdown
 
-            emb_cfg = getattr(config, "embeddings", None)
-            model_name = emb_cfg.model if emb_cfg else "nomic-ai/nomic-embed-text-v1.5"
-            embedder = SentenceTransformerEmbedder(model_name=model_name)
+            embedder = build_embedder(config)
 
             index = SqliteIndex(root_path / "rk.db")
 
@@ -458,9 +454,9 @@ def normalize(slug: str, root: str) -> None:
             for chunk in chunks:
                 embedding = embedder.embed(chunk.content)
                 chunk_id = f"{slug}#chunk-{chunk.index}"
-                model_label = getattr(embedder, "_model_name", model_name)
+                model_label = getattr(embedder, "_model_name", "unknown")
                 if not isinstance(model_label, str):
-                    model_label = model_name
+                    model_label = "unknown"
                 index.upsert_embedding(
                     chunk_id, model_label, embedding, content=chunk.content
                 )
@@ -785,36 +781,16 @@ def tags(root: str) -> None:
 @click.option("--root", type=click.Path(exists=True), default=".")
 def rebuild(root: str) -> None:
     """Rebuild SQLite index from filesystem."""
-    from research_keeper.memory_guard import MemoryPressureError
-
     try:
         _rebuild_impl(root)
-    except MemoryPressureError:
-        raise SystemExit(1)
     except Exception as exc:
         _handle_error(exc)
 
 
-def _release_mps_cache() -> None:
-    """Release MPS GPU memory back to system."""
-    try:
-        import torch
-
-        if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
-            torch.mps.empty_cache()
-    except Exception:
-        pass
-
-
 def _rebuild_impl(root: str) -> None:
-    import gc
-    from research_keeper.memory_guard import MemoryGuard, MemoryPressureError
-
     root_path = Path(root).resolve()
     config = load_config(root_path / "rk.yaml")
     batch_size = getattr(config.embeddings, "batch_size", 64)
-    memory_limit = float(getattr(config.embeddings, "memory_limit", 85))
-    guard = MemoryGuard(threshold_percent=memory_limit)
 
     from research_keeper.adapters.filesystem.source_store import FilesystemSourceStore
     from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
@@ -825,10 +801,7 @@ def _rebuild_impl(root: str) -> None:
     index = SqliteIndex(root_path / "rk.db")
 
     sources = store.list()
-    guard.check()
     index.rebuild(sources)
-    gc.collect()
-    _release_mps_cache()
 
     # Skip legacy embedding.bin reload — chunk backfill below handles all embeddings
 
@@ -923,17 +896,10 @@ def _rebuild_impl(root: str) -> None:
         f"{query_count} query(s), {inv_count} investigation(s) indexed"
     )
 
-    guard.check()
-    gc.collect()
-    _release_mps_cache()
-
     # Embedding backfill phase: generate chunk embeddings for sources missing them
     from research_keeper.chunker import chunk_markdown
 
     embedder = _build_embedder(config)
-    # Skip backfill if embedder is a stub
-    if getattr(embedder, "_model_name", None) == "stub":
-        return
 
     # Clean up legacy bare-slug embeddings for sources
     source_slugs = {s.slug for s in sources}
@@ -1013,20 +979,7 @@ def _rebuild_impl(root: str) -> None:
                 _flush_batch()
         backfilled += 1
 
-        # Memory guard: check every 5 nodes
-        if node_idx % 5 == 0:
-            try:
-                guard.check()
-            except Exception:
-                _flush_batch()
-                raise
-            gc.collect()
-            _release_mps_cache()
-
     _flush_batch()
-    guard.check()
-    gc.collect()
-    _release_mps_cache()
 
     emb_bin_written = 0
     for src in sources:
@@ -1848,11 +1801,6 @@ def _build_pipeline(root: Path):
 
 def _build_embedder(config):
     """Build embedder from config."""
-    from research_keeper.adapters.embedder.sentence_transformers import (
-        SentenceTransformerEmbedder,
-    )
+    from research_keeper.adapters.embedder import build_embedder
 
-    emb_cfg = getattr(config, "embeddings", None)
-    model_name = emb_cfg.model if emb_cfg else "nomic-ai/nomic-embed-text-v1.5"
-
-    return SentenceTransformerEmbedder(model_name=model_name)
+    return build_embedder(config)

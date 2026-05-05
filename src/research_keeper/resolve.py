@@ -34,17 +34,6 @@ from research_keeper.sidecar import SidecarGenerator
 logger = logging.getLogger(__name__)
 
 
-def _release_mps_cache() -> None:
-    """Release MPS GPU memory back to system."""
-    try:
-        import torch
-
-        if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
-            torch.mps.empty_cache()
-    except Exception:
-        pass
-
-
 class ResolveLock:
     """File-based lock for rk resolve. Only one resolve at a time."""
 
@@ -107,12 +96,6 @@ def run_resolve(root: Path) -> str:
 
 def _resolve_impl(root: Path, config) -> str:
     """Core resolve logic."""
-    import gc
-    from research_keeper.memory_guard import MemoryGuard, MemoryPressureError
-
-    memory_limit = float(getattr(config.embeddings, "memory_limit", 85))
-    guard = MemoryGuard(threshold_percent=memory_limit)
-
     store = FilesystemSourceStore(root)
     tag_store = FilesystemTagStore(root)
     inv_store = FilesystemInvestigationStore(root)
@@ -161,9 +144,6 @@ def _resolve_impl(root: Path, config) -> str:
             )
         lines.append("")
 
-    gc.collect()
-    _release_mps_cache()
-
     # --- Phase 0: Prune resolution (SPEC-049) ---
     _clean_source_dir_symlinks(root)
     pruned = _resolve_pruned_sources(root, tag_store)
@@ -181,9 +161,6 @@ def _resolve_impl(root: Path, config) -> str:
                 f"Pruned sources tombstoned in {len(pruned['investigations'])} investigation(s)"
             )
         lines.append("")
-
-    gc.collect()
-    _release_mps_cache()
 
     # --- Phase 1: Process any rendered output files ---
 
@@ -361,10 +338,6 @@ def _resolve_impl(root: Path, config) -> str:
             lines.append(f"  {inv_id}")
         lines.append("")
 
-    guard.check()
-    gc.collect()
-    _release_mps_cache()
-
     # --- Phase 2: Generate sidecars (eager — no batch gates) ---
 
     has_pending = False
@@ -540,10 +513,6 @@ def _resolve_impl(root: Path, config) -> str:
             lines.append(f"  {path}")
         lines.append("")
         has_pending = True
-
-    guard.check()
-    gc.collect()
-    _release_mps_cache()
 
     # --- Phase 3: Report result ---
     if has_pending:
@@ -1245,13 +1214,9 @@ def _apply_normalize(
 
     # Re-run embedding
     try:
-        from research_keeper.adapters.embedder.sentence_transformers import (
-            SentenceTransformerEmbedder,
-        )
+        from research_keeper.adapters.embedder import build_embedder
 
-        emb_cfg = getattr(config, "embeddings", None)
-        model_name = emb_cfg.model if emb_cfg else "nomic-ai/nomic-embed-text-v1.5"
-        embedder = SentenceTransformerEmbedder(model_name=model_name)
+        embedder = build_embedder(config)
 
         title = manifest.get("title")
         chunks = list(chunk_markdown(new_content, title=title))
@@ -1273,9 +1238,9 @@ def _apply_normalize(
             buf_texts.clear()
             buf_ids.clear()
 
-        model_label = getattr(embedder, "_model_name", model_name)
+        model_label = getattr(embedder, "_model_name", "unknown")
         if not isinstance(model_label, str):
-            model_label = model_name
+            model_label = "unknown"
         for chunk in chunks:
             chunk_id = f"{slug}#chunk-{chunk.index}"
             buf_texts.append(chunk.content)

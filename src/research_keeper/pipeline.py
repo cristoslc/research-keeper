@@ -159,8 +159,6 @@ class IntakePipeline:
             )
         else:
             try:
-                import gc
-
                 chunks = list(chunk_markdown(content, title=merged.get("title")))
                 model_name = getattr(self._embedder, "_model_name", "unknown")
                 if not isinstance(model_name, str):
@@ -196,15 +194,6 @@ class IntakePipeline:
 
                 if first_embedding:
                     (emb_dir / "embedding.bin").write_bytes(first_embedding)
-
-                try:
-                    import torch
-
-                    gc.collect()
-                    if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
-                        torch.mps.empty_cache()
-                except Exception:
-                    pass
             except Exception:
                 self.embedding_failed = True
                 logger.warning(
