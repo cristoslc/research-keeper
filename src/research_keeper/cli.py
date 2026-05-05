@@ -112,6 +112,18 @@ def init(path: str) -> None:
 
         subprocess.run(["git", "init"], cwd=str(root), capture_output=True)
 
+    from research_keeper.component_installer import install_all_components
+
+    click.echo("Provisioning components ...")
+    results = install_all_components()
+    for name, status in results.items():
+        if status == "already_installed":
+            click.echo(f"  {name}: already installed")
+        elif status == "installed":
+            click.echo(f"  {name}: installed")
+        else:
+            click.echo(f"  {name}: failed (see logs for details)", err=True)
+
     click.echo(f"Initialized research-keeper at {root}")
 
 
