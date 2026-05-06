@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.16.0] - 2026-05-05
+
+### Features
+
+#### `import-rk` command and `import-trove` manifest validation
+
+`rk import-rk` imports sources, queries, tags, and investigations from
+another rk library, validating each entity against its expected schema
+before import. `rk import-trove` now performs upfront manifest validation
+so incompatible or malformed manifests are rejected before any processing
+begins.
+
+### Supporting Changes
+
+- Directory structure documentation replaced a flat table layout with a tree
+  diagram to clarify that tags/, queries/, and investigations/ are peer
+  directories, not nested inside library/.
+
 ## [1.15.0] - 2026-05-04
 
 ### Features
