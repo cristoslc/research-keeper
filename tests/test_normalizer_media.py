@@ -32,7 +32,7 @@ def _mock_yt_info_and_subs() -> tuple[str | None, dict]:
 def test_youtube_normalization(mock_fetch, normalizer):
     mock_fetch.return_value = _mock_yt_info_and_subs()
 
-    content, meta = normalizer.normalize(
+    content, meta, _ = normalizer.normalize(
         "https://www.youtube.com/watch?v=abc123",
         {},
     )
@@ -60,7 +60,7 @@ def test_youtube_no_subtitles_or_transcript(mock_transcribe, mock_download, mock
     mock_download.return_value = (None, None)  # Tuple (path, tmpdir)
     mock_transcribe.return_value = None
 
-    content, meta = normalizer.normalize(
+    content, meta, _ = normalizer.normalize(
         "https://www.youtube.com/watch?v=abc123",
         {},
     )
@@ -73,7 +73,7 @@ def test_local_audio_title_from_filename(normalizer, tmp_path):
     audio_file = tmp_path / "great-podcast-episode.mp3"
     audio_file.write_bytes(b"fake audio data")
 
-    content, meta = normalizer.normalize(
+    content, meta, _ = normalizer.normalize(
         str(audio_file),
         {},
     )
@@ -213,7 +213,7 @@ def test_instagram_url_routing(mock_browser, mock_ig_subs, normalizer):
         },
     )
 
-    content, meta = normalizer.normalize(
+    content, meta, _ = normalizer.normalize(
         "https://www.instagram.com/reel/abc/",
         {},
     )
@@ -243,7 +243,7 @@ def test_caption_fallback_uses_description(mock_fetch, normalizer):
         },
     )
 
-    content, meta = normalizer.normalize(
+    content, meta, _ = normalizer.normalize(
         "https://www.youtube.com/watch?v=test123",
         {},
     )
@@ -266,7 +266,7 @@ def test_caption_fallback_short_description(mock_fetch, normalizer):
         },
     )
 
-    content, meta = normalizer.normalize(
+    content, meta, _ = normalizer.normalize(
         "https://www.youtube.com/watch?v=short",
         {},
     )
@@ -375,7 +375,7 @@ def test_frame_extraction_enabled_no_subtitles(
     mock_extract.return_value = ["/tmp/frame_000.png", "/tmp/frame_001.png"]
     mock_ocr.return_value = "Text from frames"
 
-    content, meta = normalizer.normalize(
+    content, meta, _ = normalizer.normalize(
         "https://www.youtube.com/watch?v=frames",
         {"enable_frame_extraction": True},
     )

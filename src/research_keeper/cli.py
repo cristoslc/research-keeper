@@ -82,6 +82,9 @@ def init(path: str) -> None:
             "provider": "ollama",
             "model": "nomic-embed-text",
         },
+        "screenshots": {
+            "enabled": True,
+        },
         "completion": {
             "models": {
                 "heavy": "anthropic/claude-opus-4",
@@ -109,6 +112,18 @@ def init(path: str) -> None:
 
         subprocess.run(["git", "init"], cwd=str(root), capture_output=True)
 
+    from research_keeper.component_installer import install_all_components
+
+    click.echo("Provisioning components ...")
+    results = install_all_components()
+    for name, status in results.items():
+        if status == "already_installed":
+            click.echo(f"  {name}: already installed")
+        elif status == "installed":
+            click.echo(f"  {name}: installed")
+        else:
+            click.echo(f"  {name}: failed (see logs for details)", err=True)
+
     click.echo(f"Initialized research-keeper at {root}")
 
 
@@ -135,6 +150,20 @@ def init(path: str) -> None:
     help="Deprecated: use --text instead",
 )
 @click.option("--slug", default=None, help="Override the auto-generated source slug")
+@click.option(
+    "--screenshot",
+    "screenshot_flag",
+    is_flag=True,
+    default=None,
+    help="Force screenshot capture for web sources",
+)
+@click.option(
+    "--no-screenshot",
+    "no_screenshot_flag",
+    is_flag=True,
+    default=None,
+    help="Disable screenshot capture for web sources",
+)
 def add(
     sources: tuple[str, ...],
     root: str,
@@ -145,6 +174,8 @@ def add(
     text_content: str | None,
     content_deprecated: str | None,
     slug: str | None,
+    screenshot_flag: bool | None = None,
+    no_screenshot_flag: bool | None = None,
 ) -> None:
     """Add one or more sources to the library.
 
@@ -163,6 +194,19 @@ def add(
     if content_deprecated is not None and text_content is None:
         text_content = content_deprecated
         click.echo("Warning: --content is deprecated, use --text instead.", err=True)
+
+    if screenshot_flag and no_screenshot_flag:
+        click.echo(
+            "Error: --screenshot and --no-screenshot are mutually exclusive.",
+            err=True,
+        )
+        raise SystemExit(2)
+
+    screenshot_enabled: bool | None = None
+    if screenshot_flag:
+        screenshot_enabled = True
+    elif no_screenshot_flag:
+        screenshot_enabled = False
 
     try:
         root_path = Path(root).resolve()
@@ -195,6 +239,7 @@ def add(
                     investigation_id=investigation,
                     no_prompt=no_prompt,
                     slug=slug,
+                    screenshot_enabled=screenshot_enabled,
                 )
 
                 sidecar_path = None
@@ -237,6 +282,7 @@ def add(
                     investigation_id=investigation,
                     no_prompt=no_prompt,
                     slug=slug,
+                    screenshot_enabled=screenshot_enabled,
                 )
 
                 sidecar_path = None
@@ -410,7 +456,7 @@ def normalize(slug: str, root: str) -> None:
 
         click.echo(f"Re-normalizing {slug} from {original_filename}...")
         try:
-            content, extracted_meta = normalizer.normalize(str(original_path), {})
+            content, extracted_meta, _ = normalizer.normalize(str(original_path), {})
         except NormalizationError as exc:
             click.echo(f"Normalization failed: {exc}", err=True)
             click.echo(

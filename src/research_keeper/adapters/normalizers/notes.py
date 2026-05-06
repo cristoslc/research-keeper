@@ -8,7 +8,9 @@ from pathlib import Path
 class NotesNormalizer:
     """Normalize plain text or markdown notes."""
 
-    def normalize(self, raw: str | bytes, metadata: dict) -> tuple[str, dict]:
+    def normalize(
+        self, raw: str | bytes, metadata: dict, take_screenshot: bool = False
+    ) -> tuple[str, dict, bytes | None]:
         text = raw if isinstance(raw, str) else raw.decode("utf-8", errors="replace")
         text = text.strip()
 
@@ -49,4 +51,4 @@ class NotesNormalizer:
 
         extracted["word_count"] = str(len(content.split()))
 
-        return content, extracted
+        return content, extracted, None

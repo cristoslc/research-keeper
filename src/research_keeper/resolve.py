@@ -208,7 +208,7 @@ def _resolve_impl(root: Path, config) -> str:
             normalizer = normalizers.get(content_type)
             if normalizer is None:
                 continue
-            content, extracted_meta = normalizer.normalize(str(original_path), {})
+            content, extracted_meta, _ = normalizer.normalize(str(original_path), {})
             result = _apply_normalize(
                 root, store, index, slug, content, sidecar_gen, config
             )

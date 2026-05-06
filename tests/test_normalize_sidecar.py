@@ -34,7 +34,7 @@ def pipeline_with_normalize(library_root: Path) -> dict:
     sidecar = SidecarGenerator(library_root)
 
     class FailingDocumentNormalizer:
-        def normalize(self, raw, metadata):
+        def normalize(self, raw, metadata, take_screenshot=False):
             raise NormalizationError("No text found", stage="document-normalize")
 
     normalizers = {

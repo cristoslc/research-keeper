@@ -33,7 +33,7 @@ def normalizer():
 
 def test_simple_article_produces_markdown(normalizer: WebNormalizer):
     html = (FIXTURES / "article_simple.html").read_text()
-    content, meta = normalizer.normalize(html, {"url": "https://example.com/simple"})
+    content, meta, _ = normalizer.normalize(html, {"url": "https://example.com/simple"})
 
     assert "Agent Memory" in content
     assert "short-term memory" in content
@@ -42,7 +42,7 @@ def test_simple_article_produces_markdown(normalizer: WebNormalizer):
 
 def test_meta_tags_extracted(normalizer: WebNormalizer):
     html = (FIXTURES / "article_meta.html").read_text()
-    content, meta = normalizer.normalize(html, {"url": "https://example.com/meta"})
+    content, meta, _ = normalizer.normalize(html, {"url": "https://example.com/meta"})
 
     assert meta["title"] == "Understanding Agent Memory Systems"
     assert meta["author"] == "Jane Doe"
@@ -53,7 +53,7 @@ def test_meta_tags_extracted(normalizer: WebNormalizer):
 
 def test_snapshot_date_present(normalizer: WebNormalizer):
     html = (FIXTURES / "article_simple.html").read_text()
-    content, meta = normalizer.normalize(html, {"url": "https://example.com/simple"})
+    content, meta, _ = normalizer.normalize(html, {"url": "https://example.com/simple"})
 
     assert "snapshot_date" in meta
     assert meta["snapshot_date"] == datetime.date.today().isoformat()
@@ -80,7 +80,7 @@ def test_url_input_fetches_html(normalizer: WebNormalizer):
         mock_traf.bare_extraction.return_value = mock_doc
         mock_traf.extract.return_value = "# Title\n\n" + "Content word. " * 30
 
-        content, meta = normalizer.normalize(
+        content, meta, _ = normalizer.normalize(
             "https://example.com/article",
             {"url": "https://example.com/article"},
         )
@@ -97,7 +97,7 @@ def test_url_fetch_failure_raises(normalizer: WebNormalizer):
 
 def test_word_count_excludes_markdown_syntax(normalizer: WebNormalizer):
     html = (FIXTURES / "article_simple.html").read_text()
-    content, meta = normalizer.normalize(html, {"url": "https://example.com/simple"})
+    content, meta, _ = normalizer.normalize(html, {"url": "https://example.com/simple"})
 
     word_count = int(meta["word_count"])
     assert word_count > 0
@@ -107,7 +107,7 @@ def test_word_count_excludes_markdown_syntax(normalizer: WebNormalizer):
 
 def test_url_metadata_captured(normalizer: WebNormalizer):
     html = (FIXTURES / "article_meta.html").read_text()
-    content, meta = normalizer.normalize(html, {"url": "https://example.com/meta"})
+    content, meta, _ = normalizer.normalize(html, {"url": "https://example.com/meta"})
 
     assert "url" in meta
     assert meta["url"] == "https://example.com/meta"
