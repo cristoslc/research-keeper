@@ -79,6 +79,7 @@ class IntakePipeline:
         investigation_id: str | None = None,
         no_prompt: bool = False,
         slug: str | None = None,
+        screenshot_enabled: bool | None = None,
     ) -> Source:
         metadata = metadata or {}
         self.embedding_failed = False
@@ -96,12 +97,23 @@ class IntakePipeline:
         if normalizer is None:
             raise ValueError(f"No normalizer for content type: {content_type}")
 
+        take_screenshot = False
+        if content_type == "web":
+            if screenshot_enabled is not None:
+                take_screenshot = screenshot_enabled
+            elif hasattr(self._config, "screenshots"):
+                take_screenshot = self._config.screenshots.enabled
+
         normalization_failed = False
         normalization_error_msg = ""
         original_file_path = Path(raw) if is_binary and Path(raw).exists() else None
+        screenshot_bytes: bytes | None = None
 
         try:
-            content, extracted_meta = normalizer.normalize(raw, metadata)
+            result = normalizer.normalize(raw, metadata, take_screenshot=take_screenshot)
+            content = result[0]
+            extracted_meta = result[1]
+            screenshot_bytes = result[2] if len(result) > 2 else None
         except NormalizationError as exc:
             if not is_binary:
                 raise
@@ -114,6 +126,7 @@ class IntakePipeline:
             normalization_error_msg = str(exc)
             content = self._stub_content(raw, content_type, str(exc))
             extracted_meta = {"title": metadata.get("title", Path(raw).stem)}
+            screenshot_bytes = None
 
         # Merge extracted metadata with provided metadata (provided takes precedence)
         merged = {
@@ -146,6 +159,11 @@ class IntakePipeline:
         # Write intake lock now that we know the actual slug
         if self._sidecar:
             self._sidecar.write_intake_lock(source.slug)
+
+        # Store screenshot if captured
+        if screenshot_bytes:
+            screenshot_path = self._store.source_dir(source.slug) / "source.jpg"
+            screenshot_path.write_bytes(screenshot_bytes)
 
         # Index (always -- source is searchable via FTS regardless of embedding)
         self._index.upsert_source(source)

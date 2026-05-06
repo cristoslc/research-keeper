@@ -278,7 +278,7 @@ class TestNormalizationGracefulFailure:
         pdf_path.write_bytes(b"%PDF-1.4 not a real pdf")
 
         class FailingDocumentNormalizer:
-            def normalize(self, raw, metadata):
+            def normalize(self, raw, metadata, take_screenshot=False):
                 raise NormalizationError("No text found", stage="document-normalize")
 
         store = FilesystemSourceStore(library_root)
@@ -319,7 +319,7 @@ class TestNormalizationGracefulFailure:
         pdf_path.write_bytes(b"%PDF-1.4 empty")
 
         class FailingDocumentNormalizer:
-            def normalize(self, raw, metadata):
+            def normalize(self, raw, metadata, take_screenshot=False):
                 raise NormalizationError("No text", stage="document-normalize")
 
         store = FilesystemSourceStore(library_root)
@@ -353,7 +353,7 @@ class TestNormalizationGracefulFailure:
         from research_keeper.ports.normalizer import NormalizationError
 
         class FailingNoteNormalizer:
-            def normalize(self, raw, metadata):
+            def normalize(self, raw, metadata, take_screenshot=False):
                 raise NormalizationError("Broken", stage="note-normalize")
 
         store = FilesystemSourceStore(library_root)

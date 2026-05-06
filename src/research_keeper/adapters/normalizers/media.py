@@ -550,7 +550,7 @@ def _extract_recipe_metadata(transcript: str) -> dict:
 class MediaNormalizer:
     """Normalize media (YouTube, Instagram, audio) to markdown content."""
 
-    def normalize(self, raw: str | bytes, metadata: dict) -> tuple[str, dict]:
+    def normalize(self, raw: str | bytes, metadata: dict, take_screenshot: bool = False) -> tuple[str, dict, bytes | None]:
         text = raw if isinstance(raw, str) else raw.decode("utf-8")
 
         # Check for frame extraction opt-in
@@ -559,15 +559,18 @@ class MediaNormalizer:
         if text.startswith(("http://", "https://")) and re.search(
             r"(youtube\.com|youtu\.be)", text
         ):
-            return self._normalize_youtube(text, metadata, enable_frame_extraction)
+            result = self._normalize_youtube(text, metadata, enable_frame_extraction)
+            return result[0], result[1], None
 
         if _is_instagram_url(text):
-            return self._normalize_instagram(text, metadata, enable_frame_extraction)
+            result = self._normalize_instagram(text, metadata, enable_frame_extraction)
+            return result[0], result[1], None
 
         # Check for local audio file
         path = Path(text)
         if path.suffix.lower() in AUDIO_EXTENSIONS:
-            return self._normalize_audio(path, metadata)
+            result = self._normalize_audio(path, metadata)
+            return result[0], result[1], None
 
         raise NormalizationError(
             f"Unsupported media format: {text}", stage="media-normalize"
@@ -591,7 +594,7 @@ class MediaNormalizer:
         # Try subtitles first (manual then auto-captions)
         if subtitles:
             content = f"# {extracted['title']}\n\n{subtitles}"
-            return content, extracted
+            return content, extracted, None
 
         # Caption fallback: use description if >100 non-hashtag chars
         description = info.get("description", "") or info.get("description_html", "")
@@ -601,7 +604,7 @@ class MediaNormalizer:
             if len(clean_desc) > 100:
                 content = f"# {extracted['title']}\n\n{clean_desc}"
                 extracted["transcript_source"] = "description"
-                return content, extracted
+                return content, extracted, None
 
         # No subtitles — try whisper transcription
         audio_path, audio_tmpdir = _download_youtube_audio(url)
@@ -610,7 +613,7 @@ class MediaNormalizer:
                 transcript = _transcribe_audio(audio_path)
                 if transcript:
                     content = f"# {extracted['title']}\n\n{transcript}"
-                    return content, extracted
+                    return content, extracted, None
             finally:
                 # Cleanup temp directory
                 if audio_tmpdir:
@@ -629,7 +632,7 @@ class MediaNormalizer:
                         if ocr_text:
                             content = f"# {extracted['title']}\n\n{ocr_text}"
                             extracted["transcript_source"] = "ocr"
-                            return content, extracted
+                            return content, extracted, None
                 finally:
                     # Cleanup temp directory
                     if video_tmpdir:
@@ -639,7 +642,7 @@ class MediaNormalizer:
 
         # Nothing worked
         content = f"# {extracted['title']}\n\n(No transcript available)"
-        return content, extracted
+        return content, extracted, None
 
     def _normalize_instagram(
         self, url: str, metadata: dict, enable_frame_extraction: bool = False
@@ -662,7 +665,7 @@ class MediaNormalizer:
 
         if subtitles:
             content = f"# {extracted['title']}\n\n{subtitles}"
-            return content, extracted
+            return content, extracted, None
 
         # No subtitles — try description fallback
         description = info.get("description", "")
@@ -672,7 +675,7 @@ class MediaNormalizer:
             if len(clean_desc) > 100:
                 content = f"# {extracted['title']}\n\n{clean_desc}"
                 extracted["transcript_source"] = "description"
-                return content, extracted
+                return content, extracted, None
 
         # Frame extraction fallback (opt-in only)
         if enable_frame_extraction:
@@ -688,7 +691,7 @@ class MediaNormalizer:
                         if ocr_text:
                             content = f"# {extracted['title']}\n\n{ocr_text}"
                             extracted["transcript_source"] = "ocr"
-                            return content, extracted
+                            return content, extracted, None
                 finally:
                     # Cleanup temp directory
                     if video_tmpdir:
@@ -697,7 +700,7 @@ class MediaNormalizer:
                         shutil.rmtree(video_tmpdir, ignore_errors=True)
 
         content = f"# {extracted['title']}\n\n(No transcript available)"
-        return content, extracted
+        return content, extracted, None
 
     def _normalize_audio(self, path: Path, metadata: dict) -> tuple[str, dict]:
         title = (
@@ -716,7 +719,7 @@ class MediaNormalizer:
         transcript = _transcribe_audio(str(path))
         if transcript:
             content = f"# {title}\n\n{transcript}"
-            return content, extracted
+            return content, extracted, None
 
         content = f"# {title}\n\n(Audio transcription not available)"
-        return content, extracted
+        return content, extracted, None

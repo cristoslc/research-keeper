@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+import logging
 import re
 from html.parser import HTMLParser
 from typing import Any
@@ -11,6 +12,8 @@ from research_keeper.ports.normalizer import NormalizationError
 import trafilatura
 
 MIN_WORD_COUNT = 50
+
+_logger = logging.getLogger(__name__)
 
 
 def _strip_markdown_syntax(text: str) -> str:
@@ -76,20 +79,26 @@ class _MetaTagParser(HTMLParser):
 class WebNormalizer:
     """Normalize web page HTML to markdown content."""
 
-    def normalize(self, raw: str | bytes, metadata: dict) -> tuple[str, dict]:
+    def normalize(
+        self, raw: str | bytes, metadata: dict, take_screenshot: bool = False
+    ) -> tuple[str, dict, bytes | None]:
         html = raw if isinstance(raw, str) else raw.decode("utf-8", errors="replace")
 
         url = metadata.get("url", "")
+        screenshot_bytes: bytes | None = None
 
         if isinstance(html, str) and re.match(r"https?://\S+$", html.strip()):
             url = html.strip()
-            fetched = trafilatura.fetch_url(url)
-            if fetched is None:
-                raise NormalizationError(
-                    f"Failed to fetch URL: {url}",
-                    stage="web-normalize",
-                )
-            html = fetched
+            if take_screenshot:
+                html, screenshot_bytes = self._fetch_and_screenshot(url)
+            else:
+                fetched = trafilatura.fetch_url(url)
+                if fetched is None:
+                    raise NormalizationError(
+                        f"Failed to fetch URL: {url}",
+                        stage="web-normalize",
+                    )
+                html = fetched
 
         parser = _MetaTagParser()
         parser.feed(html)
@@ -177,4 +186,38 @@ class WebNormalizer:
 
         extracted["snapshot_date"] = datetime.date.today().isoformat()
 
-        return content, extracted
+        return content, extracted, screenshot_bytes
+
+    def _fetch_and_screenshot(self, url: str) -> tuple[str, bytes | None]:
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            _logger.warning(
+                "playwright not installed, skipping screenshot for %s", url
+            )
+            fetched = trafilatura.fetch_url(url)
+            if fetched is None:
+                raise NormalizationError(
+                    f"Failed to fetch URL: {url}",
+                    stage="web-normalize",
+                )
+            return fetched, None
+
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
+                page.goto(url, wait_until="networkidle")
+                html = page.content()
+                screenshot_bytes = page.screenshot(full_page=True, type="jpeg")
+                browser.close()
+                return html, screenshot_bytes
+        except Exception as exc:
+            _logger.warning("Screenshot failed for %s: %s", url, exc)
+            fetched = trafilatura.fetch_url(url)
+            if fetched is None:
+                raise NormalizationError(
+                    f"Failed to fetch URL: {url}",
+                    stage="web-normalize",
+                )
+            return fetched, None

@@ -28,7 +28,7 @@ class DocumentNormalizer:
     Falls back to basic pymupdf text extraction if pymupdf4llm is missing.
     """
 
-    def normalize(self, raw: str | bytes, metadata: dict) -> tuple[str, dict]:
+    def normalize(self, raw: str | bytes, metadata: dict, take_screenshot: bool = False) -> tuple[str, dict, bytes | None]:
         path = raw if isinstance(raw, str) else raw.decode("utf-8")
 
         if not Path(path).exists():
@@ -38,7 +38,7 @@ class DocumentNormalizer:
             )
 
         try:
-            return self._do_normalize(path, metadata)
+            content, meta = self._do_normalize(path, metadata)
         except NormalizationError:
             raise
         except Exception as exc:
@@ -46,6 +46,8 @@ class DocumentNormalizer:
                 f"Failed to process document: {exc}",
                 stage="document-normalize",
             ) from exc
+
+        return content, meta, None
 
     def _do_normalize(self, path: str, metadata: dict) -> tuple[str, dict]:
         page_count, doc_meta = self._get_doc_info(path)
