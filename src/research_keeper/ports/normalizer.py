@@ -7,4 +7,6 @@ class NormalizationError(Exception):
         super().__init__(f"[{stage}] {message}")
 
 class Normalizer(Protocol):
-    def normalize(self, raw: str | bytes, metadata: dict) -> tuple[str, dict]: ...
+    def normalize(
+        self, raw: str | bytes, metadata: dict, take_screenshot: bool = False
+    ) -> tuple[str, dict, bytes | None]: ...

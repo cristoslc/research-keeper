@@ -241,7 +241,7 @@ class TestXThreadNormalizer:
             "research_keeper.adapters.normalizers.x_thread._fetch_thread",
             return_value=_make_api_response(posts),
         ):
-            content, meta = self._normalizer().normalize(
+            content, meta, _ = self._normalizer().normalize(
                 "https://x.com/alice/status/1", {}
             )
         assert "A single tweet about widgets" in content
@@ -259,7 +259,7 @@ class TestXThreadNormalizer:
             "research_keeper.adapters.normalizers.x_thread._fetch_thread",
             return_value=_make_api_response(posts),
         ):
-            content, meta = self._normalizer().normalize(
+            content, meta, _ = self._normalizer().normalize(
                 "https://x.com/alice/status/1", {}
             )
         assert "[1/3]" in content
@@ -283,7 +283,7 @@ class TestXThreadNormalizer:
             "research_keeper.adapters.normalizers.x_thread._fetch_thread",
             return_value=_make_api_response(posts),
         ):
-            content, _ = self._normalizer().normalize(
+            content, _, _ = self._normalizer().normalize(
                 "https://x.com/alice/status/1", {}
             )
         assert "[1/1]" in content
@@ -310,7 +310,7 @@ class TestXThreadNormalizer:
             "research_keeper.adapters.normalizers.x_thread._fetch_thread",
             return_value=_make_api_response(posts),
         ):
-            content, meta = self._normalizer().normalize(
+            content, meta, _ = self._normalizer().normalize(
                 "https://x.com/alice/status/1", {}
             )
         assert "Why embeddings matter" in content
@@ -329,5 +329,5 @@ class TestXThreadNormalizer:
             return_value=_make_api_response(posts),
         ):
             for url in urls:
-                content, _ = self._normalizer().normalize(url, {})
+                content, _, _ = self._normalizer().normalize(url, {})
                 assert "[1/1]" in content

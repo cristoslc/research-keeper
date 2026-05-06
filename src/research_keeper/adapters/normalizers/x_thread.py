@@ -210,7 +210,7 @@ def _make_title(root: dict) -> str:
 class XThreadNormalizer:
     """Normalize X/Twitter thread URLs to structured markdown."""
 
-    def normalize(self, raw: str | bytes, metadata: dict) -> tuple[str, dict]:
+    def normalize(self, raw: str | bytes, metadata: dict, take_screenshot: bool = False) -> tuple[str, dict, bytes | None]:
         url = raw if isinstance(raw, str) else raw.decode("utf-8")
         url = url.strip()
 
@@ -280,4 +280,4 @@ class XThreadNormalizer:
             if iso_date:
                 extracted_meta["published"] = iso_date
 
-        return content, extracted_meta
+        return content, extracted_meta, None

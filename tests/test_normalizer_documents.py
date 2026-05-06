@@ -44,7 +44,7 @@ def empty_pdf(tmp_path: Path) -> Path:
 
 def test_text_pdf_extraction(text_pdf: Path):
     normalizer = DocumentNormalizer()
-    content, meta = normalizer.normalize(
+    content, meta, _ = normalizer.normalize(
         str(text_pdf),
         {"url": str(text_pdf)},
     )
@@ -55,20 +55,20 @@ def test_text_pdf_extraction(text_pdf: Path):
 
 def test_text_pdf_produces_markdown(text_pdf: Path):
     normalizer = DocumentNormalizer()
-    content, _ = normalizer.normalize(str(text_pdf), {})
+    content, _, _ = normalizer.normalize(str(text_pdf), {})
     assert isinstance(content, str)
     assert len(content.strip()) > 0
 
 
 def test_title_from_content(text_pdf: Path):
     normalizer = DocumentNormalizer()
-    _, meta = normalizer.normalize(str(text_pdf), {})
+    _, meta, _ = normalizer.normalize(str(text_pdf), {})
     assert meta["title"]
 
 
 def test_title_extracts_heading_hash_stripped(text_pdf: Path):
     normalizer = DocumentNormalizer()
-    content, meta = normalizer.normalize(str(text_pdf), {})
+    content, meta, _ = normalizer.normalize(str(text_pdf), {})
     title = meta["title"]
     assert not title.startswith("#"), f"Title should not start with #: {title!r}"
 
@@ -81,7 +81,7 @@ def test_empty_pdf_raises(empty_pdf: Path):
 
 def test_metadata_title_override(text_pdf: Path):
     normalizer = DocumentNormalizer()
-    _, meta = normalizer.normalize(str(text_pdf), {"title": "Custom Title"})
+    _, meta, _ = normalizer.normalize(str(text_pdf), {"title": "Custom Title"})
     assert meta["title"] == "Custom Title"
 
 
@@ -96,6 +96,6 @@ def test_fallback_to_basic_when_pymupdf4llm_unavailable(text_pdf: Path, monkeypa
     monkeypatch.setattr(
         "research_keeper.adapters.normalizers.documents.pymupdf4llm", None
     )
-    content, meta = normalizer.normalize(str(text_pdf), {})
+    content, meta, _ = normalizer.normalize(str(text_pdf), {})
     assert "memory" in content.lower()
     assert int(meta["page_count"]) == 1
