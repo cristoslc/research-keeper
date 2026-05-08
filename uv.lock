@@ -934,7 +934,7 @@ wheels = [
 
 [[package]]
 name = "magic-wormhole"
-version = "0.23.0"
+version = "0.24.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -953,9 +953,9 @@ dependencies = [
     { name = "txtorcon" },
     { name = "zipstream-ng" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/02/0e/b00b4a0de6d82b25f30a2405e3640c508b18dd3544d0104efe2d6c161719/magic_wormhole-0.23.0.tar.gz", hash = "sha256:4cd8f48a5c47f70578be7063f892988177681ab66845f4d6ad2d5eb03ce82acf", size = 313621, upload-time = "2026-03-10T23:00:35.676Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d7/8c/964308aeed7b828ca726da4bbfcc8f2bc89713b39ba768e24ce6331b30f3/magic_wormhole-0.24.0.tar.gz", hash = "sha256:c01b4815878e5fbcad7a22cfa190c529349bf271164189a0ad955a34a8d4cde0", size = 308777, upload-time = "2026-05-05T16:36:37.332Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4f/f5/298836eaa5a97dca1e604c4a4abbad93ce9dc071f1e69d1ebf7d2b677c39/magic_wormhole-0.23.0-py3-none-any.whl", hash = "sha256:2b6001733167ecae09478d3e8d366e669eb4cacf690a6255dd3837d58ff39913", size = 213491, upload-time = "2026-03-10T23:00:32.577Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/f4/e10f3fd5856f8d7172b56a02ec8312c5f472aa5f569701042da45faabc7b/magic_wormhole-0.24.0-py3-none-any.whl", hash = "sha256:312d7d55cba76fe443fd207b1e006d12b7c56699961ed6dce46bed765945e712", size = 213579, upload-time = "2026-05-05T16:36:35.584Z" },
 ]
 
 [[package]]
@@ -1919,7 +1919,7 @@ wheels = [
 
 [[package]]
 name = "research-keeper"
-version = "1.15.0"
+version = "1.16.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -1969,7 +1969,7 @@ requires-dist = [
     { name = "faster-whisper", marker = "extra == 'media'", specifier = ">=1.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "jinja2", specifier = ">=3.1" },
-    { name = "magic-wormhole", specifier = ">=0.14" },
+    { name = "magic-wormhole", specifier = ">=0.24.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
     { name = "playwright", specifier = ">=1.50" },
     { name = "psutil", specifier = ">=7.2.2" },
