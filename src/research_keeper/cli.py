@@ -797,9 +797,24 @@ def _count_investigation_links(root_path: Path, slug: str) -> int:
     return count
 
 
-@main.command()
+@main.group(invoke_without_command=True)
 @click.option("--root", type=click.Path(exists=True), default=".")
-def tags(root: str) -> None:
+@click.pass_context
+def tags(ctx: click.Context, root: str) -> None:
+    """List and manage tags."""
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(tags_list, root=root)
+
+
+@tags.command("list")
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option(
+    "--sort",
+    type=click.Choice(["alpha", "sources-asc", "sources-desc", "updated-asc", "updated-desc"]),
+    default="alpha",
+    help="Sort order for tags (default: alpha)",
+)
+def tags_list(root: str, sort: str) -> None:
     """List all tags with source counts."""
     try:
         root_path = Path(root).resolve()
@@ -813,12 +828,28 @@ def tags(root: str) -> None:
             click.echo("No tags yet.")
             return
 
+        rows: list[tuple[str, int, bool, str | None]] = []
         for tag_slug in tag_list:
             source_slugs = tag_store.sources_for_tag(tag_slug)
-            meta = tag_store.get_meta(tag_slug)
             has_synthesis = (tag_store.tag_dir(tag_slug) / "synthesis.md").exists()
+            meta = tag_store.get_meta(tag_slug)
+            last_syn = (meta or {}).get("last_synthesized")
+            rows.append((tag_slug, len(source_slugs), has_synthesis, last_syn))
+
+        if sort == "alpha":
+            rows.sort(key=lambda r: r[0])
+        elif sort == "sources-asc":
+            rows.sort(key=lambda r: (r[1], r[0]))
+        elif sort == "sources-desc":
+            rows.sort(key=lambda r: (-r[1], r[0]))
+        elif sort == "updated-asc":
+            rows.sort(key=lambda r: (r[3] or "", r[0]))
+        elif sort == "updated-desc":
+            rows.sort(key=lambda r: (r[3] or "", r[0]), reverse=True)
+
+        for tag_slug, count, has_synthesis, _last_syn in rows:
             synth_marker = "+" if has_synthesis else "-"
-            click.echo(f"  {tag_slug} ({len(source_slugs)} sources) [{synth_marker}]")
+            click.echo(f"  {tag_slug} ({count} sources) [{synth_marker}]")
     except Exception as exc:
         _handle_error(exc)
 
