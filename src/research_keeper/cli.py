@@ -802,6 +802,8 @@ def _count_investigation_links(root_path: Path, slug: str) -> int:
 @click.pass_context
 def tags(ctx: click.Context, root: str) -> None:
     """List and manage tags."""
+    ctx.ensure_object(dict)
+    ctx.obj["root"] = root
     if ctx.invoked_subcommand is None:
         ctx.invoke(tags_list, root=root)
 
@@ -814,10 +816,14 @@ def tags(ctx: click.Context, root: str) -> None:
     default="alpha",
     help="Sort order for tags (default: alpha)",
 )
-def tags_list(root: str, sort: str) -> None:
+@click.pass_context
+def tags_list(ctx: click.Context, root: str, sort: str) -> None:
     """List all tags with source counts."""
     try:
-        root_path = Path(root).resolve()
+        effective_root = root
+        if root == "." and ctx.parent and ctx.parent.obj:
+            effective_root = ctx.parent.obj.get("root", root)
+        root_path = Path(effective_root).resolve()
 
         from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
 
@@ -843,9 +849,10 @@ def tags_list(root: str, sort: str) -> None:
         elif sort == "sources-desc":
             rows.sort(key=lambda r: (-r[1], r[0]))
         elif sort == "updated-asc":
-            rows.sort(key=lambda r: (r[3] or "", r[0]))
+            rows.sort(key=lambda r: (r[3] if r[3] is not None else "", r[0]))
         elif sort == "updated-desc":
-            rows.sort(key=lambda r: (r[3] or "", r[0]), reverse=True)
+            rows.sort(key=lambda r: r[0])
+            rows.sort(key=lambda r: r[3] if r[3] is not None else "", reverse=True)
 
         for tag_slug, count, has_synthesis, _last_syn in rows:
             synth_marker = "+" if has_synthesis else "-"
