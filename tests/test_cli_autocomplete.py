@@ -90,3 +90,42 @@ def test_autocomplete_detect_from_shell(runner: CliRunner, home_zsh: Path):
     result = runner.invoke(main, ["autocomplete", "enable"])
     assert result.exit_code == 0, result.output
     assert "_RK_COMPLETE=zsh_source rk" in zshrc.read_text()
+
+
+def test_autocomplete_shell_unset_error(runner: CliRunner):
+    shell = os.environ.pop("SHELL", None)
+    try:
+        result = runner.invoke(main, ["autocomplete", "enable"])
+        assert result.exit_code != 0
+        assert "SHELL" in result.output.upper() or "unset" in result.output.lower()
+    finally:
+        if shell is not None:
+            os.environ["SHELL"] = shell
+
+
+def test_autocomplete_disable_nested_markers(runner: CliRunner, home_zsh: Path):
+    zshrc = home_zsh / ".zshrc"
+    content = (
+        "some content\n"
+        "# rk autocomplete start\n"
+        "eval outer\n"
+        "# rk autocomplete start\n"
+        "eval inner\n"
+        "# rk autocomplete end\n"
+        "# rk autocomplete end\n"
+        "remaining\n"
+    )
+    zshrc.write_text(content)
+    result = runner.invoke(main, ["autocomplete", "disable", "--shell", "zsh"])
+    assert result.exit_code == 0
+    assert "# rk autocomplete start" not in zshrc.read_text()
+    assert "# rk autocomplete end" not in zshrc.read_text()
+    assert "remaining" in zshrc.read_text()
+
+
+def test_autocomplete_disable_no_mkdir(runner: CliRunner, home_zsh: Path):
+    config_dir = home_zsh / ".config" / "fish"
+    assert not config_dir.exists()
+    result = runner.invoke(main, ["autocomplete", "disable", "--shell", "fish"])
+    assert result.exit_code == 0
+    assert not config_dir.exists()

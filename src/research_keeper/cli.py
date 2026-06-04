@@ -1803,15 +1803,20 @@ SHELL_CONFIGS = {
 def _parse_shells(shell_arg: str) -> list[str]:
     """Parse --shell value into list of shell names. Empty means auto-detect."""
     if shell_arg:
-        raw = [s.strip() for s in shell_arg.split(",")]
+        shells = [s.strip() for s in shell_arg.split(",")]
     else:
         raw_shell = os.environ.get("SHELL", "")
-        raw = [Path(raw_shell).name] if raw_shell else []
-    for s in raw:
+        if not raw_shell:
+            raise click.ClickException(
+                "Cannot detect shell: $SHELL is unset. "
+                "Use --shell to specify one or more shells."
+            )
+        shells = [Path(raw_shell).name]
+    for s in shells:
         if s not in SHELL_CONFIGS:
             supported = ", ".join(sorted(SHELL_CONFIGS))
             raise click.ClickException(f"Unsupported shell: {s}. Supported: {supported}")
-    return raw
+    return shells
 
 
 def _resolve_rc(shell: str) -> Path:
@@ -1820,12 +1825,12 @@ def _resolve_rc(shell: str) -> Path:
     if config is None:
         supported = ", ".join(sorted(SHELL_CONFIGS))
         raise click.ClickException(f"Unsupported shell: {shell}. Supported: {supported}")
-    rc_path = Path(config["rc_file"]).expanduser()
-    rc_path.parent.mkdir(parents=True, exist_ok=True)
+    rc_path = Path(config["rc_file"]).expanduser().resolve()
     return rc_path
 
 
 def _autocomplete_line(shell: str) -> str:
+    """Generate the eval line for a shell's completion."""
     config = SHELL_CONFIGS[shell]
     return f'eval "$(_RK_COMPLETE={config["completion_var"]} rk)"'
 
@@ -1842,11 +1847,12 @@ def _is_enabled(rc_path: Path) -> bool:
 
 def _enable_shell(shell: str) -> None:
     rc_path = _resolve_rc(shell)
+    rc_path.parent.mkdir(parents=True, exist_ok=True)
     if _is_enabled(rc_path):
         return
-    block = f"\n{MARKER_START}\n{_autocomplete_line(shell)}\n{MARKER_END}\n"
+    block = f"{MARKER_START}\n{_autocomplete_line(shell)}\n{MARKER_END}\n"
     with rc_path.open("a") as f:
-        f.write(block)
+        f.write(f"\n{block}" if rc_path.stat().st_size > 0 else block)
     click.echo(f"Enabled rk autocomplete for: {shell}")
     click.echo(f"To activate in this shell, run: source {rc_path}")
 
@@ -1860,14 +1866,14 @@ def _disable_shell(shell: str) -> None:
         return
     lines = content.splitlines(keepends=True)
     new_lines: list[str] = []
-    skip = False
+    depth = 0
     for line in lines:
         if MARKER_START in line:
-            skip = True
-        if not skip:
+            depth += 1
+        if depth == 0:
             new_lines.append(line)
         if MARKER_END in line:
-            skip = False
+            depth -= 1
     rc_path.write_text("".join(new_lines))
 
 
