@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import traceback
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
@@ -1790,6 +1791,113 @@ def install(runtime_slugs: tuple[str, ...], global_install: bool) -> None:
     click.echo(
         f"Installed rk skill for {names} ({count} runtime{'s' if count > 1 else ''})"
     )
+
+
+SHELL_CONFIGS = {
+    "zsh": {"rc_file": "~/.zshrc", "completion_var": "zsh_source"},
+    "bash": {"rc_file": "~/.bashrc", "completion_var": "bash_source"},
+    "fish": {"rc_file": "~/.config/fish/config.fish", "completion_var": "fish_source"},
+}
+
+
+def _parse_shells(shell_arg: str) -> list[str]:
+    """Parse --shell value into list of shell names. Empty means auto-detect."""
+    if shell_arg:
+        shells = [s.strip() for s in shell_arg.split(",")]
+    else:
+        raw_shell = os.environ.get("SHELL", "")
+        if not raw_shell:
+            raise click.ClickException(
+                "Cannot detect shell: $SHELL is unset. "
+                "Use --shell to specify one or more shells."
+            )
+        shells = [Path(raw_shell).name]
+    for s in shells:
+        if s not in SHELL_CONFIGS:
+            supported = ", ".join(sorted(SHELL_CONFIGS))
+            raise click.ClickException(f"Unsupported shell: {s}. Supported: {supported}")
+    return shells
+
+
+def _resolve_rc(shell: str) -> Path:
+    """Return the rc file Path for a shell, expanding ~."""
+    config = SHELL_CONFIGS.get(shell)
+    if config is None:
+        supported = ", ".join(sorted(SHELL_CONFIGS))
+        raise click.ClickException(f"Unsupported shell: {shell}. Supported: {supported}")
+    rc_path = Path(config["rc_file"]).expanduser().resolve()
+    return rc_path
+
+
+def _autocomplete_line(shell: str) -> str:
+    """Generate the eval line for a shell's completion."""
+    config = SHELL_CONFIGS[shell]
+    return f'eval "$(_RK_COMPLETE={config["completion_var"]} rk)"'
+
+
+MARKER_START = "# rk autocomplete start"
+MARKER_END = "# rk autocomplete end"
+
+
+def _is_enabled(rc_path: Path) -> bool:
+    if not rc_path.exists():
+        return False
+    return MARKER_START in rc_path.read_text()
+
+
+def _enable_shell(shell: str) -> None:
+    rc_path = _resolve_rc(shell)
+    rc_path.parent.mkdir(parents=True, exist_ok=True)
+    if _is_enabled(rc_path):
+        return
+    block = f"{MARKER_START}\n{_autocomplete_line(shell)}\n{MARKER_END}\n"
+    with rc_path.open("a") as f:
+        f.write(f"\n{block}" if rc_path.stat().st_size > 0 else block)
+    click.echo(f"Enabled rk autocomplete for: {shell}")
+    click.echo(f"To activate in this shell, run: source {rc_path}")
+
+
+def _disable_shell(shell: str) -> None:
+    rc_path = _resolve_rc(shell)
+    if not rc_path.exists():
+        return
+    content = rc_path.read_text()
+    if MARKER_START not in content:
+        return
+    lines = content.splitlines(keepends=True)
+    new_lines: list[str] = []
+    depth = 0
+    for line in lines:
+        if MARKER_START in line:
+            depth += 1
+        if depth == 0:
+            new_lines.append(line)
+        if MARKER_END in line:
+            depth -= 1
+    rc_path.write_text("".join(new_lines))
+
+
+@main.group()
+def autocomplete() -> None:
+    """Manage rk shell completion."""
+
+
+@autocomplete.command("enable")
+@click.option("--shell", default="", help="Comma-separated shells (default: auto-detect from $SHELL)")
+def autocomplete_enable(shell: str) -> None:
+    """Install shell completion for rk."""
+    shells = _parse_shells(shell)
+    for s in shells:
+        _enable_shell(s)
+
+
+@autocomplete.command("disable")
+@click.option("--shell", default="", help="Comma-separated shells (default: auto-detect from $SHELL)")
+def autocomplete_disable(shell: str) -> None:
+    """Remove rk shell completion."""
+    shells = _parse_shells(shell)
+    for s in shells:
+        _disable_shell(s)
 
 
 @main.group()
