@@ -7,7 +7,7 @@ dependencies = [
     "click>=8.0",
     "httpx>=0.27",
     "jinja2>=3.1",
-    "magic-wormhole>=0.14",
+    "magic-wormhole>=0.24",
     "playwright>=1.50",
     "psutil>=7.2.2",
     "pyyaml>=6.0",
@@ -36,7 +36,13 @@ build-backend = "hatchling.build"
 packages = ["src/research_keeper"]
 
 [tool.uv]
-constraint-dependencies = ["twisted>=26.4.0rc2"]
+constraint-dependencies = [
+    "idna>=3.15",
+    "python-multipart>=0.0.27",
+    "twisted>=26.4.0rc2",
+    "ujson>=5.12.1",
+    "urllib3>=2.7.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
