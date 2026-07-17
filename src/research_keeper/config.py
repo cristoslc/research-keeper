@@ -70,6 +70,11 @@ class ScreenshotsConfig:
 
 
 @dataclass
+class VideoConfig:
+    enabled: bool = True
+
+
+@dataclass
 class CompletionConfig:
     models: dict[str, str] = field(
         default_factory=lambda: {
@@ -104,6 +109,7 @@ class Config:
     embeddings: EmbeddingsConfig = field(default_factory=EmbeddingsConfig)
     qmd: QMDConfig = field(default_factory=QMDConfig)
     screenshots: ScreenshotsConfig = field(default_factory=ScreenshotsConfig)
+    video: VideoConfig = field(default_factory=VideoConfig)
     completion: CompletionConfig = field(default_factory=CompletionConfig)
 
     def resolve_root(self, config_parent: Path) -> Path:
@@ -132,6 +138,7 @@ def load_config(path: Path) -> Config:
         ("embeddings", config.embeddings),
         ("qmd", config.qmd),
         ("screenshots", config.screenshots),
+        ("video", config.video),
         ("completion", config.completion),
     ]:
         if section_name in raw and isinstance(raw[section_name], dict):

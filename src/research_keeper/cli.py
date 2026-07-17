@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import traceback
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
@@ -82,6 +83,12 @@ def init(path: str) -> None:
             "provider": "ollama",
             "model": "nomic-embed-text",
         },
+        "screenshots": {
+            "enabled": True,
+        },
+        "video": {
+            "enabled": True,
+        },
         "completion": {
             "models": {
                 "heavy": "anthropic/claude-opus-4",
@@ -104,10 +111,42 @@ def init(path: str) -> None:
     (root / ".gitignore").write_text("rk.db\n__pycache__/\n")
 
     # Init git if not already a repo
-    if not (root / ".git").exists():
-        import subprocess
+    import subprocess
 
+    if not (root / ".git").exists():
         subprocess.run(["git", "init"], cwd=str(root), capture_output=True)
+
+    # Set up Git LFS for binary file tracking
+    from research_keeper.lfs import setup_lfs
+
+    lfs_results = setup_lfs(root)
+    if lfs_results.get("install") is True and lfs_results.get("init") is True:
+        click.echo("Git LFS configured for binary file tracking.")
+        # Stage and commit .gitattributes
+        subprocess.run(
+            ["git", "add", ".gitattributes"],
+            cwd=str(root),
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "rk: add .gitattributes for Git LFS tracking"],
+            cwd=str(root),
+            capture_output=True,
+        )
+    else:
+        click.echo("Warning: Git LFS setup incomplete. Binary files will not be tracked.", err=True)
+
+    from research_keeper.component_installer import install_all_components
+
+    click.echo("Provisioning components ...")
+    results = install_all_components()
+    for name, status in results.items():
+        if status == "already_installed":
+            click.echo(f"  {name}: already installed")
+        elif status == "installed":
+            click.echo(f"  {name}: installed")
+        else:
+            click.echo(f"  {name}: failed (see logs for details)", err=True)
 
     click.echo(f"Initialized research-keeper at {root}")
 
@@ -135,6 +174,27 @@ def init(path: str) -> None:
     help="Deprecated: use --text instead",
 )
 @click.option("--slug", default=None, help="Override the auto-generated source slug")
+@click.option(
+    "--screenshot",
+    "screenshot_flag",
+    is_flag=True,
+    default=None,
+    help="Force screenshot capture for web sources",
+)
+@click.option(
+    "--no-screenshot",
+    "no_screenshot_flag",
+    is_flag=True,
+    default=None,
+    help="Disable screenshot capture for web sources",
+)
+@click.option(
+    "--no-video",
+    "no_video_flag",
+    is_flag=True,
+    default=None,
+    help="Disable video download for media sources",
+)
 def add(
     sources: tuple[str, ...],
     root: str,
@@ -145,6 +205,9 @@ def add(
     text_content: str | None,
     content_deprecated: str | None,
     slug: str | None,
+    screenshot_flag: bool | None = None,
+    no_screenshot_flag: bool | None = None,
+    no_video_flag: bool | None = None,
 ) -> None:
     """Add one or more sources to the library.
 
@@ -163,6 +226,23 @@ def add(
     if content_deprecated is not None and text_content is None:
         text_content = content_deprecated
         click.echo("Warning: --content is deprecated, use --text instead.", err=True)
+
+    if screenshot_flag and no_screenshot_flag:
+        click.echo(
+            "Error: --screenshot and --no-screenshot are mutually exclusive.",
+            err=True,
+        )
+        raise SystemExit(2)
+
+    screenshot_enabled: bool | None = None
+    if screenshot_flag:
+        screenshot_enabled = True
+    elif no_screenshot_flag:
+        screenshot_enabled = False
+
+    download_video: bool | None = None
+    if no_video_flag:
+        download_video = False
 
     try:
         root_path = Path(root).resolve()
@@ -187,6 +267,8 @@ def add(
                 metadata["origin"] = origin
             if published:
                 metadata["published"] = published
+            if download_video is not None:
+                metadata["download_video"] = download_video
 
             try:
                 source = pipeline.add(
@@ -195,6 +277,7 @@ def add(
                     investigation_id=investigation,
                     no_prompt=no_prompt,
                     slug=slug,
+                    screenshot_enabled=screenshot_enabled,
                 )
 
                 sidecar_path = None
@@ -225,6 +308,8 @@ def add(
                     metadata["origin"] = origin
                 if published:
                     metadata["published"] = published
+                if download_video is not None:
+                    metadata["download_video"] = download_video
                 metadata.update(transport_result.metadata)
 
                 if not origin and "origin" not in metadata:
@@ -237,6 +322,7 @@ def add(
                     investigation_id=investigation,
                     no_prompt=no_prompt,
                     slug=slug,
+                    screenshot_enabled=screenshot_enabled,
                 )
 
                 sidecar_path = None
@@ -410,7 +496,7 @@ def normalize(slug: str, root: str) -> None:
 
         click.echo(f"Re-normalizing {slug} from {original_filename}...")
         try:
-            content, extracted_meta = normalizer.normalize(str(original_path), {})
+            content, extracted_meta, _ = normalizer.normalize(str(original_path), {})
         except NormalizationError as exc:
             click.echo(f"Normalization failed: {exc}", err=True)
             click.echo(
@@ -751,12 +837,33 @@ def _count_investigation_links(root_path: Path, slug: str) -> int:
     return count
 
 
-@main.command()
+@main.group(invoke_without_command=True)
 @click.option("--root", type=click.Path(exists=True), default=".")
-def tags(root: str) -> None:
+@click.pass_context
+def tags(ctx: click.Context, root: str) -> None:
+    """List and manage tags."""
+    ctx.ensure_object(dict)
+    ctx.obj["root"] = root
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(tags_list, root=root)
+
+
+@tags.command("list")
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option(
+    "--sort",
+    type=click.Choice(["alpha", "sources-asc", "sources-desc", "updated-asc", "updated-desc"]),
+    default="alpha",
+    help="Sort order for tags (default: alpha)",
+)
+@click.pass_context
+def tags_list(ctx: click.Context, root: str, sort: str) -> None:
     """List all tags with source counts."""
     try:
-        root_path = Path(root).resolve()
+        effective_root = root
+        if root == "." and ctx.parent and ctx.parent.obj:
+            effective_root = ctx.parent.obj.get("root", root)
+        root_path = Path(effective_root).resolve()
 
         from research_keeper.adapters.filesystem.tag_store import FilesystemTagStore
 
@@ -767,12 +874,29 @@ def tags(root: str) -> None:
             click.echo("No tags yet.")
             return
 
+        rows: list[tuple[str, int, bool, str | None]] = []
         for tag_slug in tag_list:
             source_slugs = tag_store.sources_for_tag(tag_slug)
-            meta = tag_store.get_meta(tag_slug)
             has_synthesis = (tag_store.tag_dir(tag_slug) / "synthesis.md").exists()
+            meta = tag_store.get_meta(tag_slug)
+            last_syn = (meta or {}).get("last_synthesized")
+            rows.append((tag_slug, len(source_slugs), has_synthesis, last_syn))
+
+        if sort == "alpha":
+            rows.sort(key=lambda r: r[0])
+        elif sort == "sources-asc":
+            rows.sort(key=lambda r: (r[1], r[0]))
+        elif sort == "sources-desc":
+            rows.sort(key=lambda r: (-r[1], r[0]))
+        elif sort == "updated-asc":
+            rows.sort(key=lambda r: (r[3] if r[3] is not None else "", r[0]))
+        elif sort == "updated-desc":
+            rows.sort(key=lambda r: r[0])
+            rows.sort(key=lambda r: r[3] if r[3] is not None else "", reverse=True)
+
+        for tag_slug, count, has_synthesis, _last_syn in rows:
             synth_marker = "+" if has_synthesis else "-"
-            click.echo(f"  {tag_slug} ({len(source_slugs)} sources) [{synth_marker}]")
+            click.echo(f"  {tag_slug} ({count} sources) [{synth_marker}]")
     except Exception as exc:
         _handle_error(exc)
 
@@ -1221,6 +1345,32 @@ def research(
         _handle_error(exc)
 
 
+def _validate_trove_manifest(manifest: dict) -> list[str]:
+    issues: list[str] = []
+    if not isinstance(manifest, dict):
+        issues.append("manifest is not a YAML mapping")
+        return issues
+    if "trove" not in manifest:
+        issues.append("missing required field: trove")
+    if "sources" not in manifest:
+        issues.append("missing required field: sources")
+    elif not isinstance(manifest["sources"], list):
+        issues.append("sources must be a list")
+    else:
+        for i, entry in enumerate(manifest["sources"]):
+            if not isinstance(entry, dict):
+                issues.append(f"sources[{i}]: entry is not a mapping")
+                continue
+            if "source-id" not in entry:
+                issues.append(f"sources[{i}]: missing source-id")
+            url = entry.get("url") or entry.get("path")
+            if not url:
+                issues.append(f"sources[{i}]: missing url or path")
+    if "tags" in manifest and not isinstance(manifest["tags"], list):
+        issues.append("tags must be a list")
+    return issues
+
+
 @main.command("import-trove")
 @click.argument("manifest_path", type=click.Path(exists=True))
 @click.option("--root", type=click.Path(exists=True), default=".")
@@ -1239,11 +1389,19 @@ def import_trove(
 
     try:
         root_path = Path(root).resolve()
-        manifest = yaml.safe_load(Path(manifest_path).read_text())
+        raw = Path(manifest_path).read_text()
+        manifest = yaml.safe_load(raw)
+
+        validation_issues = _validate_trove_manifest(manifest)
+        if validation_issues:
+            click.echo("Trove manifest is not in a compatible format:")
+            for issue in validation_issues:
+                click.echo(f"  - {issue}", err=True)
+            raise SystemExit(1)
 
         trove_id = manifest.get("trove", "unknown-trove")
         trove_tags = manifest.get("tags", [])
-        sources_list = manifest.get("sources", [])
+        sources_list = manifest["sources"]
 
         if not sources_list:
             click.echo("No sources in manifest.")
@@ -1264,16 +1422,13 @@ def import_trove(
         errors: list[tuple[str, str]] = []
 
         for entry in sources_list:
-            source_id = entry.get("source-id", "unknown")
+            source_id = entry["source-id"]
             url = entry.get("url") or entry.get("path")
-            if not url:
-                errors.append((source_id, "no url or path"))
-                continue
 
             metadata: dict = {}
             if entry.get("title"):
                 metadata["title"] = entry["title"]
-            if url.startswith(("http://", "https://")):
+            if url and url.startswith(("http://", "https://")):
                 metadata["origin"] = url
             if entry.get("fetched"):
                 metadata["published"] = str(entry["fetched"])[:10]
@@ -1309,6 +1464,124 @@ def import_trove(
 
         if added and not no_prompt:
             click.echo(f"\n{added} tag sidecar(s) pending. Run: rk resolve")
+
+    except Exception as exc:
+        _handle_error(exc)
+
+
+@main.command("import-rk")
+@click.argument("source_path", type=click.Path(exists=True))
+@click.option("--root", type=click.Path(exists=True), default=".")
+@click.option(
+    "--kind", "kinds", multiple=True,
+    type=click.Choice(["source", "query", "tag", "investigation"]),
+    help="Entity kinds to import (repeatable; default: all)",
+)
+@click.option("--investigation", default=None, help="Link imported sources to an existing investigation ID")
+@click.option(
+    "--no-prompt", is_flag=True, default=False, help="Skip sidecar generation for imported sources"
+)
+@click.option(
+    "--validate", is_flag=True, default=False,
+    help="Validate the source library without importing anything",
+)
+def import_rk(
+    source_path: str,
+    root: str,
+    kinds: tuple[str, ...],
+    investigation: str | None,
+    no_prompt: bool,
+    validate: bool,
+) -> None:
+    """Import sources, queries, tags, and investigations from another rk library.
+
+    SOURCE_PATH must be the root of another research-keeper instance
+    (a directory containing rk.yaml).
+
+    Validates each entity before import. Entities that fail validation are
+    skipped and reported. Use --validate to inspect the source library
+    without importing anything.
+    """
+    try:
+        source_root = Path(source_path).resolve()
+        target_root = Path(root).resolve()
+
+        if source_root == target_root:
+            click.echo("Source and target are the same library. Nothing to do.", err=True)
+            raise SystemExit(1)
+
+        if not (source_root / "rk.yaml").exists():
+            click.echo(
+                f"Not a research-keeper library (no rk.yaml found at {source_root}).",
+                err=True,
+            )
+            raise SystemExit(1)
+
+        kinds_set: set[str] | None = set(kinds) if kinds else None
+
+        from research_keeper.import_rk import validate_library
+
+        if validate:
+            issues = validate_library(source_root, kinds_set)
+            if not issues:
+                click.echo("Library is valid. All entities pass schema checks.")
+                return
+            click.echo("Validation found issues:")
+            total = 0
+            for kind, kind_issues in sorted(issues.items()):
+                click.echo(f"\n  [{kind}]")
+                for slug, msgs in sorted(kind_issues.items()):
+                    click.echo(f"    {slug}:")
+                    for msg in msgs:
+                        click.echo(f"      - {msg}")
+                        total += 1
+            if total:
+                click.echo(
+                    f"\n{total} issue(s) found across {len(issues)} kind(s)."
+                    " These entities would be skipped during import."
+                )
+            raise SystemExit(1)
+
+        pipeline = _build_pipeline(target_root)
+        inv_id = investigation
+
+        from research_keeper.import_rk import import_all
+
+        results = import_all(
+            source_root=source_root,
+            target_root=target_root,
+            kinds=kinds_set,
+            pipeline=pipeline,
+            no_prompt=no_prompt,
+        )
+
+        total_imported = 0
+        total_skipped = 0
+        total_errors: list[tuple[str, str, str]] = []
+
+        for kind in sorted(results):
+            r = results[kind]
+            total_imported += r.imported
+            total_skipped += r.skipped
+            for slug, msg in r.errors:
+                total_errors.append((kind, slug, msg))
+
+        click.echo(f"\nImported {total_imported} entities(s).")
+        if total_skipped:
+            click.echo(f"Skipped {total_skipped} (already present or duplicates).")
+        if total_errors:
+            click.echo(f"{len(total_errors)} error(s):")
+            for kind, slug, msg in total_errors[:20]:
+                click.echo(f"  [{kind}] {slug}: {msg}", err=True)
+
+        if inv_id:
+            click.echo(f"Investigation: {inv_id}")
+
+        if total_imported and not no_prompt:
+            click.echo(
+                f"\nSidecars may be pending for imported sources."
+                " Run: rk resolve"
+            )
 
     except Exception as exc:
         _handle_error(exc)
@@ -1429,6 +1702,50 @@ def doctor(root: str, fix: bool) -> None:
     from research_keeper.doctor import Severity, run_doctor
 
     root_path = Path(root).resolve()
+
+    # LFS health check
+    from research_keeper.lfs import is_lfs_installed, setup_lfs
+
+    lfs_ok = is_lfs_installed()
+    gitattributes_path = root_path / ".gitattributes"
+    has_lfs_patterns = False
+    if gitattributes_path.exists():
+        content = gitattributes_path.read_text()
+        has_lfs_patterns = "filter=lfs" in content
+
+    if not lfs_ok or not has_lfs_patterns:
+        click.echo("  [WARN] lfs_check: Git LFS is not fully configured for binary file tracking.")
+        if not lfs_ok:
+            click.echo("         → Git LFS is not installed.")
+        if not has_lfs_patterns:
+            click.echo("         → .gitattributes missing LFS patterns for binary files.")
+        if fix:
+            import sys
+            if sys.stdin.isatty():
+                if click.confirm("Set up Git LFS for binary file tracking?"):
+                    lfs_results = setup_lfs(root_path)
+                    if lfs_results.get("install") is True and lfs_results.get("init") is True:
+                        import subprocess
+                        subprocess.run(
+                            ["git", "add", ".gitattributes"],
+                            cwd=str(root_path),
+                            capture_output=True,
+                        )
+                        subprocess.run(
+                            ["git", "commit", "-m", "rk: add .gitattributes for Git LFS tracking"],
+                            cwd=str(root_path),
+                            capture_output=True,
+                        )
+                        click.echo("         → Git LFS configured successfully.")
+                    else:
+                        click.echo("         → Git LFS setup failed.", err=True)
+            else:
+                click.echo("         → Run 'rk doctor --fix' interactively to set up Git LFS.")
+        else:
+            click.echo("         → Run 'rk doctor --fix' to set up Git LFS.")
+    else:
+        click.echo("  [INFO] lfs_check: Git LFS is configured for binary file tracking.")
+
     results = run_doctor(root_path, fix=fix)
 
     if not results:
@@ -1595,6 +1912,113 @@ def install(runtime_slugs: tuple[str, ...], global_install: bool) -> None:
     click.echo(
         f"Installed rk skill for {names} ({count} runtime{'s' if count > 1 else ''})"
     )
+
+
+SHELL_CONFIGS = {
+    "zsh": {"rc_file": "~/.zshrc", "completion_var": "zsh_source"},
+    "bash": {"rc_file": "~/.bashrc", "completion_var": "bash_source"},
+    "fish": {"rc_file": "~/.config/fish/config.fish", "completion_var": "fish_source"},
+}
+
+
+def _parse_shells(shell_arg: str) -> list[str]:
+    """Parse --shell value into list of shell names. Empty means auto-detect."""
+    if shell_arg:
+        shells = [s.strip() for s in shell_arg.split(",")]
+    else:
+        raw_shell = os.environ.get("SHELL", "")
+        if not raw_shell:
+            raise click.ClickException(
+                "Cannot detect shell: $SHELL is unset. "
+                "Use --shell to specify one or more shells."
+            )
+        shells = [Path(raw_shell).name]
+    for s in shells:
+        if s not in SHELL_CONFIGS:
+            supported = ", ".join(sorted(SHELL_CONFIGS))
+            raise click.ClickException(f"Unsupported shell: {s}. Supported: {supported}")
+    return shells
+
+
+def _resolve_rc(shell: str) -> Path:
+    """Return the rc file Path for a shell, expanding ~."""
+    config = SHELL_CONFIGS.get(shell)
+    if config is None:
+        supported = ", ".join(sorted(SHELL_CONFIGS))
+        raise click.ClickException(f"Unsupported shell: {shell}. Supported: {supported}")
+    rc_path = Path(config["rc_file"]).expanduser().resolve()
+    return rc_path
+
+
+def _autocomplete_line(shell: str) -> str:
+    """Generate the eval line for a shell's completion."""
+    config = SHELL_CONFIGS[shell]
+    return f'eval "$(_RK_COMPLETE={config["completion_var"]} rk)"'
+
+
+MARKER_START = "# rk autocomplete start"
+MARKER_END = "# rk autocomplete end"
+
+
+def _is_enabled(rc_path: Path) -> bool:
+    if not rc_path.exists():
+        return False
+    return MARKER_START in rc_path.read_text()
+
+
+def _enable_shell(shell: str) -> None:
+    rc_path = _resolve_rc(shell)
+    rc_path.parent.mkdir(parents=True, exist_ok=True)
+    if _is_enabled(rc_path):
+        return
+    block = f"{MARKER_START}\n{_autocomplete_line(shell)}\n{MARKER_END}\n"
+    with rc_path.open("a") as f:
+        f.write(f"\n{block}" if rc_path.stat().st_size > 0 else block)
+    click.echo(f"Enabled rk autocomplete for: {shell}")
+    click.echo(f"To activate in this shell, run: source {rc_path}")
+
+
+def _disable_shell(shell: str) -> None:
+    rc_path = _resolve_rc(shell)
+    if not rc_path.exists():
+        return
+    content = rc_path.read_text()
+    if MARKER_START not in content:
+        return
+    lines = content.splitlines(keepends=True)
+    new_lines: list[str] = []
+    depth = 0
+    for line in lines:
+        if MARKER_START in line:
+            depth += 1
+        if depth == 0:
+            new_lines.append(line)
+        if MARKER_END in line:
+            depth -= 1
+    rc_path.write_text("".join(new_lines))
+
+
+@main.group()
+def autocomplete() -> None:
+    """Manage rk shell completion."""
+
+
+@autocomplete.command("enable")
+@click.option("--shell", default="", help="Comma-separated shells (default: auto-detect from $SHELL)")
+def autocomplete_enable(shell: str) -> None:
+    """Install shell completion for rk."""
+    shells = _parse_shells(shell)
+    for s in shells:
+        _enable_shell(s)
+
+
+@autocomplete.command("disable")
+@click.option("--shell", default="", help="Comma-separated shells (default: auto-detect from $SHELL)")
+def autocomplete_disable(shell: str) -> None:
+    """Remove rk shell completion."""
+    shells = _parse_shells(shell)
+    for s in shells:
+        _disable_shell(s)
 
 
 @main.group()

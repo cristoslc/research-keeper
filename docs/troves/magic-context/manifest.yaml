@@ -1,0 +1,43 @@
+id: magic-context
+created: 2026-05-28
+refreshed: 2026-05-28
+tags:
+  - agent-memory
+  - memory-architecture
+  - context-management
+  - opencode-plugin
+  - semantic-search
+  - embedding
+  - background-compression
+  - cross-session-memory
+  - dreamer
+freshness-ttl:
+  repository: 30d
+  web: 14d
+history:
+  - event: created
+    date: 2026-05-28
+    commit: "488a497"
+    sources: 1
+sources:
+  - id: cortexkit-magic-context-repo
+    type: repository
+    url: https://github.com/cortexkit/magic-context
+    title: Magic Context — CortexKit
+    fetched: 2026-05-28
+    content_hash: 4000e87c34367ccccbe47887f634451dec88a52eafc807e32ec000dab8a4d02b
+    freshness-ttl: 30d
+    highlights:
+      - README.md
+      - ARCHITECTURE.md
+      - STRUCTURE.md
+      - CONFIGURATION.md
+      - packages/plugin/src/features/magic-context/memory/types.ts
+      - packages/plugin/src/features/magic-context/memory/embedding.ts
+      - packages/plugin/src/features/magic-context/memory/promotion.ts
+      - packages/plugin/src/agents/magic-context-prompt.ts
+      - packages/plugin/src/agents/historian.ts
+      - packages/plugin/src/agents/dreamer.ts
+      - packages/plugin/docs/archive/MEMORY-DESIGN.md
+      - packages/plugin/docs/archive/MAGIC-CONTEXT-DESIGN.md
+      - assets/magic-context.schema.json

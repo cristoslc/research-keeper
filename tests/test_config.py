@@ -61,3 +61,28 @@ def test_embeddings_config_from_yaml(tmp_path: Path):
     config = load_config(tmp_path / "rk.yaml")
     assert config.embeddings.batch_size == 32
     assert config.embeddings.model == "custom-model"
+
+
+def test_video_config_defaults():
+    from research_keeper.config import VideoConfig
+
+    cfg = VideoConfig()
+    assert cfg.enabled is True
+
+
+def test_video_config_in_config():
+    from research_keeper.config import Config
+
+    c = Config()
+    assert c.video.enabled is True
+
+
+def test_video_config_from_yaml(tmp_path: Path):
+    import yaml
+    from research_keeper.config import load_config
+
+    (tmp_path / "rk.yaml").write_text(
+        yaml.dump({"video": {"enabled": False}})
+    )
+    config = load_config(tmp_path / "rk.yaml")
+    assert config.video.enabled is False
