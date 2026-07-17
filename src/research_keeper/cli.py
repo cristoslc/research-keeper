@@ -86,6 +86,9 @@ def init(path: str) -> None:
         "screenshots": {
             "enabled": True,
         },
+        "video": {
+            "enabled": True,
+        },
         "completion": {
             "models": {
                 "heavy": "anthropic/claude-opus-4",
@@ -108,10 +111,30 @@ def init(path: str) -> None:
     (root / ".gitignore").write_text("rk.db\n__pycache__/\n")
 
     # Init git if not already a repo
-    if not (root / ".git").exists():
-        import subprocess
+    import subprocess
 
+    if not (root / ".git").exists():
         subprocess.run(["git", "init"], cwd=str(root), capture_output=True)
+
+    # Set up Git LFS for binary file tracking
+    from research_keeper.lfs import setup_lfs
+
+    lfs_results = setup_lfs(root)
+    if lfs_results.get("install") is True and lfs_results.get("init") is True:
+        click.echo("Git LFS configured for binary file tracking.")
+        # Stage and commit .gitattributes
+        subprocess.run(
+            ["git", "add", ".gitattributes"],
+            cwd=str(root),
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "rk: add .gitattributes for Git LFS tracking"],
+            cwd=str(root),
+            capture_output=True,
+        )
+    else:
+        click.echo("Warning: Git LFS setup incomplete. Binary files will not be tracked.", err=True)
 
     from research_keeper.component_installer import install_all_components
 
@@ -165,6 +188,13 @@ def init(path: str) -> None:
     default=None,
     help="Disable screenshot capture for web sources",
 )
+@click.option(
+    "--no-video",
+    "no_video_flag",
+    is_flag=True,
+    default=None,
+    help="Disable video download for media sources",
+)
 def add(
     sources: tuple[str, ...],
     root: str,
@@ -177,6 +207,7 @@ def add(
     slug: str | None,
     screenshot_flag: bool | None = None,
     no_screenshot_flag: bool | None = None,
+    no_video_flag: bool | None = None,
 ) -> None:
     """Add one or more sources to the library.
 
@@ -209,6 +240,10 @@ def add(
     elif no_screenshot_flag:
         screenshot_enabled = False
 
+    download_video: bool | None = None
+    if no_video_flag:
+        download_video = False
+
     try:
         root_path = Path(root).resolve()
         pipeline = _build_pipeline(root_path)
@@ -232,6 +267,8 @@ def add(
                 metadata["origin"] = origin
             if published:
                 metadata["published"] = published
+            if download_video is not None:
+                metadata["download_video"] = download_video
 
             try:
                 source = pipeline.add(
@@ -271,6 +308,8 @@ def add(
                     metadata["origin"] = origin
                 if published:
                     metadata["published"] = published
+                if download_video is not None:
+                    metadata["download_video"] = download_video
                 metadata.update(transport_result.metadata)
 
                 if not origin and "origin" not in metadata:
@@ -1663,6 +1702,50 @@ def doctor(root: str, fix: bool) -> None:
     from research_keeper.doctor import Severity, run_doctor
 
     root_path = Path(root).resolve()
+
+    # LFS health check
+    from research_keeper.lfs import is_lfs_installed, setup_lfs
+
+    lfs_ok = is_lfs_installed()
+    gitattributes_path = root_path / ".gitattributes"
+    has_lfs_patterns = False
+    if gitattributes_path.exists():
+        content = gitattributes_path.read_text()
+        has_lfs_patterns = "filter=lfs" in content
+
+    if not lfs_ok or not has_lfs_patterns:
+        click.echo("  [WARN] lfs_check: Git LFS is not fully configured for binary file tracking.")
+        if not lfs_ok:
+            click.echo("         → Git LFS is not installed.")
+        if not has_lfs_patterns:
+            click.echo("         → .gitattributes missing LFS patterns for binary files.")
+        if fix:
+            import sys
+            if sys.stdin.isatty():
+                if click.confirm("Set up Git LFS for binary file tracking?"):
+                    lfs_results = setup_lfs(root_path)
+                    if lfs_results.get("install") is True and lfs_results.get("init") is True:
+                        import subprocess
+                        subprocess.run(
+                            ["git", "add", ".gitattributes"],
+                            cwd=str(root_path),
+                            capture_output=True,
+                        )
+                        subprocess.run(
+                            ["git", "commit", "-m", "rk: add .gitattributes for Git LFS tracking"],
+                            cwd=str(root_path),
+                            capture_output=True,
+                        )
+                        click.echo("         → Git LFS configured successfully.")
+                    else:
+                        click.echo("         → Git LFS setup failed.", err=True)
+            else:
+                click.echo("         → Run 'rk doctor --fix' interactively to set up Git LFS.")
+        else:
+            click.echo("         → Run 'rk doctor --fix' to set up Git LFS.")
+    else:
+        click.echo("  [INFO] lfs_check: Git LFS is configured for binary file tracking.")
+
     results = run_doctor(root_path, fix=fix)
 
     if not results:

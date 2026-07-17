@@ -165,6 +165,19 @@ class IntakePipeline:
             screenshot_path = self._store.source_dir(source.slug) / "source.jpg"
             screenshot_path.write_bytes(screenshot_bytes)
 
+        # Store video if downloaded by normalizer
+        video_path = extracted_meta.pop("_video_path", None)
+        video_tmpdir = extracted_meta.pop("_video_tmpdir", None)
+        if video_path:
+            import shutil
+            source_dir = self._store.source_dir(source.slug)
+            video_ext = Path(video_path).suffix or ".mp4"
+            video_dest = source_dir / f"video{video_ext}"
+            shutil.copy2(video_path, video_dest)
+            merged["video_file"] = video_dest.name
+            if video_tmpdir:
+                shutil.rmtree(video_tmpdir, ignore_errors=True)
+
         # Index (always -- source is searchable via FTS regardless of embedding)
         self._index.upsert_source(source)
 

@@ -343,7 +343,7 @@ def test_frame_extraction_fallback_opt_in(
             "description": "Short",  # Too short for caption fallback
         },
     )
-    mock_download.return_value = None  # Video download not attempted
+    mock_download.return_value = (None, None)  # Video download not attempted
 
     # Without frame extraction enabled
     normalizer.normalize("https://www.youtube.com/watch?v=frames", {})
@@ -382,7 +382,9 @@ def test_frame_extraction_enabled_no_subtitles(
 
     assert "Text from frames" in content
     assert meta.get("transcript_source") == "ocr"
-    mock_download.assert_called_once()
+    assert mock_download.call_count == 2
+    assert "_video_path" in meta
+    assert "_video_tmpdir" in meta
     mock_extract.assert_called_once()
     mock_ocr.assert_called_once()
 
