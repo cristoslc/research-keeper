@@ -343,7 +343,7 @@ def test_frame_extraction_fallback_opt_in(
             "description": "Short",  # Too short for caption fallback
         },
     )
-    mock_download.return_value = None  # Video download not attempted
+    mock_download.return_value = (None, None)  # Video download not attempted
 
     # Without frame extraction enabled
     normalizer.normalize("https://www.youtube.com/watch?v=frames", {})

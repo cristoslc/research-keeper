@@ -1937,6 +1937,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "tqdm" },
     { name = "trafilatura" },
+    { name = "yt-dlp" },
 ]
 
 [package.optional-dependencies]
@@ -1945,7 +1946,6 @@ all = [
     { name = "mcp" },
     { name = "pymupdf" },
     { name = "pymupdf4llm" },
-    { name = "yt-dlp" },
 ]
 dev = [
     { name = "pytest" },
@@ -1960,7 +1960,6 @@ mcp = [
 ]
 media = [
     { name = "faster-whisper" },
-    { name = "yt-dlp" },
 ]
 
 [package.dev-dependencies]
@@ -1987,7 +1986,7 @@ requires-dist = [
     { name = "research-keeper", extras = ["media", "documents", "mcp"], marker = "extra == 'all'" },
     { name = "tqdm", specifier = ">=4.67.3" },
     { name = "trafilatura", specifier = ">=2.0" },
-    { name = "yt-dlp", marker = "extra == 'media'" },
+    { name = "yt-dlp" },
 ]
 provides-extras = ["media", "documents", "mcp", "all", "dev"]
 
