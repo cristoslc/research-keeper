@@ -386,48 +386,114 @@ def _extract_frames_from_video(video_path: str, threshold: float = 0.85) -> list
     return frames
 
 
-def _ocr_frames(frame_paths: list[str]) -> str | None:
-    """OCR text from extracted frames using vision or EasyOCR.
+def _extract_frames_for_subtitles(
+    video_path: str, interval_sec: float = 0.5
+) -> list[tuple[str, float]]:
+    """Sample frames at regular intervals for subtitle OCR.
 
-    Attempts vision (via agent's image reading capability) first,
-    falls back to EasyOCR if vision not available.
-
-    Returns concatenated and deduplicated text from all frames.
+    Returns list of (frame_path, timestamp_seconds) pairs.
+    Unlike _extract_frames_from_video, this uses fixed-interval
+    sampling to catch subtitle changes within a scene.
     """
-    if not frame_paths:
-        return None
-
-    # Vision-first approach: the agent/normalizer can read images
-    # This is handled by the caller (MediaNormalizer) which has access
-    # to the Read tool. Here we provide the EasyOCR fallback.
     try:
-        import easyocr  # type: ignore[import-untyped]
+        import cv2
     except ImportError:
-        logger.warning("EasyOCR not installed — cannot extract text from frames")
+        logger.warning("opencv-python-headless not installed — cannot extract frames")
+        return []
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        logger.error(f"Cannot open video: {video_path}")
+        return []
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps <= 0:
+        fps = 30.0
+    frame_interval = int(fps * interval_sec)
+    if frame_interval < 1:
+        frame_interval = 1
+
+    tmpdir = tempfile.mkdtemp()
+    frames: list[tuple[str, float]] = []
+    frame_count = 0
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if frame_count % frame_interval == 0:
+            timestamp = frame_count / fps
+            path = f"{tmpdir}/frame_{len(frames):04d}.png"
+            cv2.imwrite(path, frame)
+            frames.append((path, timestamp))
+        frame_count += 1
+
+    cap.release()
+    logger.info(f"Extracted {len(frames)} frames at {interval_sec}s intervals from {video_path}")
+    return frames
+
+
+def _format_timestamp(seconds: float) -> str:
+    """Format seconds to HH:MM:SS.mmm for VTT-like output."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+
+
+def _ocr_frames(frames: list[tuple[str, float]]) -> str | None:
+    """OCR text from timestamped frames using PaddleOCR.
+
+    Args:
+        frames: List of (frame_path, timestamp_seconds) pairs.
+
+    Returns:
+        Deduplicated text with approximate timestamps, or None.
+    """
+    if not frames:
         return None
 
     try:
-        reader = easyocr.Reader(["en"], gpu=False)
-        all_text = []
-        seen = set()
+        from paddleocr import PaddleOCR
+    except ImportError:
+        logger.warning("paddleocr not installed — cannot extract text from frames")
+        return None
 
-        for frame_path in frame_paths:
-            results = reader.readtext(frame_path, detail=0)
-            for line in results:
-                line = line.strip()
-                if line and line not in seen:
-                    seen.add(line)
-                    all_text.append(line)
+    try:
+        reader = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+        all_text: list[str] = []
+        seen: set[str] = set()
+
+        for frame_path, timestamp in frames:
+            results = reader.ocr(frame_path, cls=True)
+            if not results or not results[0]:
+                continue
+            for line in results[0]:
+                text = line[1][0].strip()
+                if text and text not in seen:
+                    seen.add(text)
+                    ts = _format_timestamp(timestamp)
+                    all_text.append(f"[{ts}] {text}")
 
         text = "\n".join(all_text)
         logger.info(
-            f"OCR extracted {len(all_text)} unique lines from {len(frame_paths)} frames"
+            f"PaddleOCR extracted {len(all_text)} unique lines from {len(frames)} frames"
         )
         return text if text.strip() else None
 
     except Exception as exc:
-        logger.warning(f"OCR failed: {exc}")
+        logger.warning(f"PaddleOCR failed: {exc}")
         return None
+
+
+def _ocr_frames_legacy(frame_paths: list[str]) -> str | None:
+    """Legacy OCR using EasyOCR, kept for the enable_frame_extraction path.
+
+    Wraps frame paths in (path, 0.0) tuples and delegates to _ocr_frames.
+    """
+    if not frame_paths:
+        return None
+    return _ocr_frames([(p, 0.0) for p in frame_paths])
 
 
 # Content type detection heuristics
@@ -591,6 +657,13 @@ class MediaNormalizer:
         if info.get("webpage_url"):
             extracted["url"] = info["webpage_url"]
 
+        # Video download (opt-out via metadata) — runs unconditionally when enabled
+        if metadata.get("download_video", True):
+            video_path, video_tmpdir = _download_youtube_video(url)
+            if video_path:
+                extracted["_video_path"] = video_path
+                extracted["_video_tmpdir"] = video_tmpdir
+
         # Try subtitles first (manual then auto-captions)
         if subtitles:
             content = f"# {extracted['title']}\n\n{subtitles}"
@@ -621,6 +694,25 @@ class MediaNormalizer:
 
                     shutil.rmtree(audio_tmpdir, ignore_errors=True)
 
+        # Burned-in subtitle detection via frame extraction + PaddleOCR
+        if metadata.get("enable_subtitle_ocr", True):
+            video_path, video_tmpdir = _download_youtube_video(url)
+            if video_path:
+                try:
+                    frames = _extract_frames_for_subtitles(video_path, interval_sec=0.5)
+                    if frames:
+                        ocr_text = _ocr_frames(frames)
+                        if ocr_text:
+                            content = f"# {extracted['title']}\n\n{ocr_text}"
+                            extracted["transcript_source"] = "ocr"
+                            return content, extracted, None
+                finally:
+                    # Cleanup temp directory
+                    if video_tmpdir:
+                        import shutil
+
+                        shutil.rmtree(video_tmpdir, ignore_errors=True)
+
         # Frame extraction fallback (opt-in only)
         if enable_frame_extraction:
             video_path, video_tmpdir = _download_youtube_video(url)
@@ -628,7 +720,7 @@ class MediaNormalizer:
                 try:
                     frames = _extract_frames_from_video(video_path)
                     if frames:
-                        ocr_text = _ocr_frames(frames)
+                        ocr_text = _ocr_frames_legacy(frames)
                         if ocr_text:
                             content = f"# {extracted['title']}\n\n{ocr_text}"
                             extracted["transcript_source"] = "ocr"
@@ -663,6 +755,13 @@ class MediaNormalizer:
         if info.get("webpage_url"):
             extracted["url"] = info["webpage_url"]
 
+        # Video download (opt-out via metadata) — runs unconditionally when enabled
+        if metadata.get("download_video", True):
+            video_path, video_tmpdir = _download_youtube_video(url)
+            if video_path:
+                extracted["_video_path"] = video_path
+                extracted["_video_tmpdir"] = video_tmpdir
+
         if subtitles:
             content = f"# {extracted['title']}\n\n{subtitles}"
             return content, extracted, None
@@ -677,17 +776,33 @@ class MediaNormalizer:
                 extracted["transcript_source"] = "description"
                 return content, extracted, None
 
+        # Burned-in subtitle detection via frame extraction + PaddleOCR
+        if metadata.get("enable_subtitle_ocr", True):
+            video_path, video_tmpdir = _download_youtube_video(url)
+            if video_path:
+                try:
+                    frames = _extract_frames_for_subtitles(video_path, interval_sec=0.5)
+                    if frames:
+                        ocr_text = _ocr_frames(frames)
+                        if ocr_text:
+                            content = f"# {extracted['title']}\n\n{ocr_text}"
+                            extracted["transcript_source"] = "ocr"
+                            return content, extracted, None
+                finally:
+                    # Cleanup temp directory
+                    if video_tmpdir:
+                        import shutil
+
+                        shutil.rmtree(video_tmpdir, ignore_errors=True)
+
         # Frame extraction fallback (opt-in only)
         if enable_frame_extraction:
-            # For Instagram, need to use browser cookies
-            video_path, video_tmpdir = _download_youtube_video(
-                url
-            )  # yt-dlp handles IG URLs too
+            video_path, video_tmpdir = _download_youtube_video(url)
             if video_path:
                 try:
                     frames = _extract_frames_from_video(video_path)
                     if frames:
-                        ocr_text = _ocr_frames(frames)
+                        ocr_text = _ocr_frames_legacy(frames)
                         if ocr_text:
                             content = f"# {extracted['title']}\n\n{ocr_text}"
                             extracted["transcript_source"] = "ocr"
