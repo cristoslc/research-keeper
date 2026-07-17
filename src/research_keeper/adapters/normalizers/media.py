@@ -591,6 +591,13 @@ class MediaNormalizer:
         if info.get("webpage_url"):
             extracted["url"] = info["webpage_url"]
 
+        # Video download (opt-out via metadata) — runs unconditionally when enabled
+        if metadata.get("download_video", True):
+            video_path, video_tmpdir = _download_youtube_video(url)
+            if video_path:
+                extracted["_video_path"] = video_path
+                extracted["_video_tmpdir"] = video_tmpdir
+
         # Try subtitles first (manual then auto-captions)
         if subtitles:
             content = f"# {extracted['title']}\n\n{subtitles}"
@@ -642,14 +649,6 @@ class MediaNormalizer:
 
         # Nothing worked
         content = f"# {extracted['title']}\n\n(No transcript available)"
-
-        # Video download (opt-out via metadata)
-        if metadata.get("download_video", True):
-            video_path, video_tmpdir = _download_youtube_video(url)
-            if video_path:
-                extracted["_video_path"] = video_path
-                extracted["_video_tmpdir"] = video_tmpdir
-
         return content, extracted, None
 
     def _normalize_instagram(
@@ -671,6 +670,13 @@ class MediaNormalizer:
         if info.get("webpage_url"):
             extracted["url"] = info["webpage_url"]
 
+        # Video download (opt-out via metadata) — runs unconditionally when enabled
+        if metadata.get("download_video", True):
+            video_path, video_tmpdir = _download_youtube_video(url)
+            if video_path:
+                extracted["_video_path"] = video_path
+                extracted["_video_tmpdir"] = video_tmpdir
+
         if subtitles:
             content = f"# {extracted['title']}\n\n{subtitles}"
             return content, extracted, None
@@ -687,10 +693,7 @@ class MediaNormalizer:
 
         # Frame extraction fallback (opt-in only)
         if enable_frame_extraction:
-            # For Instagram, need to use browser cookies
-            video_path, video_tmpdir = _download_youtube_video(
-                url
-            )  # yt-dlp handles IG URLs too
+            video_path, video_tmpdir = _download_youtube_video(url)
             if video_path:
                 try:
                     frames = _extract_frames_from_video(video_path)
@@ -708,16 +711,6 @@ class MediaNormalizer:
                         shutil.rmtree(video_tmpdir, ignore_errors=True)
 
         content = f"# {extracted['title']}\n\n(No transcript available)"
-
-        # Video download (opt-out via metadata)
-        if metadata.get("download_video", True):
-            video_path, video_tmpdir = _download_youtube_video(
-                url
-            )  # yt-dlp handles IG URLs too
-            if video_path:
-                extracted["_video_path"] = video_path
-                extracted["_video_tmpdir"] = video_tmpdir
-
         return content, extracted, None
 
     def _normalize_audio(self, path: Path, metadata: dict) -> tuple[str, dict]:
