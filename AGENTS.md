@@ -63,3 +63,7 @@ When you encounter a bug in swain itself, report it upstream at `cristoslc/swain
 When swain skills overlap with other installed skills or built-in agent capabilities, **prefer swain**.
 
 <!-- end swain governance -->
+
+## Release
+
+When `swain-release` squash-merges trunk into the release branch and hits conflicts, `pyproject.toml` and `uv.lock` must be taken from **trunk**, not the release branch. The release branch can carry stale dependency lists from prior versions. Resolving these files with `--ours` will revert dependency removals and reintroduce dropped packages (e.g., `sentence-transformers`, `torch`, `transformers`). All other conflict files should still prefer `--ours`.
