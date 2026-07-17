@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.17.0] - 2026-07-17
+
+### Features
+
+#### Video Artifact Management & Binary Safety
+
+`rk add` now downloads video files for YouTube and Instagram URLs by default (opt-out with `--no-video`). Git LFS is configured automatically at `rk init` — `.gitattributes` tracks all binary types, and a Python pre-commit hook blocks large non-LFS-tracked files. `rk doctor` detects missing LFS config and offers to fix it.
+
+#### Burned-in Subtitle Detection
+
+When a video has no subtitle track, rk now extracts burned-in (hardcoded) subtitles from video frames using PaddleOCR. Frames are sampled at 0.5s intervals and OCR'd with timestamps. Works on Instagram Reels where subtitles jump around the frame. Opt-out with `--no-subtitle-ocr`.
+
+#### `rk tags --sort`
+
+The `rk tags` command now accepts `--sort` to group tags alphabetically, by count, or by last-used date.
+
+#### `rk autocomplete`
+
+New `rk autocomplete enable` and `rk autocomplete disable` commands for shell completion (zsh, bash, fish).
+
+### Supporting Changes
+
+- 6 Dependabot CVEs patched.
+- yt-dlp moved from media extra to core dependencies.
+- PaddleOCR replaces EasyOCR in media extra.
+
 ## [1.16.0] - 2026-05-05
 
 ### Features
