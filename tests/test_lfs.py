@@ -80,3 +80,44 @@ def test_pre_commit_hook_accepts_small_files(tmp_path: Path):
         cwd=str(tmp_path),
     )
     assert result.returncode == 0
+
+
+def test_pre_commit_hook_rejects_large_lfs_file(tmp_path: Path):
+    (tmp_path / ".git" / "hooks").mkdir(parents=True)
+    write_pre_commit_hook(tmp_path)
+    hook_path = tmp_path / ".git" / "hooks" / "pre-commit"
+
+    # Write .gitattributes with LFS pattern
+    (tmp_path / ".gitattributes").write_text("*.mp4 filter=lfs diff=lfs merge=lfs -text\n")
+
+    # Create a large .mp4 file and stage it
+    large_file = tmp_path / "video.mp4"
+    large_file.write_bytes(b"x" * (100 * 1024 + 1))
+
+    import subprocess
+    subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True)
+    subprocess.run(["git", "add", str(large_file)], cwd=str(tmp_path), capture_output=True)
+
+    result = subprocess.run(
+        ["python3", str(hook_path)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        cwd=str(tmp_path),
+    )
+    assert result.returncode == 1
+    assert "not tracked by Git LFS" in result.stdout
+
+
+def test_write_gitattributes_idempotent(tmp_path: Path):
+    first = write_gitattributes(tmp_path)
+    first_content = first.read_text()
+    second = write_gitattributes(tmp_path)
+    second_content = second.read_text()
+    assert first_content == second_content
+
+
+def test_lfs_patterns_all_valid():
+    import re
+    for pattern in LFS_PATTERNS:
+        assert re.match(r"^\*\.[a-z0-9]+$", pattern), f"Invalid pattern: {pattern}"
