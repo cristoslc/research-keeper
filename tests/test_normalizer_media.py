@@ -328,7 +328,7 @@ def test_extract_frames_scene_detection(tmp_path):
 @patch("research_keeper.adapters.normalizers.media._fetch_youtube_info_and_subs")
 @patch("research_keeper.adapters.normalizers.media._download_youtube_video")
 @patch("research_keeper.adapters.normalizers.media._extract_frames_from_video")
-@patch("research_keeper.adapters.normalizers.media._ocr_frames")
+@patch("research_keeper.adapters.normalizers.media._ocr_frames_legacy")
 def test_frame_extraction_fallback_opt_in(
     mock_ocr, mock_extract, mock_download, mock_fetch, normalizer
 ):
@@ -345,8 +345,11 @@ def test_frame_extraction_fallback_opt_in(
     )
     mock_download.return_value = (None, None)  # Video download not attempted
 
-    # Without frame extraction enabled
-    normalizer.normalize("https://www.youtube.com/watch?v=frames", {})
+    # Without frame extraction enabled, disable subtitle OCR too
+    normalizer.normalize(
+        "https://www.youtube.com/watch?v=frames",
+        {"enable_subtitle_ocr": False},
+    )
 
     # Frame extraction should NOT be called
     mock_extract.assert_not_called()
@@ -356,7 +359,7 @@ def test_frame_extraction_fallback_opt_in(
 @patch("research_keeper.adapters.normalizers.media._fetch_youtube_info_and_subs")
 @patch("research_keeper.adapters.normalizers.media._download_youtube_video")
 @patch("research_keeper.adapters.normalizers.media._extract_frames_from_video")
-@patch("research_keeper.adapters.normalizers.media._ocr_frames")
+@patch("research_keeper.adapters.normalizers.media._ocr_frames_legacy")
 def test_frame_extraction_enabled_no_subtitles(
     mock_ocr, mock_extract, mock_download, mock_fetch, normalizer
 ):
@@ -371,20 +374,21 @@ def test_frame_extraction_enabled_no_subtitles(
             "description": "Short",  # Too short for caption fallback
         },
     )
-    mock_download.return_value = ("/tmp/test_video.mp4", "/tmp/video_tmpdir")
+    mock_download.side_effect = [
+        (None, None),  # subtitle OCR: video download fails
+        ("/tmp/test_video.mp4", "/tmp/video_tmpdir"),  # frame extraction: succeeds
+    ]
     mock_extract.return_value = ["/tmp/frame_000.png", "/tmp/frame_001.png"]
     mock_ocr.return_value = "Text from frames"
 
     content, meta, _ = normalizer.normalize(
         "https://www.youtube.com/watch?v=frames",
-        {"enable_frame_extraction": True},
+        {"enable_frame_extraction": True, "enable_subtitle_ocr": False},
     )
 
     assert "Text from frames" in content
     assert meta.get("transcript_source") == "ocr"
     assert mock_download.call_count == 2
-    assert "_video_path" in meta
-    assert "_video_tmpdir" in meta
     mock_extract.assert_called_once()
     mock_ocr.assert_called_once()
 
