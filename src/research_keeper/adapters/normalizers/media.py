@@ -642,6 +642,14 @@ class MediaNormalizer:
 
         # Nothing worked
         content = f"# {extracted['title']}\n\n(No transcript available)"
+
+        # Video download (opt-out via metadata)
+        if metadata.get("download_video", True):
+            video_path, video_tmpdir = _download_youtube_video(url)
+            if video_path:
+                extracted["_video_path"] = video_path
+                extracted["_video_tmpdir"] = video_tmpdir
+
         return content, extracted, None
 
     def _normalize_instagram(
@@ -700,6 +708,16 @@ class MediaNormalizer:
                         shutil.rmtree(video_tmpdir, ignore_errors=True)
 
         content = f"# {extracted['title']}\n\n(No transcript available)"
+
+        # Video download (opt-out via metadata)
+        if metadata.get("download_video", True):
+            video_path, video_tmpdir = _download_youtube_video(
+                url
+            )  # yt-dlp handles IG URLs too
+            if video_path:
+                extracted["_video_path"] = video_path
+                extracted["_video_tmpdir"] = video_tmpdir
+
         return content, extracted, None
 
     def _normalize_audio(self, path: Path, metadata: dict) -> tuple[str, dict]:
