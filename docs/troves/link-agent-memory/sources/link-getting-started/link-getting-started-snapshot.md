@@ -4,7 +4,7 @@ title: "First 10 minutes — prove that your agent can remember"
 type: web
 url: "https://gowtham0992.github.io/link/getting-started.html"
 fetched: 2026-08-03T00:00:00Z
-hash: "--placeholder--"
+hash: "c182138"
 ---
 
 # First 10 minutes

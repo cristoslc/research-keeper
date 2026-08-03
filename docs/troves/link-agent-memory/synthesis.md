@@ -84,4 +84,4 @@ Cross-links to related rk troves: `trove: karpathy-llm-wiki@b40c3a8` (the LLM-Wi
 already compared), `trove: reference-manager-gap-analysis@13ff797` (source-ingest landscape),
 `trove: magic-context`, `trove: graphify-knowledge-graph`.
 
-Reference from artifacts with: `trove: link-agent-memory@<hash>`
+Reference from artifacts with: `trove: link-agent-memory@c182138`

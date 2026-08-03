@@ -4,7 +4,7 @@ title: "Concepts — The wiki is the storage. Memory is the product."
 type: web
 url: "https://gowtham0992.github.io/link/concepts.html"
 fetched: 2026-08-03T00:00:00Z
-hash: "--placeholder--"
+hash: "c182138"
 ---
 
 # Mental model

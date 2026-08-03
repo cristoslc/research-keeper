@@ -119,4 +119,4 @@ synthesis/problem rk is built around. The most valuable reading is **not** "shou
 query surfaces." Items 1, 3, and 4 above are the highest-leverage, lowest-friction adoptions; item 2 is
 the big one but now has a reference implementation to copy.
 
-Reference from artifacts with: `trove: link-agent-memory@<hash>`
+Reference from artifacts with: `trove: link-agent-memory@c182138`

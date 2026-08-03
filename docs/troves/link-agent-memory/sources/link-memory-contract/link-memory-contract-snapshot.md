@@ -4,7 +4,7 @@ title: "Agent memory contract — a predictable local memory interface for agent
 type: web
 url: "https://gowtham0992.github.io/link/memory-contract.html"
 fetched: 2026-08-03T00:00:00Z
-hash: "--placeholder--"
+hash: "c182138"
 ---
 
 # Agent memory contract

@@ -4,7 +4,7 @@ title: "Why Link — Link is not a notes app. It is local memory for agents."
 type: web
 url: "https://gowtham0992.github.io/link/why-link.html"
 fetched: 2026-08-03T00:00:00Z
-hash: "--placeholder--"
+hash: "c182138"
 ---
 
 # Positioning
