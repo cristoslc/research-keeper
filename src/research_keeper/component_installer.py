@@ -46,34 +46,6 @@ def install_all_components() -> dict[str, str]:
     return results
 
 
-def _register_embedding_model() -> None:
-    def _is_installed() -> bool:
-        try:
-            from sentence_transformers import SentenceTransformer
-
-            SentenceTransformer(
-                "nomic-ai/nomic-embed-text-v1.5", local_files_only=True
-            )
-            return True
-        except Exception:
-            return False
-
-    def _install() -> None:
-        from sentence_transformers import SentenceTransformer
-
-        SentenceTransformer(
-            "nomic-ai/nomic-embed-text-v1.5", local_files_only=False
-        )
-
-    register_component(
-        ComponentInstaller(
-            name="embedding-model",
-            is_installed=_is_installed,
-            install=_install,
-        )
-    )
-
-
 def _register_playwright_chromium() -> None:
     def _is_installed() -> bool:
         try:
@@ -125,5 +97,4 @@ def _register_playwright_chromium() -> None:
     )
 
 
-_register_embedding_model()
 _register_playwright_chromium()

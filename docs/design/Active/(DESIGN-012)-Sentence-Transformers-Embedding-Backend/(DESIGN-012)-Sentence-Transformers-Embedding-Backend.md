@@ -1,10 +1,10 @@
 ---
 artifact-id: DESIGN-012
 title: Sentence Transformers Embedding Backend
-status: Active
+status: Reverted
 type: data
 created: 2026-04-08
-last-updated: 2026-04-08
+last-updated: 2026-05-04
 artifact-refs:
   - (DESIGN-004)-Embedding-Backfill-And-Search-Degradation
   - (DESIGN-009)-Chunk-Embedding-Pipeline
@@ -334,4 +334,9 @@ If issues arise:
 |-------|------|--------|-------|
 | Proposed | 2026-04-08 | -- | Initial design |
 | Active | -- | -- | -- |
-| Superseded | -- | -- | -- |
+| Complete | 2026-04-08 | -- | Implemented, released |
+| Reverted | 2026-05-04 | `4bdb78a` | Superseded — switched back to Ollama backend (see note below) |
+
+---
+
+> **Reverted 2026-05-04** by commit `4bdb78a` (v1.15.0) — "switch embeddings to Ollama, removing sentence-transformers and torch". In-process sentence-transformers caused OOM crashes when loading ML models (torch). Ollama's `/api/embed` endpoint restored as sole backend; sentence-transformers/torch/transformers removed from dependencies. This design is superseded; see commit message and current `adapters/embedder/` for the actual implementation.
