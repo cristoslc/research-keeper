@@ -21,6 +21,11 @@ node_modules/
 .worktrees/
 .superpowers/
 
+# Subagent dispatch scratch output
+.subagents/
+prompts/
+prompts/.worktrees/
+
 # Vendored swain skills (managed by swain-update)
 .claude/skills/swain/
 .claude/skills/swain-*/

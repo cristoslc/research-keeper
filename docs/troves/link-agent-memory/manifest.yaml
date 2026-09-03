@@ -1,0 +1,58 @@
+trove: link-agent-memory
+created: 2026-08-03
+refreshed: 2026-08-03
+tags:
+  - agent-memory
+  - local-first
+  - mcp
+  - markdown
+  - memory-lifecycle
+  - llm-wiki
+  - session-hooks
+
+freshness-ttl:
+  web: 90d
+  search: 30d
+
+history:
+  - event: created
+    date: 2026-08-03
+    commit: "c182138"
+    sources: 6
+
+sources:
+  - slug: link-landing
+    type: web
+    url: "https://gowtham0992.github.io/link/"
+    fetched: 2026-08-03T00:00:00Z
+    title: "Link — local memory for AI agents (PyPI: link-mcp)"
+
+  - slug: link-getting-started
+    type: web
+    url: "https://gowtham0992.github.io/link/getting-started.html"
+    fetched: 2026-08-03T00:00:00Z
+    title: "First 10 minutes — prove that your agent can remember"
+
+  - slug: link-concepts
+    type: web
+    url: "https://gowtham0992.github.io/link/concepts.html"
+    fetched: 2026-08-03T00:00:00Z
+    title: "Concepts — The wiki is the storage. Memory is the product."
+
+  - slug: link-memory-contract
+    type: web
+    url: "https://gowtham0992.github.io/link/memory-contract.html"
+    fetched: 2026-08-03T00:00:00Z
+    title: "Agent memory contract — a predictable local memory interface for agents"
+
+  - slug: link-why
+    type: web
+    url: "https://gowtham0992.github.io/link/why-link.html"
+    fetched: 2026-08-03T00:00:00Z
+    title: "Why Link — not a notes app, local memory for agents"
+
+  - slug: link-github-repo
+    type: repository
+    url: "https://github.com/gowtham0992/link"
+    fetched: 2026-08-03T00:00:00Z
+    title: "Link source repository — architecture and design decisions"

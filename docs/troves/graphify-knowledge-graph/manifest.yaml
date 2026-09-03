@@ -1,0 +1,86 @@
+trove: graphify-knowledge-graph
+created: 2026-06-10
+refreshed: 2026-06-10
+tags:
+  - knowledge-graph
+  - code-intelligence
+  - static-analysis
+  - ai-coding-assistant
+  - tree-sitter
+  - leiden-clustering
+  - multi-modal-code-understanding
+
+freshness-ttl:
+  web: 7d
+  documentation-site: 7d
+  repository: 30d
+
+history:
+  - event: created
+    date: 2026-06-10
+    commit: TBD
+    sources: 10
+
+referenced-by: []
+
+sources:
+  - source-id: graphify-website
+    type: web
+    url: "https://graphify.net/"
+    fetched: 2026-06-10T12:00:00Z
+    title: "Graphify — Open-Source Knowledge Graph Skill for AI Coding Assistants"
+    hash: "8829ff5be787d86db9cd070a747b4994ccb1149cde27b2d114625dbbc4397808"
+
+  - source-id: vs-alternatives
+    type: web
+    url: "https://graphify.net/graphify-vs-alternatives.html"
+    fetched: 2026-06-10T12:00:00Z
+    title: "Graphify vs Sourcegraph, Code2Vec and Neo4j — Honest Comparison"
+    hash: "e79b5a5b1711af7bfd31acc64eb26db1deb2692e15382f36c340621ad0430407"
+
+  - source-id: tree-sitter-ast
+    type: web
+    url: "https://graphify.net/tree-sitter-ast-extraction.html"
+    fetched: 2026-06-10T12:00:00Z
+    title: "Tree-sitter AST Extraction Across 19 Languages"
+    hash: "67c89192b9d4e25168c9e5b18107e2328ae3e79a343727736593a0ac17a25b71"
+
+  - source-id: knowledge-graph-for-ai
+    type: web
+    url: "https://graphify.net/knowledge-graph-for-ai-coding-assistants.html"
+    fetched: 2026-06-10T12:00:00Z
+    title: "Knowledge Graphs for AI Coding Assistants"
+    hash: "ceefa41417094eb3f79e36a08b4f0a0b5be47a804318462fd63f56f92ae30ab0"
+
+  - source-id: leiden-community
+    type: web
+    url: "https://graphify.net/leiden-community-detection.html"
+    fetched: 2026-06-10T12:00:00Z
+    title: "Leiden Community Detection Without Embeddings"
+    hash: "0768af6f76916857a002f95528ac63c11bafa9cd0bdf68deba7a7f4b12c532e4"
+
+  - source-id: claude-code-integration
+    type: web
+    url: "https://graphify.net/graphify-claude-code-integration.html"
+    fetched: 2026-06-10T12:00:00Z
+    title: "Graphify + Claude Code Integration — Always-On Knowledge Graph"
+    hash: "64fdc2bc92ff00b727cf15ffb8e6d787cd3db065395f9650d884567e25f8a703"
+
+  - source-id: cli-commands
+    type: web
+    url: "https://graphify.net/graphify-cli-commands.html"
+    fetched: 2026-06-10T12:00:00Z
+    title: "Graphify CLI Command Reference"
+    hash: "f749318802559ba2493a43f2082163ef727ac6205537fd27d82945fd5f6a563b"
+
+  - source-id: graphify-github
+    type: repository
+    url: "https://github.com/safishamsi/graphify"
+    fetched: 2026-06-10T12:00:00Z
+    title: "safishamsi/graphify — GitHub Repository"
+    hash: "d6431bfde0f672dc87266dc0a15323ff4a85f561ead54ab0add29c1453ec6385"
+    highlights:
+      - "graphify-github-readme.md"
+      - "graphify-github-architecture.md"
+    notes: "Extracted README.md, AGENTS.md, ARCHITECTURE.md. Full repo available at upstream."
+    selective: true

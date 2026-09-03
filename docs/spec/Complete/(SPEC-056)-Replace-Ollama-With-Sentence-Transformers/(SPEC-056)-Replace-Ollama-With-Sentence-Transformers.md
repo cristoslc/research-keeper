@@ -1,10 +1,10 @@
 ---
 artifact-id: SPEC-056
 title: Replace Ollama With Sentence Transformers
-status: Active
+status: Reverted
 type: enhancement
 created: 2026-04-08
-last-updated: 2026-04-08
+last-updated: 2026-05-04
 parent-epic: null
 parent-initiative: null
 linked-artifacts:
@@ -185,6 +185,8 @@ If issues arise:
 3. Operator runs `ollama pull nomic-embed-text` manually
 
 **Note:** This is a last resort — Ollama support removed entirely.
+
+> **Reverted 2026-05-04** by commit `4bdb78a` (v1.15.0) — "switch embeddings to Ollama, removing sentence-transformers and torch". The in-process sentence-transformers backend caused OOM crashes loading ML models; Ollama's `/api/embed` endpoint was restored as the sole backend and sentence-transformers/torch/transformers were removed from dependencies. This spec is superseded.
 
 ## Open Questions
 

@@ -118,7 +118,7 @@ def test_init_includes_screenshots_in_config(tmp_path: Path):
 
     with patch(
         "research_keeper.component_installer.install_all_components",
-        return_value={"embedding-model": "already_installed", "playwright-chromium": "already_installed"},
+        return_value={"playwright-chromium": "already_installed"},
     ):
         result = runner.invoke(main, ["init", str(target)], catch_exceptions=False)
 
