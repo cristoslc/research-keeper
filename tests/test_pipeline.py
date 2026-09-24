@@ -422,6 +422,53 @@ class TestNormalizationGracefulFailure:
         source_md = (source_dir / "source.md").read_text()
         assert "Test document content" in source_md
 
+    def test_eml_source_preserves_original_and_extracts_content(
+        self, library_root: Path, tmp_path: Path
+    ):
+        """Issue #59: rk add on .eml must extract real content, not echo the path."""
+        from research_keeper.adapters.normalizers.email import EmailNormalizer
+
+        eml_path = tmp_path / "some message.eml"
+        eml_path.write_text(
+            "From: alice@example.com\n"
+            "To: bob@example.com\n"
+            "Subject: Quarterly Planning\n"
+            "Date: Tue, 24 Sep 2026 10:30:00 +0000\n"
+            "\n"
+            "Here are the quarterly planning notes.\n"
+        )
+
+        store = FilesystemSourceStore(library_root)
+        index = SqliteIndex(library_root / "rk.db")
+        embedder = MagicMock()
+        embedder._model_name = "test-model"
+        embedder.embed.return_value = b"\x00" * 16
+        embedder.embed_batch.side_effect = (
+            lambda contents, e=embedder.embed.return_value: [e] * len(contents)
+        )
+
+        pipeline = IntakePipeline(
+            source_store=store,
+            index=index,
+            embedder=embedder,
+            normalizers={"note": NotesNormalizer(), "email": EmailNormalizer()},
+        )
+
+        source = pipeline.add(str(eml_path))
+
+        source_dir = library_root / "library" / "sources" / source.slug
+        source_md = (source_dir / "source.md").read_text()
+        # Real content, not the path string
+        assert "quarterly planning notes" in source_md
+        assert str(eml_path) not in source_md
+        # Original preserved for re-normalization
+        assert (source_dir / "original.eml").exists()
+        import yaml
+
+        manifest = yaml.safe_load((source_dir / "manifest.yaml").read_text())
+        assert manifest["original-file"] == "original.eml"
+        assert manifest["normalization-status"] == "ok"
+
 
 class TestChunkEmbeddingIntegration:
     def test_add_long_source_then_search_returns_chunk(self, chunk_pipeline):

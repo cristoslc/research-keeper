@@ -28,6 +28,14 @@ def test_pdf_path():
     assert result == "document"
 
 
+def test_eml_path():
+    result = identify_content_type(
+        raw="/tmp/some message.eml",
+        metadata={},
+    )
+    assert result == "email"
+
+
 def test_markdown_extension():
     result = identify_content_type(
         raw="/tmp/notes.md",

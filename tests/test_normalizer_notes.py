@@ -1,7 +1,10 @@
 # tests/test_normalizer_notes.py
 from __future__ import annotations
 
+import pytest
+
 from research_keeper.adapters.normalizers.notes import NotesNormalizer
+from research_keeper.ports.normalizer import NormalizationError
 
 
 def test_markdown_passthrough():
@@ -84,8 +87,22 @@ def test_file_path_title_not_overridden(tmp_path):
     assert meta["title"] == "Custom"
 
 
-def test_nonexistent_path_treated_as_inline():
+def test_nonexistent_txt_path_raises(tmp_path):
+    """A .txt path that doesn't resolve must error, not become content (issue #53)."""
     normalizer = NotesNormalizer()
-    content, meta, _ = normalizer.normalize("/tmp/does-not-exist.md", {})
+    with pytest.raises(NormalizationError, match="does not resolve"):
+        normalizer.normalize(str(tmp_path / "transcript.txt"), {})
 
-    assert content == "/tmp/does-not-exist.md"
+
+def test_nonexistent_md_path_raises(tmp_path):
+    """Same failure mode for .md: loud error instead of silent path-as-content."""
+    normalizer = NotesNormalizer()
+    with pytest.raises(NormalizationError, match="does not resolve"):
+        normalizer.normalize(str(tmp_path / "notes.md"), {})
+
+
+def test_pathlike_text_without_known_suffix_stays_inline(tmp_path):
+    """Non-.md/.txt single-line input with a suffix stays inline content (e.g. '.eml' handled by EmailNormalizer; other types legitimately inline)."""
+    normalizer = NotesNormalizer()
+    content, _meta, _ = normalizer.normalize("version 1.17.0 changelog entry", {})
+    assert content == "version 1.17.0 changelog entry"

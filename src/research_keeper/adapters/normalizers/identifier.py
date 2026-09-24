@@ -18,6 +18,7 @@ EXTENSION_MAP: dict[str, str] = {
     ".docx": "document",
     ".pptx": "document",
     ".xlsx": "document",
+    ".eml": "email",
     ".md": "note",
     ".txt": "note",
     ".mp3": "media",
