@@ -27,7 +27,9 @@ BINARY_EXTENSIONS = set(EXTENSION_MAP.keys()) - {".md", ".txt"}
 
 
 def _is_binary_content_type(content_type: str) -> bool:
-    return content_type in ("document", "media")
+    # "email" is text, but is treated like binary types: the original .eml is
+    # preserved for re-normalization and failures file a stub (issue #59).
+    return content_type in ("document", "media", "email")
 
 
 def _infer_original_extension(raw: str, content_type: str) -> str | None:

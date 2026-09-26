@@ -4,6 +4,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from research_keeper.ports.normalizer import NormalizationError
+
 
 class NotesNormalizer:
     """Normalize plain text or markdown notes."""
@@ -14,11 +16,22 @@ class NotesNormalizer:
         text = raw if isinstance(raw, str) else raw.decode("utf-8", errors="replace")
         text = text.strip()
 
-        # If text is a file path to an existing file, read its content
+        # If text is a file path to an existing file, read its content.
+        # Path-like input for a known text format that does NOT resolve to a
+        # file must error loudly, never silently become content (issue #53).
         filename_title: str | None = None
         if "\n" not in text and len(text) < 4096:
             path = Path(text)
-            if path.is_file() and path.suffix.lower() in (".md", ".txt"):
+            path_like = (
+                "/" in text or " " not in text or text.startswith(("~", "./", "../"))
+            )
+            if path_like and path.suffix.lower() in (".md", ".txt"):
+                if not path.is_file():
+                    raise NormalizationError(
+                        f"Path-like input '{text}' does not resolve to an existing file "
+                        f"(cwd={Path.cwd()})",
+                        stage="note-normalize",
+                    )
                 filename_title = path.stem.replace("-", " ").replace("_", " ")
                 text = path.read_text(encoding="utf-8", errors="replace").strip()
 

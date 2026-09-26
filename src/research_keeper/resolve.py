@@ -122,6 +122,12 @@ def _resolve_impl(root: Path, config) -> str:
     except ImportError:
         pass
     try:
+        from research_keeper.adapters.normalizers.email import EmailNormalizer
+
+        normalizers["email"] = EmailNormalizer()
+    except ImportError:
+        pass
+    try:
         from research_keeper.adapters.normalizers.media import MediaNormalizer
 
         normalizers["media"] = MediaNormalizer()

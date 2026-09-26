@@ -471,6 +471,12 @@ def normalize(slug: str, root: str) -> None:
         except ImportError:
             pass
         try:
+            from research_keeper.adapters.normalizers.email import EmailNormalizer
+
+            normalizers["email"] = EmailNormalizer()
+        except ImportError:
+            pass
+        try:
             from research_keeper.adapters.normalizers.media import MediaNormalizer
 
             normalizers["media"] = MediaNormalizer()
@@ -2192,6 +2198,13 @@ def _build_pipeline(root: Path):
         from research_keeper.adapters.normalizers.documents import DocumentNormalizer
 
         normalizers["document"] = DocumentNormalizer()
+    except ImportError:
+        pass
+
+    try:
+        from research_keeper.adapters.normalizers.email import EmailNormalizer
+
+        normalizers["email"] = EmailNormalizer()
     except ImportError:
         pass
 
