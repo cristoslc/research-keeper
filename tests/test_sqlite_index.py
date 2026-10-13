@@ -230,6 +230,84 @@ class TestTagsForSource:
         assert idx.tags_for_source("nonexistent-source") == []
 
 
+class TestSearchFtsLiteralTerms:
+    """search_fts must treat the query as literal terms, not FTS5 syntax (#64)."""
+
+    def test_hyphenated_word_finds_source(self, tmp_path: Path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        idx.upsert_source(
+            _make_source("seguin", "Seguin Island Light has a first-order Fresnel lens.")
+        )
+        idx.upsert_source(_make_source("other", "Nothing relevant here."))
+
+        results = idx.search_fts("first-order")
+
+        assert [r.slug for r in results] == ["seguin"]
+
+    def test_well_known_finds_source(self, tmp_path: Path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        idx.upsert_source(_make_source("seguin", "It is a well-known landmark in Maine."))
+
+        results = idx.search_fts("well-known")
+
+        assert [r.slug for r in results] == ["seguin"]
+
+    def test_operator_word_and_is_literal(self, tmp_path: Path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        idx.upsert_source(
+            _make_source(
+                "seguin",
+                "the tallest lighthouse in Maine and the only one with a lens",
+            )
+        )
+
+        results = idx.search_fts("Maine AND")
+
+        assert [r.slug for r in results] == ["seguin"]
+
+    def test_unbalanced_quote_does_not_raise(self, tmp_path: Path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        idx.upsert_source(_make_source("fresnel", "the Fresnel lens"))
+
+        results = idx.search_fts('"Fresnel')
+
+        assert [r.slug for r in results] == ["fresnel"]
+
+    def test_star_is_literal_not_prefix(self, tmp_path: Path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        idx.upsert_source(_make_source("exact", "has the exact word Fresnel here"))
+        idx.upsert_source(_make_source("longer", "the word Fresnelian appears"))
+
+        results = idx.search_fts("Fresnel*")
+
+        assert [r.slug for r in results] == ["exact"]
+
+    def test_colon_term_does_not_raise(self, tmp_path: Path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        idx.upsert_source(_make_source("docs", "see title:foo for details"))
+
+        results = idx.search_fts("title:foo")
+
+        assert [r.slug for r in results] == ["docs"]
+
+    def test_multi_word_query_still_ands(self, tmp_path: Path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        idx.upsert_source(_make_source("qc", "quantum computing explained"))
+        idx.upsert_source(_make_source("q", "quantum only"))
+        idx.upsert_source(_make_source("c", "computing only"))
+
+        results = idx.search_fts("quantum computing")
+
+        assert [r.slug for r in results] == ["qc"]
+
+    def test_empty_query_returns_empty(self, tmp_path: Path):
+        idx = SqliteIndex(tmp_path / "rk.db")
+        idx.upsert_source(_make_source("seguin", "some content"))
+
+        assert idx.search_fts("") == []
+        assert idx.search_fts("   ") == []
+
+
 class TestSourceContentBySlug:
     def test_returns_source_content(self, tmp_path):
         idx = SqliteIndex(tmp_path / "rk.db")
