@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- `rk keyword-search` and the MCP keyword tool no longer fail on hyphenated words or FTS5 operator words; the query is now matched as literal terms (#64).
+
 ## [1.17.0] - 2026-07-17
 
 ### Features

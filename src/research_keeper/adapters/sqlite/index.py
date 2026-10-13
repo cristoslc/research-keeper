@@ -119,13 +119,20 @@ class SqliteIndex:
         self._conn.commit()
 
     def search_fts(self, query: str, limit: int = 20) -> list[Source]:
+        # Quote each term so FTS5 treats it as a literal phrase, not query
+        # syntax; '-' would read as a column filter, AND/OR/NOT/NEAR as
+        # operators, and '*', '^', ':' or unbalanced quotes as syntax.
+        terms = query.split()
+        if not terms:
+            return []
+        quoted = ['"' + term.replace('"', '""') + '"' for term in terms]
         cur = self._conn.cursor()
         cur.execute(
             """SELECT n.* FROM node_search fs
             JOIN nodes n ON fs.id = n.id
             WHERE node_search MATCH ?
             LIMIT ?""",
-            (query, limit),
+            (" ".join(quoted), limit),
         )
         return [self._row_to_source(row) for row in cur.fetchall()]
 
