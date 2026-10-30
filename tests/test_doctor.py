@@ -763,6 +763,44 @@ class TestCheckLinkShape:
         assert copied.exists()
         assert (copied / "source.md").exists()
 
+    def test_tag_named_sources_not_flagged(self, lib_root: Path):
+        """A tag legally named 'sources' must not be mistaken for a link dir.
+
+        Regression: node names are free text, so classification by name
+        flagged the node's own structural link directories (orchestrator
+        review of PR #68).
+        """
+        from research_keeper.doctor import check_link_shape
+
+        node = lib_root / "tags" / "sources"
+        (node / "sources").mkdir(parents=True)
+        (node / "tags").mkdir()
+        (node / "queries").mkdir()
+        (node / "synthesis.md").write_text("# synthesis")
+        results = check_link_shape(lib_root)
+        assert len(results) == 0
+
+    def test_tag_named_sources_zero_findings_and_copies_still_flagged(
+        self, lib_root: Path
+    ):
+        """Both halves of the regression: clean colliding-name tag passes,
+        copied source dirs under a normal tag are still reported."""
+        from research_keeper.doctor import check_link_shape
+
+        node = lib_root / "tags" / "sources"
+        (node / "sources").mkdir(parents=True)
+        (node / "tags").mkdir()
+        (node / "queries").mkdir()
+        (node / "synthesis.md").write_text("# synthesis")
+
+        (lib_root / "tags" / "planning" / "sources" / "copied-source").mkdir(
+            parents=True
+        )
+
+        results = check_link_shape(lib_root)
+        assert len(results) == 1
+        assert "copied-source" in results[0].message
+
     def test_remediation_mentions_cited_sources_loss(self, lib_root: Path):
         from research_keeper.doctor import check_link_shape
 

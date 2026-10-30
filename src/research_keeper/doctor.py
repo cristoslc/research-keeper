@@ -669,9 +669,13 @@ def check_untagged_sources(root: Path) -> list[DiagnosticResult]:
 def check_link_shape(root: Path) -> list[DiagnosticResult]:
     """Check for real directories sitting where link trees expect symlinks.
 
-    Under tags/, queries/, and investigations/, every entry of a sources/,
-    tags/, or queries/ directory must be a symlink. A real directory there
-    (e.g. a copied source directory) is skipped by symlink-based readers, so
+    Link directories are identified by position, not by name: node names
+    are free text, so a tag may legally be called 'sources' and its own
+    structural directories must not be mistaken for link directories. The
+    layout is <tree>/<node>/{sources,tags,queries}/<entry>: entries of a
+    link directory must be symlinks, and a real directory there is a
+    copied node whose own link directories are walked the same way. A real
+    directory in link position is skipped by symlink-based readers, so
     'rk rebuild' derives empty cited_sources and citations silently drop
     (issue #67). Report-only: these directories hold real files, so --fix
     must not delete them.
@@ -681,33 +685,41 @@ def check_link_shape(root: Path) -> list[DiagnosticResult]:
     for search_dir in [root / "tags", root / "queries", root / "investigations"]:
         if not search_dir.exists():
             continue
-        for dirpath, dirnames, _filenames in os.walk(search_dir):
-            base = Path(dirpath)
-            if base == search_dir:
-                # The tree root itself (e.g. tags/) is structural, not a link
-                # directory, even though its name collides with LINK_DIR_NAMES.
-                continue
-            if base.name not in LINK_DIR_NAMES:
-                continue
-            for name in dirnames:
-                candidate = Path(dirpath) / name
-                if not candidate.is_symlink():
-                    results.append(
-                        DiagnosticResult(
-                            severity=Severity.WARNING,
-                            check="link_shape",
-                            message=f"Real directory where a symlink is expected: {candidate}",
-                            remediation=(
-                                "This directory holds real files, so 'rk doctor --fix' will not remove it. "
-                                "Compare it with library/sources/<slug> (or the sibling node), keep one copy, "
-                                "replace the directory with a symlink, then run 'rk resolve'. "
-                                "A real directory here makes 'rk rebuild' derive empty cited_sources for the node, "
-                                "silently dropping its citations."
-                            ),
-                        )
-                    )
+        for node in search_dir.iterdir():
+            if node.is_dir() and not node.is_symlink():
+                _walk_link_dirs(node, results)
 
     return results
+
+
+def _walk_link_dirs(node: Path, results: list[DiagnosticResult]) -> None:
+    """Flag real directories in link position under a node.
+
+    Recurses into flagged copies: a copied node's own link directories
+    hold further copies that are defects in their own right.
+    """
+    for link_dir_name in sorted(LINK_DIR_NAMES):
+        link_dir = node / link_dir_name
+        if link_dir.is_symlink() or not link_dir.is_dir():
+            continue
+        for entry in link_dir.iterdir():
+            if entry.is_symlink() or not entry.is_dir():
+                continue
+            results.append(
+                DiagnosticResult(
+                    severity=Severity.WARNING,
+                    check="link_shape",
+                    message=f"Real directory where a symlink is expected: {entry}",
+                    remediation=(
+                        "This directory holds real files, so 'rk doctor --fix' will not remove it. "
+                        "Compare it with library/sources/<slug> (or the sibling node), keep one copy, "
+                        "replace the directory with a symlink, then run 'rk resolve'. "
+                        "A real directory here makes 'rk rebuild' derive empty cited_sources for the node, "
+                        "silently dropping its citations."
+                    ),
+                )
+            )
+            _walk_link_dirs(entry, results)
 
 
 def _count_alpha_words(text: str) -> int:
