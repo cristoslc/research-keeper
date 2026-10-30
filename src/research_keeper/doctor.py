@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import os
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -10,6 +11,16 @@ from typing import Callable
 import yaml
 
 logger = logging.getLogger(__name__)
+
+# Minimum alphabetic words a normalized source.md must carry to count as
+# retrievable content (issue #67). Alphabetic words exclude pure-number
+# tokens, so a headerless numeric table still reads as empty.
+THIN_CONTENT_MIN_WORDS = 60
+
+# Subdirectory names under tags/, queries/, and investigations/ whose
+# entries are expected to be symlinks into library/sources or sibling
+# node directories.
+LINK_DIR_NAMES = {"sources", "tags", "queries"}
 
 
 class Severity(Enum):
@@ -64,32 +75,35 @@ def check_duplicate_hashes(root: Path) -> list[DiagnosticResult]:
 
 
 def check_orphaned_symlinks(root: Path, fix: bool = False) -> list[DiagnosticResult]:
-    """Check for broken symlinks in tags/, queries/, investigations/."""
+    """Check for broken symlinks anywhere under tags/, queries/, investigations/.
+
+    Walks the full trees recursively (issue #67): links nested below the
+    node level (e.g. investigations/<inv>/queries/<qid>/tags/<tag>) were
+    invisible to the old two-level scan. Symlinked directories are not
+    descended into, so links are reported once, at their true path.
+    """
     results = []
 
     for search_dir in [root / "tags", root / "queries", root / "investigations"]:
         if not search_dir.exists():
             continue
-        for node_dir in search_dir.iterdir():
-            if not node_dir.is_dir():
-                continue
-            for subdir_name in ["sources", "tags", "queries"]:
-                subdir = node_dir / subdir_name
-                if not subdir.exists():
-                    continue
-                for symlink in subdir.iterdir():
-                    if symlink.is_symlink() and not symlink.resolve().exists():
-                        results.append(
-                            DiagnosticResult(
-                                severity=Severity.WARNING,
-                                check="orphaned_symlinks",
-                                message=f"Broken symlink: {symlink}",
-                                remediation="Run 'rk doctor --fix' to remove orphaned symlinks, or delete manually.",
-                            )
+        # followlinks=False keeps the walk inside the tree itself: symlinked
+        # directories appear as entries but are not recursed into.
+        for dirpath, dirnames, filenames in os.walk(search_dir):
+            for name in dirnames + filenames:
+                symlink = Path(dirpath) / name
+                if symlink.is_symlink() and not symlink.resolve().exists():
+                    results.append(
+                        DiagnosticResult(
+                            severity=Severity.WARNING,
+                            check="orphaned_symlinks",
+                            message=f"Broken symlink: {symlink}",
+                            remediation="Run 'rk doctor --fix' to remove orphaned symlinks, or delete manually.",
                         )
-                        if fix:
-                            symlink.unlink()
-                            logger.info("Removed orphaned symlink: %s", symlink)
+                    )
+                    if fix:
+                        symlink.unlink()
+                        logger.info("Removed orphaned symlink: %s", symlink)
 
     return results
 
@@ -605,6 +619,151 @@ def check_normalization_status(root: Path) -> list[DiagnosticResult]:
     ]
 
 
+def check_untagged_sources(root: Path) -> list[DiagnosticResult]:
+    """Check for sources whose manifest lists tags but that no tag links.
+
+    A source is reachable by tag only through a tags/<tag>/sources/<slug>
+    symlink. Sources that claim tags but have no such link cannot be
+    retrieved by tag at all (issue #67, class 1).
+    """
+    sources_dir = root / "library" / "sources"
+    if not sources_dir.exists():
+        return []
+
+    linked_slugs: set[str] = set()
+    tags_dir = root / "tags"
+    if tags_dir.exists():
+        for tag_dir in tags_dir.iterdir():
+            if not tag_dir.is_dir():
+                continue
+            tag_sources = tag_dir / "sources"
+            if not tag_sources.exists():
+                continue
+            for entry in tag_sources.iterdir():
+                linked_slugs.add(entry.name)
+
+    results: list[DiagnosticResult] = []
+    for src_dir in sources_dir.iterdir():
+        if not src_dir.is_dir():
+            continue
+        manifest_path = src_dir / "manifest.yaml"
+        if not manifest_path.exists():
+            continue
+        manifest = yaml.safe_load(manifest_path.read_text()) or {}
+        tags = manifest.get("tags") or []
+        if not tags:
+            continue
+        if src_dir.name not in linked_slugs:
+            results.append(
+                DiagnosticResult(
+                    severity=Severity.WARNING,
+                    check="untagged_sources",
+                    message=f"Source lists tags {tags} but no tag links it: {src_dir.name}",
+                    remediation="Run 'rk resolve' to create the missing tag links, or clear the tags list in the manifest if the source should stay untagged.",
+                )
+            )
+
+    return results
+
+
+def check_link_shape(root: Path) -> list[DiagnosticResult]:
+    """Check for real directories sitting where link trees expect symlinks.
+
+    Link directories are identified by position, not by name: node names
+    are free text, so a tag may legally be called 'sources' and its own
+    structural directories must not be mistaken for link directories. The
+    layout is <tree>/<node>/{sources,tags,queries}/<entry>: entries of a
+    link directory must be symlinks, and a real directory there is a
+    copied node whose own link directories are walked the same way. A real
+    directory in link position is skipped by symlink-based readers, so
+    'rk rebuild' derives empty cited_sources and citations silently drop
+    (issue #67). Report-only: these directories hold real files, so --fix
+    must not delete them.
+    """
+    results: list[DiagnosticResult] = []
+
+    for search_dir in [root / "tags", root / "queries", root / "investigations"]:
+        if not search_dir.exists():
+            continue
+        for node in search_dir.iterdir():
+            if node.is_dir() and not node.is_symlink():
+                _walk_link_dirs(node, results)
+
+    return results
+
+
+def _walk_link_dirs(node: Path, results: list[DiagnosticResult]) -> None:
+    """Flag real directories in link position under a node.
+
+    Recurses into flagged copies: a copied node's own link directories
+    hold further copies that are defects in their own right.
+    """
+    for link_dir_name in sorted(LINK_DIR_NAMES):
+        link_dir = node / link_dir_name
+        if link_dir.is_symlink() or not link_dir.is_dir():
+            continue
+        for entry in link_dir.iterdir():
+            if entry.is_symlink() or not entry.is_dir():
+                continue
+            results.append(
+                DiagnosticResult(
+                    severity=Severity.WARNING,
+                    check="link_shape",
+                    message=f"Real directory where a symlink is expected: {entry}",
+                    remediation=(
+                        "This directory holds real files, so 'rk doctor --fix' will not remove it. "
+                        "Compare it with library/sources/<slug> (or the sibling node), keep one copy, "
+                        "replace the directory with a symlink, then run 'rk resolve'. "
+                        "A real directory here makes 'rk rebuild' derive empty cited_sources for the node, "
+                        "silently dropping its citations."
+                    ),
+                )
+            )
+            _walk_link_dirs(entry, results)
+
+
+def _count_alpha_words(text: str) -> int:
+    """Count words containing at least one alphabetic character."""
+    return sum(1 for token in text.split() if any(ch.isalpha() for ch in token))
+
+
+def check_thin_content(root: Path) -> list[DiagnosticResult]:
+    """Check for sources whose normalized text is empty or too thin to retrieve.
+
+    Kept separate from check_normalization_status (issue #67): that check
+    only reads the normalization-status field, which reads 'ok' even when
+    normalization silently dropped text, and the remediation differs.
+    """
+    sources_dir = root / "library" / "sources"
+    if not sources_dir.exists():
+        return []
+
+    results: list[DiagnosticResult] = []
+    for src_dir in sources_dir.iterdir():
+        if not src_dir.is_dir():
+            continue
+        if not (src_dir / "manifest.yaml").exists():
+            continue
+        source_md = src_dir / "source.md"
+        text = source_md.read_text() if source_md.exists() else ""
+        words = _count_alpha_words(text)
+        if words < THIN_CONTENT_MIN_WORDS:
+            results.append(
+                DiagnosticResult(
+                    severity=Severity.WARNING,
+                    check="thin_content",
+                    message=f"Thin normalized content ({words} alphabetic words < {THIN_CONTENT_MIN_WORDS}): {src_dir.name}",
+                    remediation=(
+                        "normalization-status may read 'ok' while text was silently dropped. "
+                        "Inspect the original and re-normalize via the .pending/normalize sidecar, then run 'rk resolve'. "
+                        "Legitimately short note sources will trigger this warning; ignore those."
+                    ),
+                )
+            )
+
+    return results
+
+
 def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     """Run all health checks."""
     results: list[DiagnosticResult] = []
@@ -621,4 +780,7 @@ def run_doctor(root: Path, fix: bool = False) -> list[DiagnosticResult]:
     results.extend(check_metadata(root, fix=fix))
     results.extend(check_db_filesystem_drift(root))
     results.extend(check_normalization_status(root))
+    results.extend(check_untagged_sources(root))
+    results.extend(check_link_shape(root))
+    results.extend(check_thin_content(root))
     return results

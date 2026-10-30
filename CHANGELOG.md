@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `rk doctor` detects three structural defect classes it previously missed (#67): `untagged_sources` (a manifest lists tags but no `tags/<tag>/sources/<slug>` link reaches the source), `link_shape` (a real directory sits where the tag/query/investigation link trees expect a symlink — reported only, never auto-removed), and `thin_content` (a normalized `source.md` carries fewer than 60 alphabetic words even when `normalization-status` reads ok). `check_orphaned_symlinks` now walks the `tags/`, `queries/`, and `investigations/` trees recursively, so links nested below the node level are found and `--fix` removes them.
+
 ### Fixed
 
 - `rk keyword-search` and the MCP keyword tool no longer fail on hyphenated words or FTS5 operator words; the query is now matched as literal terms (#64).
