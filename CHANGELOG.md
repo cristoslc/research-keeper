@@ -6,6 +6,10 @@
 
 - `rk keyword-search` and the MCP keyword tool no longer fail on hyphenated words or FTS5 operator words; the query is now matched as literal terms (#64).
 
+### Performance
+
+- Semantic search is ~17x faster on large libraries: embeddings are scored by sqlite-vec inside SQLite in a single statement instead of a per-row Python full scan; results and ranking are unchanged (#66).
+
 ## [1.17.0] - 2026-07-17
 
 ### Features
