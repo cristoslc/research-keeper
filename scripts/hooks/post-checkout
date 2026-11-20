@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Post-checkout hook: auto-revert non-main branch checkouts in the root directory.
+# Only applies to the main worktree (not nested worktrees).
+set -euo pipefail
+
+# Git LFS installs its own post-checkout hook; this file replaces it, so chain to
+# git-lfs on every exit path. git-lfs prints its own errors.
+lfs_args=("$@")
+run_lfs_post_checkout() {
+    if command -v git-lfs >/dev/null 2>&1; then
+        git lfs post-checkout "${lfs_args[@]}"
+    else
+        echo "post-checkout: git-lfs not found on PATH; this repo tracks binary files with Git LFS" >&2
+    fi
+}
+trap run_lfs_post_checkout EXIT
+
+# Skip if SKIP_WORKTREE_CHECK is set
+if [ "${SKIP_WORKTREE_CHECK:-}" = "1" ]; then
+    exit 0
+fi
+
+# Recursion guard: the revert checkout below would re-trigger this hook
+if [ "${WORKTREE_HOOK_ACTIVE:-}" = "1" ]; then
+    exit 0
+fi
+
+# Skip if we're inside a worktree (nested worktrees are fine)
+if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
+    exit 0
+fi
+
+# post-checkout hook args: <old-ref> <new-ref> <is-branch-checkout>
+if [ "${3:-}" != "1" ]; then
+    exit 0
+fi
+
+OLD_REF="${1:-}"
+
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+
+for allowed in main trunk master; do
+    if [ "$CURRENT_BRANCH" = "$allowed" ]; then
+        exit 0
+    fi
+done
+
+# HEAD detached: allow (a temporary state, not a branch checkout)
+if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+    exit 0
+fi
+
+echo "ERROR: Cannot stay on branch '$CURRENT_BRANCH' in the root directory."
+echo ""
+echo "The root directory must stay on trunk. To work on this branch:"
+echo ""
+echo "  1. Create a worktree:  git worktree add .worktrees/$CURRENT_BRANCH $CURRENT_BRANCH"
+echo "  2. Work inside:  cd .worktrees/$CURRENT_BRANCH"
+echo ""
+echo "Reverting to previous HEAD..."
+# Prefer the branch we came from, so the root does not end up on a detached HEAD.
+SKIP_WORKTREE_CHECK=1 WORKTREE_HOOK_ACTIVE=1 git checkout --quiet '@{-1}' \
+    || SKIP_WORKTREE_CHECK=1 WORKTREE_HOOK_ACTIVE=1 git checkout --quiet "$OLD_REF" \
+    || SKIP_WORKTREE_CHECK=1 WORKTREE_HOOK_ACTIVE=1 git checkout --quiet trunk
+echo "Restored root to $(git rev-parse --abbrev-ref HEAD)."
+echo ""
+echo "To override (emergency only): SKIP_WORKTREE_CHECK=1 git checkout $CURRENT_BRANCH"

@@ -1,0 +1,62 @@
+name: Bug report
+description: Something rk does is wrong, or contradicts its docs.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One bug per report. Quote errors and logs verbatim. If a section has nothing to report, write "None".
+  - type: textarea
+    id: reference
+    attributes:
+      label: Issue / reference to issue
+      description: Related issues or PRs, each with its title (for example `#12 (rk add silently drops .eml attachments)`). Write "None" if there are none.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, `rk --version`, Python version, install method (uv tool or dev clone), agent runtime, and any config that affects the behavior.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Numbered, minimal, deterministic. Start from a known state and include sample input. Someone following the steps must hit the bug.
+      placeholder: |
+        1. rk init demo && cd demo
+        2. rk add --text "..." --origin "https://example.com"
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: What should happen when the steps are followed.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: What happens instead. Paste error messages and output verbatim in code fences.
+    validations:
+      required: true
+  - type: textarea
+    id: workarounds
+    attributes:
+      label: Workarounds
+      description: Known ways to avoid or reduce the impact. Write "None known" if there are none.
+    validations:
+      required: true
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Request / recommendation
+      description: Optional. A fix, a triage decision, a priority, or a suggested direction.
+    validations:
+      required: false

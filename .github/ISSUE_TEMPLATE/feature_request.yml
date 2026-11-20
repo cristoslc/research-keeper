@@ -1,0 +1,58 @@
+name: Feature or enhancement request
+description: Something rk lacks, or a way to make an existing capability better.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Lead with the problem; the solution comes later. One request per issue. If rk contradicts its docs or changelog, that is a bug: use the bug report form. If a section has nothing to report, write "None".
+  - type: textarea
+    id: reference
+    attributes:
+      label: Issue / reference to issue
+      description: Related issues or PRs, each with its title. Search open and closed issues first. Write "None" if there are none.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, `rk --version`, Python version, install method, and agent runtime the request is written against.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you were trying to do and what got in the way, with a concrete example (the exact command, file, or slug involved).
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: The outcome that should be possible, in one or two sentences, written as behavior and not as an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance sketch
+      description: Numbered steps plus the observable result that shows the goal is met. Use real values, not placeholders.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: What you do today, and other shapes the solution could take. Write "None known" if there are none.
+    validations:
+      required: true
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Request / recommendation
+      description: Optional. A proposed design, a priority, a scope boundary, or an offer to contribute the change.
+    validations:
+      required: false
