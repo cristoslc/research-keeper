@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Removed the swain skill tooling and governance from the repo: the vendored `swain*` skills and their symlinks under `.claude/`, `.crush/`, and `.goose/`, `swain.settings.json`, `.agents/bin/`, swain runtime state under `.agents/`, and the swain entries in `skills-lock.json` and `.gitignore`. Existing artifact trees under `docs/` and `.tickets/` stay in place as historical record.
+- ADR-010 through ADR-019 (the memory-lifecycle design) moved from Active to Proposed because the code does not implement them.
+- `AGENTS.md` now declares the test command (`uv run pytest`) and links agent spokes under `docs/agents-detail/`. The release-branch conflict rule moved to `docs/agents-detail/release.md`.
+
+### Added
+
+- `LICENSE` (MIT), matching the README.
+- Documentation scaffold: `docs/ARCHITECTURE.md` with C4 and tech-stack pages, `docs/DOMAIN-MODEL-L1.md` with the context map, events, and L2 model under `docs/domain-architecture/`, `docs/DEVELOPER-WORKFLOWS.md`, `docs/USER-EXPERIENCE.md`, and READMEs for each `docs/` directory.
+- Collaboration surfaces: `CONTRIBUTING.md`, bug and feature issue forms with blank issues disabled, and a pull request template.
+- `scripts/staging/` (`deploy.sh`, `e2e.sh`, `teardown.sh`): install a branch into a throwaway directory, run an offline smoke test with the real CLI, and remove it.
+- `scripts/hooks/` with a `post-checkout` hook that keeps the repo root on `trunk`, and an installer.
+- `.gitattributes` Git LFS rules for binary file types, and a fuller `.gitignore`.
+
 ### Fixed
 
 - `rk keyword-search` and the MCP keyword tool no longer fail on hyphenated words or FTS5 operator words; the query is now matched as literal terms (#64).

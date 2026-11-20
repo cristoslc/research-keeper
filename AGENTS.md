@@ -1,6 +1,21 @@
-Read **[PURPOSE.md](../../PURPOSE.md)** for this project's identity, worldview, and foundational principles.
+Read **[PURPOSE.md](PURPOSE.md)** for this project's identity, worldview, and foundational principles.
 
+## Test command
 
-## Release
+```bash
+uv run pytest
+```
 
-When `swain-release` squash-merges trunk into the release branch and hits conflicts, `pyproject.toml` and `uv.lock` must be taken from **trunk**, not the release branch. The release branch can carry stale dependency lists from prior versions. Resolving these files with `--ours` will revert dependency removals and reintroduce dropped packages (e.g., `sentence-transformers`, `torch`, `transformers`). All other conflict files should still prefer `--ours`.
+## Operator-assisted E2E exemption
+
+rk has no manual-interaction flows beyond y/N confirmations (`rk prune`, Git LFS setup), and the agent sidecar loop is fully scriptable, so all E2E is automated.
+
+## Agent guidance (spokes)
+
+Read the hub first, then open the spoke that matches your task. All spokes live in [`docs/agents-detail/`](docs/agents-detail/README.md).
+
+| When you are... | Read |
+|---|---|
+| Orienting in the repo, or looking for where a doc lives | [`project-navigation.md`](docs/agents-detail/project-navigation.md) |
+| Opening an issue or PR, or fixing a bug | [`contribution-guidelines.md`](docs/agents-detail/contribution-guidelines.md) (source of truth: [`CONTRIBUTING.md`](CONTRIBUTING.md)) |
+| Merging trunk into the `release` branch | [`release.md`](docs/agents-detail/release.md) |

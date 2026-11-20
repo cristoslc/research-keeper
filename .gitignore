@@ -1,34 +1,83 @@
-.agents/bin/
-.agents/*.log
-.agents/session.json
-.swain-init
+# research-keeper local state
 rk.db
 qmd_index.db
-__pycache__/
-*.pyc
-.pytest_cache/
-dist/
-*.egg-info/
-.venv/
-.DS_Store
+
+# Secrets
 .env
+.env.*
+!.env.example
 *.pem
 *_rsa
 credentials.*
 secrets.*
-node_modules/
-.claude/worktrees/
-.worktrees/
-.superpowers/
 
-# Subagent dispatch scratch output
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.coverage
+htmlcov/
+build/
+dist/
+.venv/
+
+# Node
+node_modules/
+
+# Go
+*.test
+*.out
+vendor/
+
+# Rust
+target/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+
+# Swift / Xcode
+.build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Worktrees and agent scratch
+.worktrees/
+.claude/worktrees/
+.superpowers/
 .subagents/
 prompts/
 prompts/.worktrees/
 
-# Vendored swain skills (managed by swain-update)
-.claude/skills/swain/
-.claude/skills/swain-*/
+# Installed by `rk skill install`
 .claude/skills/research-keeper/
-.agents/skills/swain/
-.agents/skills/swain-*/
