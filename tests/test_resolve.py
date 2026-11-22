@@ -1491,3 +1491,39 @@ class TestInvestigationSymlinksOnResolve:
         run_resolve(resolve_root)
 
         assert not other_link.exists()
+
+
+class TestResolveCount:
+    def test_normalize_cycle_reports_resolved_count(self, resolve_root: Path):
+        """A cycle that applies a normalize.md must count it as resolved.
+
+        `resolved_count` selects the final status branch, so a mutation that
+        stops incrementing it makes a productive cycle report as idle.
+        """
+        from research_keeper.resolve import run_resolve
+
+        store = FilesystemSourceStore(resolve_root)
+        source = store.add(
+            "# broken.pdf\n\n> Normalization failed",
+            {
+                "title": "Broken PDF",
+                "normalization_status": "failed",
+                "normalization_error": "No text",
+                "original_file": "original.pdf",
+            },
+        )
+
+        source_dir = store.source_dir(source.slug)
+        (source_dir / "original.pdf").write_bytes(b"%PDF-1.4 fake")
+        pending = source_dir / ".pending"
+        pending.mkdir(exist_ok=True)
+        (pending / "normalize.md").write_text(
+            "# Broken PDF\n\nRe-normalized content."
+        )
+
+        output = run_resolve(resolve_root)
+
+        # The sidecar was applied and counted
+        assert "Re-normalized 1 source(s)" in output
+        # ...so the cycle must not report the idle state
+        assert "Nothing pending" not in output

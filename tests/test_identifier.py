@@ -44,6 +44,22 @@ def test_markdown_extension():
     assert result == "note"
 
 
+def test_dotted_filename_without_slash_is_extension_matched():
+    result = identify_content_type(
+        raw="paper.pdf",
+        metadata={},
+    )
+    assert result == "document"
+
+
+def test_slash_path_without_extension_falls_back_to_note():
+    result = identify_content_type(
+        raw="/tmp/paper",
+        metadata={},
+    )
+    assert result == "note"
+
+
 def test_http_url_defaults_to_web():
     result = identify_content_type(
         raw="https://example.com/blog/post",

@@ -36,6 +36,22 @@ class TestFreshnessWeight:
         with pytest.raises(ValueError):
             freshness_weight(datetime.date.today(), half_life_days=0)
 
+    def test_same_day_and_future_ingest_return_full_weight(self):
+        """Age 0 and negative age (future ingest) both clamp to exactly 1.0."""
+        today = datetime.date.today()
+        assert freshness_weight(today, half_life_days=30) == 1.0
+        assert (
+            freshness_weight(today + datetime.timedelta(days=5), half_life_days=30)
+            == 1.0
+        )
+
+    def test_one_day_old_ingest_decays_below_full_weight(self):
+        """A one-day-old ingest must decay; only age <= 0 is clamped."""
+        ingested = datetime.date.today() - datetime.timedelta(days=1)
+        w = freshness_weight(ingested, half_life_days=30)
+        assert w < 1.0
+        assert w == pytest.approx(math.pow(2, -1 / 30), abs=1e-9)
+
 
 class TestCosineSimilarity:
     def _pack(self, vec: list[float]) -> bytes:
