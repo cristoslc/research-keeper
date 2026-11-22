@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Tests
+
+- Added regression tests for five single-line mutations the suite previously missed: the freshness-weight boundary at age 0, the SQLite TTL read-back default, identifier routing for a dot-only or slash-only path, `is_lfs_installed` success/failure/exception paths, and the resolved-source count from `rk resolve`.
+
 ### Changed
 
 - Removed the swain skill tooling and governance from the repo: the vendored `swain*` skills and their symlinks under `.claude/`, `.crush/`, and `.goose/`, `swain.settings.json`, `.agents/bin/`, swain runtime state under `.agents/`, and the swain entries in `skills-lock.json` and `.gitignore`. Existing artifact trees under `docs/` and `.tickets/` stay in place as historical record.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import stat
+import subprocess
 from pathlib import Path
 
 from research_keeper.lfs import (
@@ -30,6 +31,42 @@ def test_lfs_patterns_contains_expected():
     assert "*.flac" in LFS_PATTERNS
     assert "*.ogg" in LFS_PATTERNS
     assert "*.jpeg" in LFS_PATTERNS
+
+
+class TestIsLfsInstalled:
+    def test_returns_true_on_zero_exit(self, monkeypatch):
+        from research_keeper import lfs
+
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(args)
+            return subprocess.CompletedProcess(args, 0)
+
+        monkeypatch.setattr(lfs.subprocess, "run", fake_run)
+
+        assert lfs.is_lfs_installed() is True
+        assert calls == [["git", "lfs", "version"]]
+
+    def test_returns_false_on_nonzero_exit(self, monkeypatch):
+        from research_keeper import lfs
+
+        def fake_run(args, **kwargs):
+            return subprocess.CompletedProcess(args, 1)
+
+        monkeypatch.setattr(lfs.subprocess, "run", fake_run)
+
+        assert lfs.is_lfs_installed() is False
+
+    def test_returns_false_when_git_is_missing(self, monkeypatch):
+        from research_keeper import lfs
+
+        def fake_run(args, **kwargs):
+            raise FileNotFoundError("git")
+
+        monkeypatch.setattr(lfs.subprocess, "run", fake_run)
+
+        assert lfs.is_lfs_installed() is False
 
 
 def test_write_gitattributes_creates_file(tmp_path: Path):

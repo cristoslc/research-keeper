@@ -8,12 +8,17 @@ from research_keeper.adapters.sqlite.index import SqliteIndex
 from research_keeper.models import Freshness, Provenance, Source
 
 
-def _make_source(slug: str, content: str, tags: list[str] | None = None) -> Source:
+def _make_source(
+    slug: str,
+    content: str,
+    tags: list[str] | None = None,
+    ttl: str = "30d",
+) -> Source:
     return Source(
         slug=slug,
         content_path=f"library/sources/{slug}/source.md",
         content=content,
-        freshness=Freshness(ingested=datetime.date(2026, 3, 29)),
+        freshness=Freshness(ingested=datetime.date(2026, 3, 29), ttl=ttl),
         provenance=Provenance(origin="test"),
         tags=tags or [],
     )
@@ -36,6 +41,28 @@ def test_upsert_and_retrieve(tmp_path: Path):
     results = index.search_fts("agents")
     assert len(results) == 1
     assert results[0].slug == "test-source"
+
+
+def test_read_back_empty_ttl_defaults_to_30d(tmp_path: Path):
+    index = SqliteIndex(tmp_path / "rk.db")
+    source = _make_source("empty-ttl", "Content about agents.", ttl="")
+
+    index.upsert_source(source)
+
+    results = index.search_fts("agents")
+    assert len(results) == 1
+    assert results[0].freshness.ttl == "30d"
+
+
+def test_read_back_keeps_explicit_ttl(tmp_path: Path):
+    index = SqliteIndex(tmp_path / "rk.db")
+    source = _make_source("explicit-ttl", "Content about agents.", ttl="90d")
+
+    index.upsert_source(source)
+
+    results = index.search_fts("agents")
+    assert len(results) == 1
+    assert results[0].freshness.ttl == "90d"
 
 
 def test_fts_no_results(tmp_path: Path):
